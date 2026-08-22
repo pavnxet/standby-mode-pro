@@ -4720,23 +4720,66 @@ class App {
     const countEl = document.getElementById('global-views-count');
     if (!countEl) return;
 
-    // 1. Increment local session view count immediately
-    let localCount = 1;
+    // 1. Initial immediate display from local cache
+    let currentCount = 1;
     try {
       const stored = localStorage.getItem('standby_site_views');
-      localCount = (parseInt(stored, 10) || 0) + 1;
-      localStorage.setItem('standby_site_views', String(localCount));
+      currentCount = Math.max(1, (parseInt(stored, 10) || 0) + 1);
+      localStorage.setItem('standby_site_views', String(currentCount));
     } catch (e) {}
+    countEl.textContent = currentCount.toLocaleString();
 
-    countEl.textContent = localCount.toLocaleString();
+    // 2. Query Public Shared Cloud Counter (Increment Global Viewers Across All Devices)
+    const namespace = "pavnxet_standby_mode_pro";
+    const key = "pageviews";
+    let globalCount = null;
 
-    // 2. If Turso DB connected, increment & fetch global cloud count
+    // Primary Cloud Provider: CounterAPI.dev (Public CORS REST API)
+    try {
+      const res = await fetch(`https://api.counterapi.dev/v1/${namespace}/${key}/up`, {
+        method: "GET",
+        headers: { "Accept": "application/json" },
+        mode: "cors"
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && (data.count !== undefined || data.value !== undefined)) {
+          globalCount = data.count !== undefined ? data.count : data.value;
+        }
+      }
+    } catch (e) {
+      // Secondary Cloud Provider: Abacus Integer API
+      try {
+        const res2 = await fetch(`https://abacus.jasoncameron.dev/hit/${namespace}/${key}`, {
+          method: "GET",
+          headers: { "Accept": "application/json" },
+          mode: "cors"
+        });
+        if (res2.ok) {
+          const data2 = await res2.json();
+          if (data2 && data2.value !== undefined) {
+            globalCount = data2.value;
+          }
+        }
+      } catch (e2) {}
+    }
+
+    // 3. Update DOM with shared global count if received
+    if (globalCount !== null && globalCount > 0) {
+      countEl.textContent = Number(globalCount).toLocaleString();
+      try {
+        localStorage.setItem('standby_site_views', String(globalCount));
+      } catch (e) {}
+      return;
+    }
+
+    // 4. Optional Turso DB Cloud Fallback if user configured their own sync
     const cfg = store.getState().tursoConfig;
     if (cfg && cfg.url && cfg.token) {
       try {
         const cloudCount = await tursoSync.incrementGlobalViews();
         if (cloudCount !== null && cloudCount > 0) {
-          countEl.textContent = cloudCount.toLocaleString();
+          countEl.textContent = Number(cloudCount).toLocaleString();
         }
       } catch (e) {}
     }
