@@ -87,7 +87,15 @@ class App {
     new NightModeController();
     new Screensaver();
 
-    // 5. Initialize Hardware Protection & Screen Wake Lock
+    // 5. Initialize Wallpaper Layer
+    this.updateWallpaper();
+    store.subscribe((event) => {
+      if (event === 'wallpaper_changed') {
+        this.updateWallpaper();
+      }
+    });
+
+    // 6. Initialize Hardware Protection & Screen Wake Lock
     burnInProtector.start();
 
     // Unlock Web Audio API on first user interaction
@@ -162,6 +170,22 @@ class App {
       else if (e.key === '3') store.setActiveSpace('focus');
       else if (e.key === '4') store.setActiveSpace('night');
     });
+  }
+
+  updateWallpaper() {
+    const wp = store.getState().wallpaper;
+    const layer = document.getElementById('ambient-wallpaper-layer');
+    if (!layer) return;
+    if (wp && wp.enabled && wp.activeUrl) {
+      layer.style.backgroundImage = `url("${wp.activeUrl}")`;
+      const blurVal = Number.isFinite(wp.blur) ? wp.blur : 6;
+      const dimVal = Number.isFinite(wp.dim) ? wp.dim : 0.5;
+      layer.style.filter = `blur(${blurVal}px) brightness(${1 - dimVal * 0.65})`;
+      layer.style.opacity = "1";
+    } else {
+      layer.style.opacity = "0";
+      layer.style.backgroundImage = "none";
+    }
   }
 
   renderStage() {

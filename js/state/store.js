@@ -109,6 +109,12 @@ const defaultState = {
     idleSeconds: 120,
     style: "clock"
   },
+  wallpaper: {
+    enabled: false,
+    activeUrl: "",
+    blur: 6,
+    dim: 0.5
+  },
   vibes: {
     activeTrack: "none",
     volume: 0.65,
@@ -322,6 +328,28 @@ export class Store {
 
   setWidgets(widgets) {
     this.updateActiveSpace({ widgets });
+  }
+
+  // --- Wallpaper Actions ---
+  setWallpaper(url, blur = 6, dim = 0.5) {
+    this.state.wallpaper = {
+      enabled: true,
+      activeUrl: url,
+      blur: Number.isFinite(blur) ? blur : (this.state.wallpaper.blur || 6),
+      dim: Number.isFinite(dim) ? dim : (this.state.wallpaper.dim || 0.5)
+    };
+    this.notify("wallpaper_changed", this.state.wallpaper);
+  }
+
+  clearWallpaper() {
+    this.state.wallpaper.enabled = false;
+    this.state.wallpaper.activeUrl = "";
+    this.notify("wallpaper_changed", this.state.wallpaper);
+  }
+
+  updateWallpaperSettings(updates) {
+    this.state.wallpaper = { ...this.state.wallpaper, ...updates };
+    this.notify("wallpaper_changed", this.state.wallpaper);
   }
 
   setTickVolume(volume) {
