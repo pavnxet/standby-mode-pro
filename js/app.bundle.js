@@ -3252,7 +3252,9 @@ class StatsModal {
         try {
           await tursoSync.testConnection(url, token);
           await tursoSync.initSchema();
-          if (feedbackEl) feedbackEl.innerHTML = '<span class="text-emerald-400 font-bold">✓ Connection Successful & Schema Initialized!</span>';
+          await tursoSync.pullFromCloud();
+          if (feedbackEl) feedbackEl.innerHTML = '<span class="text-emerald-400 font-bold">✓ Connected & Data Synced from Cloud!</span>';
+          this.render();
         } catch (err) {
           if (feedbackEl) feedbackEl.innerHTML = `<span class="text-red-400">✗ ${err.message}</span>`;
         }
