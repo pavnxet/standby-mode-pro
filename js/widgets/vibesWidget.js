@@ -1,3 +1,6 @@
+import { store } from "../state/store.js";
+import { soundEngine } from "../engines/soundEngine.js";
+
 export const vibesWidget = {
   name: "Vibes & Atmosphere",
   icon: "sparkles",
