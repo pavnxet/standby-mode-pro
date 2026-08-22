@@ -3298,6 +3298,7 @@ var burnInProtector = window.standbyBurnInProtector || (window.standbyBurnInProt
 
 
 
+
 // Clocks
 
 
@@ -3376,8 +3377,17 @@ class App {
     new NightModeController();
     new Screensaver();
 
-    // 5. Initialize Hardware Protection
+    // 5. Initialize Hardware Protection & Screen Wake Lock
     burnInProtector.start();
+
+    // Unlock Web Audio API on first user interaction
+    const unlockAudio = () => {
+      soundEngine.initContext();
+      window.removeEventListener('pointerdown', unlockAudio);
+      window.removeEventListener('keydown', unlockAudio);
+    };
+    window.addEventListener('pointerdown', unlockAudio, { passive: true });
+    window.addEventListener('keydown', unlockAudio, { passive: true });
 
     // 6. Bind Global Fullscreen and Keyboard Actions
     this.initGlobalControls();
