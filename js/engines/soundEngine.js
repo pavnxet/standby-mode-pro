@@ -6,7 +6,7 @@ class SoundEngine {
     this.activeNodes = {};
     this.masterGain = null;
     this.isMuted = false;
-    this.tickVolume = 0.5; // Default 50%
+    this.tickVolume = 0.75; // Default crisp audible volume (75%)
   }
 
   initContext() {
@@ -14,7 +14,7 @@ class SoundEngine {
       const AudioContext = window.AudioContext || window.webkitAudioContext;
       this.ctx = new AudioContext();
       this.masterGain = this.ctx.createGain();
-      this.masterGain.gain.setValueAtTime(0.65, this.ctx.currentTime);
+      this.masterGain.gain.setValueAtTime(0.95, this.ctx.currentTime);
       this.masterGain.connect(this.ctx.destination);
     }
     if (this.ctx.state === "suspended") {
@@ -30,76 +30,100 @@ class SoundEngine {
 
   setTickVolume(val) {
     const num = parseFloat(val);
-    this.tickVolume = Number.isFinite(num) ? Math.max(0, Math.min(1, num)) : 0.5;
+    this.tickVolume = Number.isFinite(num) ? Math.max(0, Math.min(1, num)) : 0.75;
   }
 
   getTickVolume() {
     return this.tickVolume;
   }
 
-  // Play subtle mechanical flip click with customizable volume
+  // Authentic, Crisp & Punchy Mechanical Clock / Flip Tick
   playFlipTick(customVol) {
     const vol = customVol !== undefined ? Math.max(0, Math.min(1, parseFloat(customVol))) : this.tickVolume;
     if (vol <= 0.001) return;
 
     try {
       this.initContext();
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-      const filter = this.ctx.createBiquadFilter();
+      const t = this.ctx.currentTime;
 
-      filter.type = "bandpass";
-      filter.frequency.setValueAtTime(1400, this.ctx.currentTime);
-      filter.Q.setValueAtTime(3.0, this.ctx.currentTime);
+      // --- Layer 1: High-Frequency Snap / Click Transient ---
+      const snapOsc = this.ctx.createOscillator();
+      const snapGain = this.ctx.createGain();
+      const snapFilter = this.ctx.createBiquadFilter();
 
-      osc.type = "triangle";
-      osc.frequency.setValueAtTime(180, this.ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(40, this.ctx.currentTime + 0.035);
+      snapFilter.type = "highpass";
+      snapFilter.frequency.setValueAtTime(1800, t);
 
-      const targetGain = 0.35 * vol;
-      gain.gain.setValueAtTime(targetGain, this.ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + 0.035);
+      snapOsc.type = "sine";
+      snapOsc.frequency.setValueAtTime(2400, t);
+      snapOsc.frequency.exponentialRampToValueAtTime(800, t + 0.015);
 
-      osc.connect(filter);
-      filter.connect(gain);
-      gain.connect(this.masterGain);
+      const snapLevel = 0.85 * vol;
+      snapGain.gain.setValueAtTime(snapLevel, t);
+      snapGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.025);
 
-      osc.start();
-      osc.stop(this.ctx.currentTime + 0.04);
-    } catch (e) {
-      // User gesture might be required
-    }
+      snapOsc.connect(snapFilter);
+      snapFilter.connect(snapGain);
+      snapGain.connect(this.masterGain);
+
+      snapOsc.start(t);
+      snapOsc.stop(t + 0.03);
+
+      // --- Layer 2: Mechanical Gear Body & Resonance Thud ---
+      const bodyOsc = this.ctx.createOscillator();
+      const bodyGain = this.ctx.createGain();
+      const bodyFilter = this.ctx.createBiquadFilter();
+
+      bodyFilter.type = "lowpass";
+      bodyFilter.frequency.setValueAtTime(950, t);
+      bodyFilter.Q.setValueAtTime(2.0, t);
+
+      bodyOsc.type = "triangle";
+      bodyOsc.frequency.setValueAtTime(380, t);
+      bodyOsc.frequency.exponentialRampToValueAtTime(90, t + 0.045);
+
+      const bodyLevel = 0.95 * vol;
+      bodyGain.gain.setValueAtTime(bodyLevel, t);
+      bodyGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.05);
+
+      bodyOsc.connect(bodyFilter);
+      bodyFilter.connect(bodyGain);
+      bodyGain.connect(this.masterGain);
+
+      bodyOsc.start(t);
+      bodyOsc.stop(t + 0.055);
+
+      // --- Layer 3: Subtle Noise Texture Impulse ---
+      const noiseBuffer = this.ctx.createBuffer(1, Math.floor(this.ctx.sampleRate * 0.02), this.ctx.sampleRate);
+      const data = noiseBuffer.getChannelData(0);
+      for (let i = 0; i < data.length; i++) {
+        data[i] = (Math.random() * 2 - 1) * Math.exp(-i / (data.length * 0.3));
+      }
+      const noiseSource = this.ctx.createBufferSource();
+      noiseSource.buffer = noiseBuffer;
+
+      const noiseFilter = this.ctx.createBiquadFilter();
+      noiseFilter.type = "bandpass";
+      noiseFilter.frequency.setValueAtTime(3200, t);
+      noiseFilter.Q.setValueAtTime(1.5, t);
+
+      const noiseGain = this.ctx.createGain();
+      noiseGain.gain.setValueAtTime(0.45 * vol, t);
+      noiseGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.02);
+
+      noiseSource.connect(noiseFilter);
+      noiseFilter.connect(noiseGain);
+      noiseGain.connect(this.masterGain);
+
+      noiseSource.start(t);
+      noiseSource.stop(t + 0.025);
+
+    } catch (e) {}
   }
 
-  // Play soft timer tick for Pomodoro countdown
+  // Crisp timer countdown tick
   playTimerTick(customVol) {
-    const vol = customVol !== undefined ? Math.max(0, Math.min(1, parseFloat(customVol))) : this.tickVolume;
-    if (vol <= 0.001) return;
-
-    try {
-      this.initContext();
-      const osc = this.ctx.createOscillator();
-      const gain = this.ctx.createGain();
-      const filter = this.ctx.createBiquadFilter();
-
-      filter.type = "highpass";
-      filter.frequency.setValueAtTime(1800, this.ctx.currentTime);
-
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(800, this.ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(200, this.ctx.currentTime + 0.02);
-
-      const targetGain = 0.18 * vol;
-      gain.gain.setValueAtTime(targetGain, this.ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + 0.02);
-
-      osc.connect(filter);
-      filter.connect(gain);
-      gain.connect(this.masterGain);
-
-      osc.start();
-      osc.stop(this.ctx.currentTime + 0.025);
-    } catch (e) {}
+    this.playFlipTick(customVol);
   }
 
   // Play Timer Alarm Chime
@@ -115,7 +139,7 @@ class SoundEngine {
       osc.frequency.setValueAtTime(freq, startTime);
 
       gain.gain.setValueAtTime(0, startTime);
-      gain.gain.linearRampToValueAtTime(0.4, startTime + 0.02);
+      gain.gain.linearRampToValueAtTime(0.6, startTime + 0.02);
       gain.gain.exponentialRampToValueAtTime(0.001, startTime + 1.2);
 
       osc.connect(gain);

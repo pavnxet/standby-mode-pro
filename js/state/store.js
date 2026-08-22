@@ -74,7 +74,7 @@ const defaultState = {
     accentColor: "#3b82f6",
     glowIntensity: 1,
     tickSound: true,
-    tickVolume: 0.5
+    tickVolume: 0.85
   },
   pomoState: {
     stage: "focus",
@@ -91,7 +91,7 @@ const defaultState = {
       autoStartBreaks: false,
       autoStartPomo: false,
       tickSound: true,
-      tickVolume: 0.5,
+      tickVolume: 0.85,
       alarmSound: true
     }
   },
