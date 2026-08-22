@@ -4,114 +4,57 @@ const defaultState = {
   activeSpaceId: "home",
   keepScreenAwake: true,
   spaces: {
-    home: {
-      id: "home",
-      name: "Home",
-      icon: "home",
-      layout: "standalone",
-      clockId: "flip",
-      widgets: ["weather", "calendar"],
-      quadWidgets: ["weather", "calendar", "media", "timer"],
-      vibe: "none",
-      themeColor: "#3b82f6"
-    },
-    work: {
-      id: "work",
-      name: "Work",
-      icon: "briefcase",
-      layout: "duo",
-      clockId: "day",
-      widgets: ["calendar", "todo"],
-      quadWidgets: ["day", "calendar", "todo", "tally"],
-      vibe: "binaural",
-      themeColor: "#10b981"
-    },
-    focus: {
-      id: "focus",
-      name: "Focus",
-      icon: "target",
-      layout: "focus",
-      clockId: "flip",
-      widgets: ["timer", "quote"],
-      quadWidgets: ["flip", "timer", "quote", "todo"],
-      vibe: "rain",
-      themeColor: "#a855f7"
-    },
-    night: {
-      id: "night",
-      name: "Night",
-      icon: "moon",
-      layout: "standalone",
-      clockId: "segmented",
-      widgets: ["weather", "timer"],
-      quadWidgets: ["segmented", "weather", "timer", "vibes"],
-      vibe: "waves",
-      themeColor: "#ff3b30"
-    }
+    home: { id: "home", name: "Home", icon: "home", layout: "standalone", clockId: "flip", widgets: ["weather", "calendar"], quadWidgets: ["weather", "calendar", "media", "timer"], vibe: "none", themeColor: "#3b82f6" },
+    work: { id: "work", name: "Work", icon: "briefcase", layout: "duo", clockId: "day", widgets: ["calendar", "todo"], quadWidgets: ["day", "calendar", "todo", "tally"], vibe: "binaural", themeColor: "#10b981" },
+    focus: { id: "focus", name: "Focus", icon: "target", layout: "focus", clockId: "flip", widgets: ["timer", "quote"], quadWidgets: ["flip", "timer", "quote", "todo"], vibe: "rain", themeColor: "#a855f7" },
+    night: { id: "night", name: "Night", icon: "moon", layout: "standalone", clockId: "segmented", widgets: ["weather", "timer"], quadWidgets: ["segmented", "weather", "timer", "vibes"], vibe: "waves", themeColor: "#ff3b30" }
   },
-  clockConfig: {
-    is24Hour: false,
-    showSeconds: true,
-    showDate: true,
-    fontFamily: "var(--font-sans)",
-    accentColor: "#3b82f6",
-    glowIntensity: 1,
-    tickSound: true
-  },
+  clockConfig: { is24Hour: false, showSeconds: true, showDate: true, fontFamily: "var(--font-sans)", accentColor: "#3b82f6", glowIntensity: 1, tickSound: true },
   pomoState: {
-    stage: "focus",
-    remainingSeconds: 1500,
-    totalSeconds: 1500,
-    isRunning: false,
-    currentCycle: 1,
-    totalCompletedSessions: 0,
-    settings: {
-      focusDuration: 25,
-      shortBreakDuration: 5,
-      longBreakDuration: 15,
-      longBreakInterval: 4,
-      autoStartBreaks: false,
-      autoStartPomo: false,
-      tickSound: true,
-      alarmSound: true
-    }
+    stage: "focus", remainingSeconds: 1500, totalSeconds: 1500, isRunning: false, currentCycle: 1, totalCompletedSessions: 0,
+    settings: { focusDuration: 25, shortBreakDuration: 5, longBreakDuration: 15, longBreakInterval: 4, autoStartBreaks: false, autoStartPomo: false, tickSound: true, alarmSound: true }
   },
-  nightMode: {
-    enabled: false,
-    tint: "red",
-    dimLevel: 0.75
-  },
-  burnInProtection: {
-    enabled: true,
-    intervalMinutes: 1
-  },
-  screensaver: {
-    enabled: true,
-    idleSeconds: 120,
-    style: "clock"
-  },
-  vibes: {
-    activeTrack: "none",
-    volume: 0.65,
-    visualizer: "stars"
-  },
-  mediaState: {
-    isPlaying: false,
-    currentTrackIndex: 0,
-    progressPercent: 35,
-    volume: 0.8
-  },
+  nightMode: { enabled: false, tint: "red", dimLevel: 0.75 },
+  burnInProtection: { enabled: true, intervalMinutes: 1 },
+  screensaver: { enabled: true, idleSeconds: 120, style: "clock" },
+  vibes: { activeTrack: "none", volume: 0.65, visualizer: "stars" },
+  mediaState: { isPlaying: false, currentTrackIndex: 0, progressPercent: 35, volume: 0.8 },
   todos: [
     { id: "1", text: "Morning Deep Focus Sprint", completed: true },
     { id: "2", text: "Architecture & Code Review", completed: false },
     { id: "3", text: "Pomodoro Milestone 4/4", completed: false },
     { id: "4", text: "Evening Walk & Recharge", completed: false }
   ],
-  tallies: {
-    focusSessions: 4,
-    water: 3
-  }
+  tallies: { focusSessions: 4, water: 3 }
 };
+
+function mergeState(saved) {
+  const source = saved && typeof saved === "object" ? saved : {};
+  const mergedSpaces = Object.fromEntries(
+    Object.entries(defaultState.spaces).map(([id, defaults]) => [id, { ...defaults, ...(source.spaces?.[id] || {}) }])
+  );
+
+  return {
+    ...defaultState,
+    ...source,
+    activeSpaceId: mergedSpaces[source.activeSpaceId] ? source.activeSpaceId : defaultState.activeSpaceId,
+    keepScreenAwake: source.keepScreenAwake !== undefined ? Boolean(source.keepScreenAwake) : defaultState.keepScreenAwake,
+    spaces: mergedSpaces,
+    clockConfig: { ...defaultState.clockConfig, ...(source.clockConfig || {}) },
+    pomoState: {
+      ...defaultState.pomoState,
+      ...(source.pomoState || {}),
+      settings: { ...defaultState.pomoState.settings, ...(source.pomoState?.settings || {}) }
+    },
+    nightMode: { ...defaultState.nightMode, ...(source.nightMode || {}) },
+    burnInProtection: { ...defaultState.burnInProtection, ...(source.burnInProtection || {}) },
+    screensaver: { ...defaultState.screensaver, ...(source.screensaver || {}) },
+    vibes: { ...defaultState.vibes, ...(source.vibes || {}) },
+    mediaState: { ...defaultState.mediaState, ...(source.mediaState || {}) },
+    todos: Array.isArray(source.todos) ? source.todos : defaultState.todos,
+    tallies: { ...defaultState.tallies, ...(source.tallies || {}) }
+  };
+}
 
 export class Store {
   constructor() {
@@ -122,37 +65,22 @@ export class Store {
   loadState() {
     try {
       const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        return {
-          ...defaultState,
-          ...parsed,
-          keepScreenAwake: parsed.keepScreenAwake !== undefined ? parsed.keepScreenAwake : true,
-          pomoState: {
-            ...defaultState.pomoState,
-            ...(parsed.pomoState || {}),
-            settings: {
-              ...defaultState.pomoState.settings,
-              ...((parsed.pomoState && parsed.pomoState.settings) || {})
-            }
-          }
-        };
-      }
+      return mergeState(saved ? JSON.parse(saved) : null);
     } catch (e) {
-      console.warn("LocalStorage unavailable:", e);
+      console.warn("LocalStorage unavailable or invalid:", e);
+      return mergeState(null);
     }
-    return defaultState;
   }
 
   saveState() {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(this.state));
-    } catch (e) {}
+    } catch (e) {
+      console.warn("Unable to persist application state:", e);
+    }
   }
 
-  getState() {
-    return this.state;
-  }
+  getState() { return this.state; }
 
   subscribe(listener) {
     this.listeners.add(listener);
@@ -162,11 +90,8 @@ export class Store {
   notify(key, payload) {
     this.saveState();
     for (const listener of this.listeners) {
-      try {
-        listener(key, payload, this.state);
-      } catch (err) {
-        console.error("Store listener error:", err);
-      }
+      try { listener(key, payload, this.state); }
+      catch (err) { console.error("Store listener error:", err); }
     }
   }
 
@@ -176,19 +101,15 @@ export class Store {
   }
 
   setActiveSpace(spaceId) {
-    if (this.state.spaces[spaceId]) {
-      this.state.activeSpaceId = spaceId;
-      const space = this.state.spaces[spaceId];
-      if (space.vibe && space.vibe !== "none") {
-        this.state.vibes.activeTrack = space.vibe;
-      }
-      this.notify("space_changed", space);
-    }
+    const space = this.state.spaces[spaceId];
+    if (!space) return;
+
+    this.state.activeSpaceId = spaceId;
+    this.state.vibes.activeTrack = space.vibe || "none";
+    this.notify("space_changed", space);
   }
 
-  getActiveSpace() {
-    return this.state.spaces[this.state.activeSpaceId] || this.state.spaces.home;
-  }
+  getActiveSpace() { return this.state.spaces[this.state.activeSpaceId] || this.state.spaces.home; }
 
   updateActiveSpace(updates) {
     const spaceId = this.state.activeSpaceId;
@@ -196,24 +117,15 @@ export class Store {
     this.notify("space_updated", this.state.spaces[spaceId]);
   }
 
-  setLayout(layout) {
-    this.updateActiveSpace({ layout });
-  }
-
-  setClock(clockId) {
-    this.updateActiveSpace({ clockId });
-  }
-
-  setWidgets(widgets) {
-    this.updateActiveSpace({ widgets });
-  }
+  setLayout(layout) { this.updateActiveSpace({ layout }); }
+  setClock(clockId) { this.updateActiveSpace({ clockId }); }
+  setWidgets(widgets) { this.updateActiveSpace({ widgets }); }
 
   updateClockConfig(updates) {
     this.state.clockConfig = { ...this.state.clockConfig, ...updates };
     this.notify("clock_config_updated", this.state.clockConfig);
   }
 
-  // --- Pomodoro State Actions ---
   setPomoStage(stage, manualMinutes = null) {
     const s = this.state.pomoState;
     s.stage = stage;
@@ -242,27 +154,25 @@ export class Store {
       s.remainingSeconds--;
       this.notify("pomo_tick", s);
       return false;
-    } else {
-      // Stage finished
-      s.isRunning = false;
-      if (s.stage === "focus") {
-        s.totalCompletedSessions++;
-        const isLong = (s.totalCompletedSessions % s.settings.longBreakInterval) === 0;
-        s.stage = isLong ? "longBreak" : "shortBreak";
-        const nextMin = isLong ? s.settings.longBreakDuration : s.settings.shortBreakDuration;
-        s.remainingSeconds = nextMin * 60;
-        s.totalSeconds = nextMin * 60;
-        if (s.settings.autoStartBreaks) s.isRunning = true;
-      } else {
-        // Break finished
-        s.stage = "focus";
-        s.remainingSeconds = s.settings.focusDuration * 60;
-        s.totalSeconds = s.settings.focusDuration * 60;
-        if (s.settings.autoStartPomo) s.isRunning = true;
-      }
-      this.notify("pomo_completed", s);
-      return true;
     }
+
+    s.isRunning = false;
+    if (s.stage === "focus") {
+      s.totalCompletedSessions++;
+      const isLong = (s.totalCompletedSessions % s.settings.longBreakInterval) === 0;
+      s.stage = isLong ? "longBreak" : "shortBreak";
+      const nextMin = isLong ? s.settings.longBreakDuration : s.settings.shortBreakDuration;
+      s.remainingSeconds = nextMin * 60;
+      s.totalSeconds = nextMin * 60;
+      if (s.settings.autoStartBreaks) s.isRunning = true;
+    } else {
+      s.stage = "focus";
+      s.remainingSeconds = s.settings.focusDuration * 60;
+      s.totalSeconds = s.settings.focusDuration * 60;
+      if (s.settings.autoStartPomo) s.isRunning = true;
+    }
+    this.notify("pomo_completed", s);
+    return true;
   }
 
   resetPomo() {
@@ -279,10 +189,8 @@ export class Store {
   updatePomoSettings(newSettings) {
     const s = this.state.pomoState;
     s.settings = { ...s.settings, ...newSettings };
-    if (!s.isRunning) {
-      this.resetPomo();
-    }
-    this.notify("pomo_settings_updated", s);
+    if (!s.isRunning) this.resetPomo();
+    else this.notify("pomo_settings_updated", s);
   }
 
   toggleNightMode(forceState) {
@@ -291,8 +199,8 @@ export class Store {
   }
 
   setVibe(vibeId) {
-    this.state.vibes.activeTrack = vibeId;
-    this.updateActiveSpace({ vibe: vibeId });
+    this.state.vibes.activeTrack = vibeId || "none";
+    this.state.spaces[this.state.activeSpaceId].vibe = this.state.vibes.activeTrack;
     this.notify("vibe_changed", this.state.vibes);
   }
 
@@ -308,8 +216,7 @@ export class Store {
 
   addTodo(text) {
     if (!text || !text.trim()) return;
-    const newTodo = { id: Date.now().toString(), text: text.trim(), completed: false };
-    this.state.todos.push(newTodo);
+    this.state.todos.push({ id: Date.now().toString(), text: text.trim(), completed: false });
     this.notify("todos_updated", this.state.todos);
   }
 
