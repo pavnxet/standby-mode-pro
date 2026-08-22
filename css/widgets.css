@@ -654,3 +654,80 @@ body.night-mode .neon-time {
     transform: scale(1) translateY(0);
   }
 }
+
+
+/* ==========================================================================
+   ZEN FOCUS AUTO-FADE MODE & TAP-TO-REVEAL
+   ========================================================================== */
+#top-bar,
+#ambient-canvas-layer,
+.pomo-stage-nav,
+.pomo-cycle-row,
+.pomo-presets-bar,
+.pomo-center-card,
+.pomo-circle-wrapper,
+.pomo-corner-clock,
+.pomo-controls-bar {
+  transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.6s cubic-bezier(0.16, 1, 0.3, 1),
+              background 0.5s ease,
+              border-color 0.5s ease,
+              box-shadow 0.5s ease,
+              filter 0.5s ease;
+}
+
+/* Zen Active State: Fade out everything except timer, corner clock & playback */
+.zen-focus-active #top-bar,
+.zen-focus-active #ambient-canvas-layer,
+.zen-focus-active .pomo-stage-nav,
+.zen-focus-active .pomo-cycle-row,
+.zen-focus-active .pomo-presets-bar,
+.zen-focus-active #pomo-btn-settings {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transform: translateY(-10px);
+}
+
+.zen-focus-active .pomo-center-card {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.zen-focus-active .pomo-circle-wrapper {
+  transform: scale(1.08);
+  filter: drop-shadow(0 0 45px rgba(59, 130, 246, 0.35));
+}
+
+.zen-focus-active .pomo-corner-clock {
+  opacity: 0.8;
+  background: rgba(12, 12, 16, 0.5) !important;
+  border-color: rgba(255, 255, 255, 0.06) !important;
+}
+
+/* Tap-to-Reveal (Peek) Override: Temporarily restores full UI */
+.zen-focus-active.zen-peek-active #top-bar,
+.zen-focus-active.zen-peek-active #ambient-canvas-layer,
+.zen-focus-active.zen-peek-active .pomo-stage-nav,
+.zen-focus-active.zen-peek-active .pomo-cycle-row,
+.zen-focus-active.zen-peek-active .pomo-presets-bar,
+.zen-focus-active.zen-peek-active #pomo-btn-settings {
+  opacity: 1 !important;
+  pointer-events: auto !important;
+  transform: translateY(0) !important;
+}
+
+.zen-focus-active.zen-peek-active .pomo-center-card {
+  background: rgba(16, 16, 22, 0.65) !important;
+  border-color: rgba(255, 255, 255, 0.1) !important;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
+  backdrop-filter: blur(32px) saturate(190%) !important;
+  -webkit-backdrop-filter: blur(32px) saturate(190%) !important;
+}
+
+.zen-focus-active.zen-peek-active .pomo-circle-wrapper {
+  transform: scale(1);
+  filter: none;
+}

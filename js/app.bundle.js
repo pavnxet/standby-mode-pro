@@ -8,12 +8,13 @@ const STORAGE_KEY = "standby_mode_pro_v1";
 
 const defaultState = {
   activeSpaceId: "home",
+  keepScreenAwake: true,
   spaces: {
     home: {
       id: "home",
       name: "Home",
       icon: "home",
-      layout: "standalone", // 'standalone', 'duo', 'quad', 'focus'
+      layout: "standalone",
       clockId: "flip",
       widgets: ["weather", "calendar"],
       quadWidgets: ["weather", "calendar", "media", "timer"],
@@ -35,7 +36,7 @@ const defaultState = {
       id: "focus",
       name: "Focus",
       icon: "target",
-      layout: "focus", // Dedicated Focus Mode with center Pomodoro + corner live clock
+      layout: "focus",
       clockId: "flip",
       widgets: ["timer", "quote"],
       quadWidgets: ["flip", "timer", "quote", "todo"],
@@ -64,8 +65,8 @@ const defaultState = {
     tickSound: true
   },
   pomoState: {
-    stage: "focus", // 'focus', 'shortBreak', 'longBreak'
-    remainingSeconds: 1500, // 25 min default
+    stage: "focus",
+    remainingSeconds: 1500,
     totalSeconds: 1500,
     isRunning: false,
     currentCycle: 1,
@@ -132,6 +133,7 @@ class Store {
         return {
           ...defaultState,
           ...parsed,
+          keepScreenAwake: parsed.keepScreenAwake !== undefined ? parsed.keepScreenAwake : true,
           pomoState: {
             ...defaultState.pomoState,
             ...(parsed.pomoState || {}),
@@ -172,6 +174,11 @@ class Store {
         console.error("Store listener error:", err);
       }
     }
+  }
+
+  toggleScreenWakeLock(force) {
+    this.state.keepScreenAwake = force !== undefined ? force : !this.state.keepScreenAwake;
+    this.notify("wake_lock_toggled", this.state.keepScreenAwake);
   }
 
   setActiveSpace(spaceId) {
@@ -821,6 +828,78 @@ class VisualizerEngine {
 }
 
 var visualizerEngine = window.standbyVisualizerEngine || (window.standbyVisualizerEngine = new VisualizerEngine());
+
+
+// --- wakeLockEngine.js ---
+
+
+
+class WakeLockEngine {
+  constructor() {
+    this.wakeLock = null;
+    this.isSupported = "wakeLock" in navigator;
+    this.init();
+  }
+
+  init() {
+    if (!this.isSupported) {
+      console.warn("Screen Wake Lock API not supported in this browser.");
+      return;
+    }
+
+    // Auto-acquire lock if enabled in store
+    if (store.getState().keepScreenAwake) {
+      this.acquire();
+    }
+
+    // Re-acquire lock if user switches back to this tab
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible" && store.getState().keepScreenAwake) {
+        this.acquire();
+      }
+    });
+
+    store.subscribe((event) => {
+      if (event === "wake_lock_toggled") {
+        if (store.getState().keepScreenAwake) {
+          this.acquire();
+        } else {
+          this.release();
+        }
+      }
+    });
+  }
+
+  async acquire() {
+    if (!this.isSupported) return false;
+    try {
+      if (this.wakeLock !== null && !this.wakeLock.released) return true;
+      this.wakeLock = await navigator.wakeLock.request("screen");
+      this.wakeLock.addEventListener("release", () => {
+        this.wakeLock = null;
+      });
+      return true;
+    } catch (err) {
+      console.warn("WakeLock request failed:", err);
+      return false;
+    }
+  }
+
+  async release() {
+    if (this.wakeLock !== null) {
+      try {
+        await this.wakeLock.release();
+        this.wakeLock = null;
+      } catch (err) {}
+    }
+  }
+
+  isActive() {
+    return this.wakeLock !== null && !this.wakeLock.released;
+  }
+}
+
+var wakeLockEngine = window.standbyWakeLockEngine || (window.standbyWakeLockEngine = new WakeLockEngine());
 
 
 // --- clockEngine.js ---
@@ -2355,6 +2434,7 @@ class SpacesNav {
 
 
 
+
 class CustomizeModal {
   constructor() {
     this.modalEl = document.getElementById("customize-modal");
@@ -2391,10 +2471,33 @@ class CustomizeModal {
     const pomo = state.pomoState;
     const clockList = clockEngine.getClockList();
     const widgetList = widgetEngine.getWidgetList();
+    const isWakeLocked = state.keepScreenAwake;
 
     this.contentEl.innerHTML = `
       <div class="space-y-6 text-sm text-neutral-200">
         
+        <!-- Screen Wake Lock (Always Screen On) -->
+        <div class="p-3.5 bg-gradient-to-r from-blue-950/40 to-indigo-950/40 rounded-2xl border border-blue-500/25 flex items-center justify-between shadow-lg">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-xl bg-blue-500/20 border border-blue-500/30 flex items-center justify-center text-blue-400">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+            </div>
+            <div>
+              <div class="font-bold text-xs text-white flex items-center gap-2">
+                <span>Always Keep Screen Awake</span>
+                <span class="text-[10px] font-mono px-2 py-0.5 rounded-full ${isWakeLocked ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-white/10 text-neutral-400'}">
+                  ${isWakeLocked ? 'Active ⚡' : 'Off'}
+                </span>
+              </div>
+              <div class="text-[11px] text-neutral-400 mt-0.5">Prevents display timeout & sleep during clock sessions</div>
+            </div>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" id="chk-wake-lock" ${isWakeLocked ? "checked" : ""} class="sr-only peer" />
+            <div class="w-11 h-6 bg-neutral-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+          </label>
+        </div>
+
         <!-- Layout Selection -->
         <div>
           <label class="block text-xs font-bold text-neutral-400 uppercase tracking-wider mb-2.5">Dashboard Layout</label>
@@ -2418,7 +2521,7 @@ class CustomizeModal {
           </div>
         </div>
 
-        <!-- Clock Face Theme (Applied to Clock & Focus Pomodoro) -->
+        <!-- Clock Face Theme -->
         <div>
           <div class="flex items-center justify-between mb-2.5">
             <label class="block text-xs font-bold text-neutral-400 uppercase tracking-wider">Clock & Pomodoro Theme</label>
@@ -2434,7 +2537,7 @@ class CustomizeModal {
           </div>
         </div>
 
-        <!-- Pomodoro Focus Configuration Settings -->
+        <!-- Pomodoro Configuration -->
         <div class="pt-4 border-t border-white/10">
           <label class="block text-xs font-bold text-neutral-400 uppercase tracking-wider mb-2.5">Pomodoro Timers & Intervals</label>
           <div class="grid grid-cols-3 gap-3 mb-3">
@@ -2509,6 +2612,14 @@ class CustomizeModal {
     `;
 
     // Event Listeners
+    const chkWakeLock = this.contentEl.querySelector("#chk-wake-lock");
+    if (chkWakeLock) {
+      chkWakeLock.addEventListener("change", (e) => {
+        store.toggleScreenWakeLock(e.target.checked);
+        this.render();
+      });
+    }
+
     this.contentEl.querySelectorAll("[data-set-layout]").forEach(btn => {
       btn.addEventListener("click", () => {
         store.setLayout(btn.getAttribute("data-set-layout"));
@@ -2781,8 +2892,10 @@ class Screensaver {
 class PomoFocusView {
   constructor(containerElement) {
     this.container = containerElement;
+    this.appShell = document.getElementById('app-shell');
     this.timerInterval = null;
     this.cornerClockInterval = null;
+    this.peekTimeout = null;
     this.init();
   }
 
@@ -2807,9 +2920,34 @@ class PomoFocusView {
         event === 'space_updated' ||
         event === 'clock_config_updated'
       ) {
+        this.syncZenState();
         this.render();
       }
     });
+
+    this.syncZenState();
+  }
+
+  syncZenState() {
+    const isRunning = store.getState().pomoState.isRunning;
+    if (this.appShell) {
+      if (isRunning) {
+        this.appShell.classList.add('zen-focus-active');
+      } else {
+        this.appShell.classList.remove('zen-focus-active');
+        this.appShell.classList.remove('zen-peek-active');
+        if (this.peekTimeout) clearTimeout(this.peekTimeout);
+      }
+    }
+  }
+
+  triggerZenPeek() {
+    if (!this.appShell || !this.appShell.classList.contains('zen-focus-active')) return;
+    this.appShell.classList.add('zen-peek-active');
+    if (this.peekTimeout) clearTimeout(this.peekTimeout);
+    this.peekTimeout = setTimeout(() => {
+      if (this.appShell) this.appShell.classList.remove('zen-peek-active');
+    }, 4000);
   }
 
   formatTime(totalSecs) {
@@ -2908,7 +3046,7 @@ class PomoFocusView {
     const btnBg = pomo.isRunning ? 'bg-amber-600 hover:bg-amber-500 shadow-amber-900/40' : pomo.stage === 'focus' ? 'bg-blue-600 hover:bg-blue-500 shadow-blue-900/40' : pomo.stage === 'shortBreak' ? 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-900/40' : 'bg-purple-600 hover:bg-purple-500 shadow-purple-900/40';
 
     this.container.innerHTML = `
-      <div class="pomo-focus-stage">
+      <div class="pomo-focus-stage" id="pomo-stage-outer">
         
         <!-- Sleek Corner Live Clock Pill -->
         <div class="pomo-corner-clock" id="pomo-corner-clock-box">
@@ -2921,9 +3059,9 @@ class PomoFocusView {
         </div>
 
         <!-- Center Focus Dashboard Card -->
-        <div class="pomo-center-card">
+        <div class="pomo-center-card" id="pomo-card-main">
           
-          <!-- Stage Selector Nav -->
+          <!-- Stage Selector Nav (Auto-fades in Zen mode) -->
           <div class="pomo-stage-nav">
             <button class="pomo-stage-btn ${pomo.stage === 'focus' ? 'active-focus' : ''}" data-pomo-stage="focus">
               Focus (${pomo.settings.focusDuration}m)
@@ -2936,13 +3074,13 @@ class PomoFocusView {
             </button>
           </div>
 
-          <!-- Session Cycle Dots -->
+          <!-- Session Cycle Dots (Auto-fades in Zen mode) -->
           <div class="pomo-cycle-row">
             <div class="flex items-center gap-1.5">${cycleDotsHtml}</div>
             <span class="text-[11px] font-mono font-medium text-neutral-400">Session ${currentInCycle} of ${totalSessionsInCycle}</span>
           </div>
 
-          <!-- Circular Ring & Timer Viewport -->
+          <!-- Circular Ring & Timer Viewport (Always visible in Zen mode) -->
           <div class="pomo-circle-wrapper">
             <svg class="pomo-svg-ring" viewBox="0 0 260 260">
               <!-- Background Track -->
@@ -2956,14 +3094,14 @@ class PomoFocusView {
             </div>
           </div>
 
-          <!-- Quick Duration Presets -->
+          <!-- Quick Duration Presets (Auto-fades in Zen mode) -->
           <div class="pomo-presets-bar">
             <button class="pomo-preset-chip" data-preset="25">25 / 5m</button>
             <button class="pomo-preset-chip" data-preset="50">50 / 10m</button>
             <button class="pomo-preset-chip" data-preset="90">90 / 20m</button>
           </div>
 
-          <!-- Action Controls Bar -->
+          <!-- Action Controls Bar (Essential controls remain visible) -->
           <div class="pomo-controls-bar">
             <button class="btn-icon" id="pomo-btn-reset" title="Reset Session">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
@@ -3035,6 +3173,16 @@ class PomoFocusView {
   }
 
   initListeners() {
+    // Tap sideways / background to peek UI in Zen mode
+    const outerStage = this.container.querySelector('#pomo-stage-outer');
+    if (outerStage) {
+      outerStage.addEventListener('click', (e) => {
+        if (!e.target.closest('button') && !e.target.closest('input')) {
+          this.triggerZenPeek();
+        }
+      });
+    }
+
     this.container.querySelectorAll('[data-pomo-stage]').forEach(btn => {
       btn.addEventListener('click', () => {
         const stage = btn.getAttribute('data-pomo-stage');
@@ -3091,6 +3239,11 @@ class PomoFocusView {
   unmount() {
     if (this.timerInterval) clearInterval(this.timerInterval);
     if (this.cornerClockInterval) clearInterval(this.cornerClockInterval);
+    if (this.peekTimeout) clearTimeout(this.peekTimeout);
+    if (this.appShell) {
+      this.appShell.classList.remove('zen-focus-active');
+      this.appShell.classList.remove('zen-peek-active');
+    }
     if (this.container) this.container.innerHTML = '';
   }
 }

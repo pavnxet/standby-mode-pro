@@ -5,8 +5,10 @@ import { soundEngine } from '../engines/soundEngine.js';
 export class PomoFocusView {
   constructor(containerElement) {
     this.container = containerElement;
+    this.appShell = document.getElementById('app-shell');
     this.timerInterval = null;
     this.cornerClockInterval = null;
+    this.peekTimeout = null;
     this.init();
   }
 
@@ -31,9 +33,34 @@ export class PomoFocusView {
         event === 'space_updated' ||
         event === 'clock_config_updated'
       ) {
+        this.syncZenState();
         this.render();
       }
     });
+
+    this.syncZenState();
+  }
+
+  syncZenState() {
+    const isRunning = store.getState().pomoState.isRunning;
+    if (this.appShell) {
+      if (isRunning) {
+        this.appShell.classList.add('zen-focus-active');
+      } else {
+        this.appShell.classList.remove('zen-focus-active');
+        this.appShell.classList.remove('zen-peek-active');
+        if (this.peekTimeout) clearTimeout(this.peekTimeout);
+      }
+    }
+  }
+
+  triggerZenPeek() {
+    if (!this.appShell || !this.appShell.classList.contains('zen-focus-active')) return;
+    this.appShell.classList.add('zen-peek-active');
+    if (this.peekTimeout) clearTimeout(this.peekTimeout);
+    this.peekTimeout = setTimeout(() => {
+      if (this.appShell) this.appShell.classList.remove('zen-peek-active');
+    }, 4000);
   }
 
   formatTime(totalSecs) {
@@ -132,7 +159,7 @@ export class PomoFocusView {
     const btnBg = pomo.isRunning ? 'bg-amber-600 hover:bg-amber-500 shadow-amber-900/40' : pomo.stage === 'focus' ? 'bg-blue-600 hover:bg-blue-500 shadow-blue-900/40' : pomo.stage === 'shortBreak' ? 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-900/40' : 'bg-purple-600 hover:bg-purple-500 shadow-purple-900/40';
 
     this.container.innerHTML = `
-      <div class="pomo-focus-stage">
+      <div class="pomo-focus-stage" id="pomo-stage-outer">
         
         <!-- Sleek Corner Live Clock Pill -->
         <div class="pomo-corner-clock" id="pomo-corner-clock-box">
@@ -145,9 +172,9 @@ export class PomoFocusView {
         </div>
 
         <!-- Center Focus Dashboard Card -->
-        <div class="pomo-center-card">
+        <div class="pomo-center-card" id="pomo-card-main">
           
-          <!-- Stage Selector Nav -->
+          <!-- Stage Selector Nav (Auto-fades in Zen mode) -->
           <div class="pomo-stage-nav">
             <button class="pomo-stage-btn ${pomo.stage === 'focus' ? 'active-focus' : ''}" data-pomo-stage="focus">
               Focus (${pomo.settings.focusDuration}m)
@@ -160,13 +187,13 @@ export class PomoFocusView {
             </button>
           </div>
 
-          <!-- Session Cycle Dots -->
+          <!-- Session Cycle Dots (Auto-fades in Zen mode) -->
           <div class="pomo-cycle-row">
             <div class="flex items-center gap-1.5">${cycleDotsHtml}</div>
             <span class="text-[11px] font-mono font-medium text-neutral-400">Session ${currentInCycle} of ${totalSessionsInCycle}</span>
           </div>
 
-          <!-- Circular Ring & Timer Viewport -->
+          <!-- Circular Ring & Timer Viewport (Always visible in Zen mode) -->
           <div class="pomo-circle-wrapper">
             <svg class="pomo-svg-ring" viewBox="0 0 260 260">
               <!-- Background Track -->
@@ -180,14 +207,14 @@ export class PomoFocusView {
             </div>
           </div>
 
-          <!-- Quick Duration Presets -->
+          <!-- Quick Duration Presets (Auto-fades in Zen mode) -->
           <div class="pomo-presets-bar">
             <button class="pomo-preset-chip" data-preset="25">25 / 5m</button>
             <button class="pomo-preset-chip" data-preset="50">50 / 10m</button>
             <button class="pomo-preset-chip" data-preset="90">90 / 20m</button>
           </div>
 
-          <!-- Action Controls Bar -->
+          <!-- Action Controls Bar (Essential controls remain visible) -->
           <div class="pomo-controls-bar">
             <button class="btn-icon" id="pomo-btn-reset" title="Reset Session">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
@@ -259,6 +286,16 @@ export class PomoFocusView {
   }
 
   initListeners() {
+    // Tap sideways / background to peek UI in Zen mode
+    const outerStage = this.container.querySelector('#pomo-stage-outer');
+    if (outerStage) {
+      outerStage.addEventListener('click', (e) => {
+        if (!e.target.closest('button') && !e.target.closest('input')) {
+          this.triggerZenPeek();
+        }
+      });
+    }
+
     this.container.querySelectorAll('[data-pomo-stage]').forEach(btn => {
       btn.addEventListener('click', () => {
         const stage = btn.getAttribute('data-pomo-stage');
@@ -315,6 +352,11 @@ export class PomoFocusView {
   unmount() {
     if (this.timerInterval) clearInterval(this.timerInterval);
     if (this.cornerClockInterval) clearInterval(this.cornerClockInterval);
+    if (this.peekTimeout) clearTimeout(this.peekTimeout);
+    if (this.appShell) {
+      this.appShell.classList.remove('zen-focus-active');
+      this.appShell.classList.remove('zen-peek-active');
+    }
     if (this.container) this.container.innerHTML = '';
   }
 }

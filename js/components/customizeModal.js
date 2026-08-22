@@ -1,6 +1,7 @@
 import { store } from '../state/store.js';
 import { clockEngine } from '../engines/clockEngine.js';
 import { widgetEngine } from '../engines/widgetEngine.js';
+import { wakeLockEngine } from '../engines/wakeLockEngine.js';
 
 export class CustomizeModal {
   constructor() {
@@ -38,10 +39,33 @@ export class CustomizeModal {
     const pomo = state.pomoState;
     const clockList = clockEngine.getClockList();
     const widgetList = widgetEngine.getWidgetList();
+    const isWakeLocked = state.keepScreenAwake;
 
     this.contentEl.innerHTML = `
       <div class="space-y-6 text-sm text-neutral-200">
         
+        <!-- Screen Wake Lock (Always Screen On) -->
+        <div class="p-3.5 bg-gradient-to-r from-blue-950/40 to-indigo-950/40 rounded-2xl border border-blue-500/25 flex items-center justify-between shadow-lg">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-xl bg-blue-500/20 border border-blue-500/30 flex items-center justify-center text-blue-400">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+            </div>
+            <div>
+              <div class="font-bold text-xs text-white flex items-center gap-2">
+                <span>Always Keep Screen Awake</span>
+                <span class="text-[10px] font-mono px-2 py-0.5 rounded-full ${isWakeLocked ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-white/10 text-neutral-400'}">
+                  ${isWakeLocked ? 'Active ⚡' : 'Off'}
+                </span>
+              </div>
+              <div class="text-[11px] text-neutral-400 mt-0.5">Prevents display timeout & sleep during clock sessions</div>
+            </div>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input type="checkbox" id="chk-wake-lock" ${isWakeLocked ? "checked" : ""} class="sr-only peer" />
+            <div class="w-11 h-6 bg-neutral-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+          </label>
+        </div>
+
         <!-- Layout Selection -->
         <div>
           <label class="block text-xs font-bold text-neutral-400 uppercase tracking-wider mb-2.5">Dashboard Layout</label>
@@ -65,7 +89,7 @@ export class CustomizeModal {
           </div>
         </div>
 
-        <!-- Clock Face Theme (Applied to Clock & Focus Pomodoro) -->
+        <!-- Clock Face Theme -->
         <div>
           <div class="flex items-center justify-between mb-2.5">
             <label class="block text-xs font-bold text-neutral-400 uppercase tracking-wider">Clock & Pomodoro Theme</label>
@@ -81,7 +105,7 @@ export class CustomizeModal {
           </div>
         </div>
 
-        <!-- Pomodoro Focus Configuration Settings -->
+        <!-- Pomodoro Configuration -->
         <div class="pt-4 border-t border-white/10">
           <label class="block text-xs font-bold text-neutral-400 uppercase tracking-wider mb-2.5">Pomodoro Timers & Intervals</label>
           <div class="grid grid-cols-3 gap-3 mb-3">
@@ -156,6 +180,14 @@ export class CustomizeModal {
     `;
 
     // Event Listeners
+    const chkWakeLock = this.contentEl.querySelector("#chk-wake-lock");
+    if (chkWakeLock) {
+      chkWakeLock.addEventListener("change", (e) => {
+        store.toggleScreenWakeLock(e.target.checked);
+        this.render();
+      });
+    }
+
     this.contentEl.querySelectorAll("[data-set-layout]").forEach(btn => {
       btn.addEventListener("click", () => {
         store.setLayout(btn.getAttribute("data-set-layout"));

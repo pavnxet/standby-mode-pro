@@ -2,12 +2,13 @@ const STORAGE_KEY = "standby_mode_pro_v1";
 
 const defaultState = {
   activeSpaceId: "home",
+  keepScreenAwake: true,
   spaces: {
     home: {
       id: "home",
       name: "Home",
       icon: "home",
-      layout: "standalone", // 'standalone', 'duo', 'quad', 'focus'
+      layout: "standalone",
       clockId: "flip",
       widgets: ["weather", "calendar"],
       quadWidgets: ["weather", "calendar", "media", "timer"],
@@ -29,7 +30,7 @@ const defaultState = {
       id: "focus",
       name: "Focus",
       icon: "target",
-      layout: "focus", // Dedicated Focus Mode with center Pomodoro + corner live clock
+      layout: "focus",
       clockId: "flip",
       widgets: ["timer", "quote"],
       quadWidgets: ["flip", "timer", "quote", "todo"],
@@ -58,8 +59,8 @@ const defaultState = {
     tickSound: true
   },
   pomoState: {
-    stage: "focus", // 'focus', 'shortBreak', 'longBreak'
-    remainingSeconds: 1500, // 25 min default
+    stage: "focus",
+    remainingSeconds: 1500,
     totalSeconds: 1500,
     isRunning: false,
     currentCycle: 1,
@@ -126,6 +127,7 @@ export class Store {
         return {
           ...defaultState,
           ...parsed,
+          keepScreenAwake: parsed.keepScreenAwake !== undefined ? parsed.keepScreenAwake : true,
           pomoState: {
             ...defaultState.pomoState,
             ...(parsed.pomoState || {}),
@@ -166,6 +168,11 @@ export class Store {
         console.error("Store listener error:", err);
       }
     }
+  }
+
+  toggleScreenWakeLock(force) {
+    this.state.keepScreenAwake = force !== undefined ? force : !this.state.keepScreenAwake;
+    this.notify("wake_lock_toggled", this.state.keepScreenAwake);
   }
 
   setActiveSpace(spaceId) {
