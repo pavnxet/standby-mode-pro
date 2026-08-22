@@ -107,6 +107,15 @@ class App {
     window.addEventListener('pointerdown', unlockAudio, { passive: true });
     window.addEventListener('keydown', unlockAudio, { passive: true });
 
+    // 7. Auto-Sync Timers on Background Tab Resume / App Switch
+    const syncOnResume = () => {
+      if (document.visibilityState === 'visible') {
+        store.syncPomoBackgroundDelta();
+      }
+    };
+    document.addEventListener('visibilitychange', syncOnResume);
+    window.addEventListener('focus', syncOnResume);
+
     // 6. Bind Global Fullscreen and Keyboard Actions
     this.initGlobalControls();
 

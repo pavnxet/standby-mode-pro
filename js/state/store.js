@@ -81,6 +81,7 @@ const defaultState = {
     remainingSeconds: 1500,
     totalSeconds: 1500,
     isRunning: false,
+    targetEndTime: null,
     currentCycle: 1,
     totalCompletedSessions: 0,
     settings: {
@@ -371,6 +372,7 @@ export class Store {
     const s = this.state.pomoState;
     s.stage = stage;
     s.isRunning = false;
+    s.targetEndTime = null;
     let minutes = manualMinutes;
     if (minutes === null) {
       if (stage === "focus") minutes = s.settings.focusDuration;
@@ -385,19 +387,50 @@ export class Store {
   togglePomoRunning(force) {
     const s = this.state.pomoState;
     s.isRunning = force !== undefined ? force : !s.isRunning;
+    if (s.isRunning) {
+      s.targetEndTime = Date.now() + (s.remainingSeconds * 1000);
+    } else {
+      s.targetEndTime = null;
+    }
     this.notify("pomo_updated", s);
+  }
+
+  syncPomoBackgroundDelta() {
+    const s = this.state.pomoState;
+    if (!s.isRunning || !s.targetEndTime) return false;
+    const now = Date.now();
+    const diff = Math.round((s.targetEndTime - now) / 1000);
+
+    if (diff <= 0) {
+      s.remainingSeconds = 0;
+      s.targetEndTime = null;
+      return this.tickPomo();
+    } else {
+      s.remainingSeconds = diff;
+      this.notify("pomo_tick", s);
+      return false;
+    }
   }
 
   tickPomo() {
     const s = this.state.pomoState;
     if (!s.isRunning) return false;
+
+    if (s.targetEndTime) {
+      const now = Date.now();
+      const diff = Math.round((s.targetEndTime - now) / 1000);
+      s.remainingSeconds = Math.max(0, diff);
+    } else {
+      s.remainingSeconds = Math.max(0, s.remainingSeconds - 1);
+    }
+
     if (s.remainingSeconds > 0) {
-      s.remainingSeconds--;
       this.notify("pomo_tick", s);
       return false;
     } else {
       // Stage finished -> Record stats
       s.isRunning = false;
+      s.targetEndTime = null;
       const completedStage = s.stage;
       const completedDuration = Math.round(s.totalSeconds / 60);
       this.recordCompletedSession(completedStage, completedDuration);
@@ -409,12 +442,18 @@ export class Store {
         const nextMin = isLong ? s.settings.longBreakDuration : s.settings.shortBreakDuration;
         s.remainingSeconds = nextMin * 60;
         s.totalSeconds = nextMin * 60;
-        if (s.settings.autoStartBreaks) s.isRunning = true;
+        if (s.settings.autoStartBreaks) {
+          s.isRunning = true;
+          s.targetEndTime = Date.now() + (s.remainingSeconds * 1000);
+        }
       } else {
         s.stage = "focus";
         s.remainingSeconds = s.settings.focusDuration * 60;
         s.totalSeconds = s.settings.focusDuration * 60;
-        if (s.settings.autoStartPomo) s.isRunning = true;
+        if (s.settings.autoStartPomo) {
+          s.isRunning = true;
+          s.targetEndTime = Date.now() + (s.remainingSeconds * 1000);
+        }
       }
       this.notify("pomo_completed", s);
       return true;

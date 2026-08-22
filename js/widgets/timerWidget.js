@@ -1,4 +1,4 @@
-/* Fullscreen Timer & Stopwatch Widget */
+/* Fullscreen Timer & Stopwatch Widget with Background Tab Synchronization */
 import { soundEngine } from "../engines/soundEngine.js";
 
 export const timerWidget = {
@@ -7,29 +7,58 @@ export const timerWidget = {
 
   mount(container) {
     let mode = "timer"; // 'timer' or 'stopwatch'
-    let timerDuration = 1500; // 25 min default pomodoro
+    let timerDuration = 1500; // 25 min default
     let remaining = 1500;
+    let targetEndTime = null;
     let isRunning = false;
     let timerInterval = null;
 
     let swElapsed = 0;
+    let swStartTime = null;
     let swInterval = null;
 
+    const formatTime = (secs) => {
+      const m = Math.floor(secs / 60);
+      const s = secs % 60;
+      return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+    };
+
+    const formatStopwatch = (ms) => {
+      const totalSecs = Math.floor(ms / 1000);
+      const m = Math.floor(totalSecs / 60);
+      const s = totalSecs % 60;
+      const cs = Math.floor((ms % 1000) / 10);
+      return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}.${String(cs).padStart(2, "0")}`;
+    };
+
+    const updateDisplay = () => {
+      const el = container.querySelector("#timer-digits-display");
+      if (el) {
+        el.textContent = mode === "timer" ? formatTime(remaining) : formatStopwatch(swElapsed);
+      }
+    };
+
+    const syncBackgroundDelta = () => {
+      if (mode === "timer" && isRunning && targetEndTime) {
+        const now = Date.now();
+        const diff = Math.round((targetEndTime - now) / 1000);
+        if (diff <= 0) {
+          remaining = 0;
+          stopTimer();
+          isRunning = false;
+          soundEngine.playAlarmChime();
+          render();
+        } else {
+          remaining = diff;
+          updateDisplay();
+        }
+      } else if (mode === "stopwatch" && isRunning && swStartTime) {
+        swElapsed = Date.now() - swStartTime;
+        updateDisplay();
+      }
+    };
+
     const render = () => {
-      const formatTime = (secs) => {
-        const m = Math.floor(secs / 60);
-        const s = secs % 60;
-        return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-      };
-
-      const formatStopwatch = (ms) => {
-        const totalSecs = Math.floor(ms / 1000);
-        const m = Math.floor(totalSecs / 60);
-        const s = totalSecs % 60;
-        const cs = Math.floor((ms % 1000) / 10);
-        return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}.${String(cs).padStart(2, "0")}`;
-      };
-
       container.innerHTML = `
         <div class="timer-container">
           <div class="flex items-center gap-2 p-1 bg-white/5 rounded-full mb-1">
@@ -103,9 +132,11 @@ export const timerWidget = {
         if (mode === "timer") {
           stopTimer();
           remaining = timerDuration;
+          targetEndTime = null;
         } else {
           stopSW();
           swElapsed = 0;
+          swStartTime = null;
         }
         render();
       });
@@ -115,6 +146,9 @@ export const timerWidget = {
         presetBtn.addEventListener("click", () => {
           remaining += 300;
           timerDuration = remaining;
+          if (isRunning && targetEndTime) {
+            targetEndTime += 300000;
+          }
           render();
         });
       }
@@ -122,16 +156,16 @@ export const timerWidget = {
 
     const startTimer = () => {
       stopTimer();
+      targetEndTime = Date.now() + (remaining * 1000);
       timerInterval = setInterval(() => {
-        if (remaining > 0) {
-          remaining--;
-          const el = container.querySelector("#timer-digits-display");
-          if (el) {
-            const m = Math.floor(remaining / 60);
-            const s = remaining % 60;
-            el.textContent = `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-          }
+        const now = Date.now();
+        const diff = Math.round((targetEndTime - now) / 1000);
+        if (diff > 0) {
+          remaining = diff;
+          updateDisplay();
         } else {
+          remaining = 0;
+          targetEndTime = null;
           stopTimer();
           isRunning = false;
           soundEngine.playAlarmChime();
@@ -145,21 +179,15 @@ export const timerWidget = {
         clearInterval(timerInterval);
         timerInterval = null;
       }
+      targetEndTime = null;
     };
 
     const startSW = () => {
       stopSW();
-      const startTime = Date.now() - swElapsed;
+      swStartTime = Date.now() - swElapsed;
       swInterval = setInterval(() => {
-        swElapsed = Date.now() - startTime;
-        const el = container.querySelector("#timer-digits-display");
-        if (el) {
-          const totalSecs = Math.floor(swElapsed / 1000);
-          const m = Math.floor(totalSecs / 60);
-          const s = totalSecs % 60;
-          const cs = Math.floor((swElapsed % 1000) / 10);
-          el.textContent = `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}.${String(cs).padStart(2, "0")}`;
-        }
+        swElapsed = Date.now() - swStartTime;
+        updateDisplay();
       }, 40);
     };
 
@@ -170,12 +198,23 @@ export const timerWidget = {
       }
     };
 
+    // Auto-sync when switching back from other apps
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") syncBackgroundDelta();
+    };
+    const onFocus = () => syncBackgroundDelta();
+
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("focus", onFocus);
+
     render();
 
     return {
       unmount() {
         stopTimer();
         stopSW();
+        document.removeEventListener("visibilitychange", onVisibility);
+        window.removeEventListener("focus", onFocus);
       }
     };
   }
