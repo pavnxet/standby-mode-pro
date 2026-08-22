@@ -3642,10 +3642,12 @@ class CustomizeModal {
 
 
 const presetWallpapers = [
-  { id: "p1", title: "Cyberpunk City", url: "https://images.unsplash.com/photo-1509198397868-475647b2a1e5?w=1600&q=80" },
-  { id: "p2", title: "Starry Alpine", url: "https://images.unsplash.com/photo-1519681393784-d120267933ba?w=1600&q=80" },
-  { id: "p3", title: "Misty Forest", url: "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=1600&q=80" },
-  { id: "p4", title: "Cosmic Nebula", url: "https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=1600&q=80" }
+  { id: "p1", title: "Cosmic Aurora", category: "Cosmic", url: "assets/wallpapers/aurora_nebula.jpg" },
+  { id: "p2", title: "Tokyo Rain", category: "Cyberpunk", url: "assets/wallpapers/tokyo_rain.jpg" },
+  { id: "p3", title: "Cozy Lofi Desk", category: "Lofi", url: "assets/wallpapers/lofi_study.jpg" },
+  { id: "p4", title: "Liquid Obsidian", category: "Abstract", url: "assets/wallpapers/liquid_obsidian.jpg" },
+  { id: "p5", title: "Synthwave Dusk", category: "Retro", url: "assets/wallpapers/synthwave_dusk.jpg" },
+  { id: "p6", title: "Zen Moon", category: "Minimal", url: "assets/wallpapers/zen_mountain.jpg" }
 ];
 
 class PhotoModal {
