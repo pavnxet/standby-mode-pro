@@ -1,6 +1,8 @@
 /* TODO Checklist & Protocol Habits Widget */
 import { store } from "../state/store.js";
 
+const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+
 export const todoWidget = {
   name: "TODO & Protocols",
   icon: "check-square",
@@ -13,9 +15,9 @@ export const todoWidget = {
         <div class="flex flex-col w-full h-full justify-between">
           <div class="todo-list-box" id="todo-items-container">
             ${todos.map(t => `
-              <div class="todo-item-row ${t.completed ? "completed" : ""}" data-id="${t.id}">
+              <div class="todo-item-row ${t.completed ? "completed" : ""}" data-id="${escapeHtml(t.id)}">
                 <input type="checkbox" ${t.completed ? "checked" : ""} class="rounded border-neutral-700 text-blue-600 focus:ring-0 cursor-pointer pointer-events-none" />
-                <span class="text-sm font-medium text-neutral-200 flex-1">${t.text}</span>
+                <span class="text-sm font-medium text-neutral-200 flex-1">${escapeHtml(t.text)}</span>
               </div>
             `).join("")}
           </div>
@@ -29,8 +31,7 @@ export const todoWidget = {
 
       container.querySelectorAll(".todo-item-row").forEach(row => {
         row.addEventListener("click", () => {
-          const id = row.getAttribute("data-id");
-          store.toggleTodo(id);
+          store.toggleTodo(row.getAttribute("data-id"));
           render();
         });
       });
@@ -39,7 +40,7 @@ export const todoWidget = {
       form.addEventListener("submit", (e) => {
         e.preventDefault();
         const input = container.querySelector("#todo-input");
-        if (input && input.value) {
+        if (input && input.value.trim()) {
           store.addTodo(input.value);
           render();
         }
@@ -47,9 +48,6 @@ export const todoWidget = {
     };
 
     render();
-
-    return {
-      unmount() {}
-    };
+    return { unmount() {} };
   }
 };
