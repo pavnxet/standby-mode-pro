@@ -73,7 +73,8 @@ const defaultState = {
     fontFamily: "var(--font-sans)",
     accentColor: "#3b82f6",
     glowIntensity: 1,
-    tickSound: true
+    tickSound: true,
+    tickVolume: 0.5
   },
   pomoState: {
     stage: "focus",
@@ -90,6 +91,7 @@ const defaultState = {
       autoStartBreaks: false,
       autoStartPomo: false,
       tickSound: true,
+      tickVolume: 0.5,
       alarmSound: true
     }
   },
@@ -320,6 +322,15 @@ export class Store {
 
   setWidgets(widgets) {
     this.updateActiveSpace({ widgets });
+  }
+
+  setTickVolume(volume) {
+    const val = Math.max(0, Math.min(1, parseFloat(volume) || 0));
+    this.state.clockConfig.tickVolume = val;
+    if (this.state.pomoState && this.state.pomoState.settings) {
+      this.state.pomoState.settings.tickVolume = val;
+    }
+    this.notify("clock_config_updated", this.state.clockConfig);
   }
 
   updateClockConfig(updates) {

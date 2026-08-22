@@ -6,6 +6,7 @@ class SoundEngine {
     this.activeNodes = {};
     this.masterGain = null;
     this.isMuted = false;
+    this.tickVolume = 0.5; // Default 50%
   }
 
   initContext() {
@@ -27,8 +28,20 @@ class SoundEngine {
     }
   }
 
-  // Play subtle mechanical flip click
-  playFlipTick() {
+  setTickVolume(val) {
+    const num = parseFloat(val);
+    this.tickVolume = Number.isFinite(num) ? Math.max(0, Math.min(1, num)) : 0.5;
+  }
+
+  getTickVolume() {
+    return this.tickVolume;
+  }
+
+  // Play subtle mechanical flip click with customizable volume
+  playFlipTick(customVol) {
+    const vol = customVol !== undefined ? Math.max(0, Math.min(1, parseFloat(customVol))) : this.tickVolume;
+    if (vol <= 0.001) return;
+
     try {
       this.initContext();
       const osc = this.ctx.createOscillator();
@@ -43,8 +56,9 @@ class SoundEngine {
       osc.frequency.setValueAtTime(180, this.ctx.currentTime);
       osc.frequency.exponentialRampToValueAtTime(40, this.ctx.currentTime + 0.035);
 
-      gain.gain.setValueAtTime(0.35, this.ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.035);
+      const targetGain = 0.35 * vol;
+      gain.gain.setValueAtTime(targetGain, this.ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + 0.035);
 
       osc.connect(filter);
       filter.connect(gain);
@@ -53,8 +67,39 @@ class SoundEngine {
       osc.start();
       osc.stop(this.ctx.currentTime + 0.04);
     } catch (e) {
-      // Audio context might require initial user gesture
+      // User gesture might be required
     }
+  }
+
+  // Play soft timer tick for Pomodoro countdown
+  playTimerTick(customVol) {
+    const vol = customVol !== undefined ? Math.max(0, Math.min(1, parseFloat(customVol))) : this.tickVolume;
+    if (vol <= 0.001) return;
+
+    try {
+      this.initContext();
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      const filter = this.ctx.createBiquadFilter();
+
+      filter.type = "highpass";
+      filter.frequency.setValueAtTime(1800, this.ctx.currentTime);
+
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(800, this.ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(200, this.ctx.currentTime + 0.02);
+
+      const targetGain = 0.18 * vol;
+      gain.gain.setValueAtTime(targetGain, this.ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + 0.02);
+
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.masterGain);
+
+      osc.start();
+      osc.stop(this.ctx.currentTime + 0.025);
+    } catch (e) {}
   }
 
   // Play Timer Alarm Chime
@@ -81,7 +126,7 @@ class SoundEngine {
     });
   }
 
-  // Continuous Ambient Atmosphere Synthesizer (Rain, Waves, Fire, Binaural, Noise)
+  // Continuous Ambient Atmosphere Synthesizer
   playAmbient(type) {
     this.stopAmbient();
     if (!type || type === "none") return;
@@ -111,7 +156,6 @@ class SoundEngine {
     this.activeNodes = {};
   }
 
-  // Procedural Noise Buffer Generator
   createNoiseBuffer(type = "pink", duration = 5) {
     const bufferSize = this.ctx.sampleRate * duration;
     const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
@@ -173,9 +217,8 @@ class SoundEngine {
     filter.type = "lowpass";
     filter.frequency.setValueAtTime(450, this.ctx.currentTime);
 
-    // LFO for wave modulation
     const lfo = this.ctx.createOscillator();
-    lfo.frequency.setValueAtTime(0.12, this.ctx.currentTime); // Wave every 8 seconds
+    lfo.frequency.setValueAtTime(0.12, this.ctx.currentTime);
 
     const lfoGain = this.ctx.createGain();
     lfoGain.gain.setValueAtTime(0.35, this.ctx.currentTime);
@@ -230,10 +273,10 @@ class SoundEngine {
     const gain = this.ctx.createGain();
 
     oscLeft.type = "sine";
-    oscLeft.frequency.setValueAtTime(216, this.ctx.currentTime); // 432Hz base octave
+    oscLeft.frequency.setValueAtTime(216, this.ctx.currentTime);
 
     oscRight.type = "sine";
-    oscRight.frequency.setValueAtTime(222, this.ctx.currentTime); // 6Hz Theta binaural beat for deep focus
+    oscRight.frequency.setValueAtTime(222, this.ctx.currentTime);
 
     gain.gain.setValueAtTime(0.25, this.ctx.currentTime);
 

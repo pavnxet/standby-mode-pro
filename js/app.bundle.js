@@ -79,7 +79,8 @@ const defaultState = {
     fontFamily: "var(--font-sans)",
     accentColor: "#3b82f6",
     glowIntensity: 1,
-    tickSound: true
+    tickSound: true,
+    tickVolume: 0.5
   },
   pomoState: {
     stage: "focus",
@@ -96,6 +97,7 @@ const defaultState = {
       autoStartBreaks: false,
       autoStartPomo: false,
       tickSound: true,
+      tickVolume: 0.5,
       alarmSound: true
     }
   },
@@ -326,6 +328,15 @@ class Store {
 
   setWidgets(widgets) {
     this.updateActiveSpace({ widgets });
+  }
+
+  setTickVolume(volume) {
+    const val = Math.max(0, Math.min(1, parseFloat(volume) || 0));
+    this.state.clockConfig.tickVolume = val;
+    if (this.state.pomoState && this.state.pomoState.settings) {
+      this.state.pomoState.settings.tickVolume = val;
+    }
+    this.notify("clock_config_updated", this.state.clockConfig);
   }
 
   updateClockConfig(updates) {
@@ -799,6 +810,7 @@ class SoundEngine {
     this.activeNodes = {};
     this.masterGain = null;
     this.isMuted = false;
+    this.tickVolume = 0.5; // Default 50%
   }
 
   initContext() {
@@ -820,8 +832,20 @@ class SoundEngine {
     }
   }
 
-  // Play subtle mechanical flip click
-  playFlipTick() {
+  setTickVolume(val) {
+    const num = parseFloat(val);
+    this.tickVolume = Number.isFinite(num) ? Math.max(0, Math.min(1, num)) : 0.5;
+  }
+
+  getTickVolume() {
+    return this.tickVolume;
+  }
+
+  // Play subtle mechanical flip click with customizable volume
+  playFlipTick(customVol) {
+    const vol = customVol !== undefined ? Math.max(0, Math.min(1, parseFloat(customVol))) : this.tickVolume;
+    if (vol <= 0.001) return;
+
     try {
       this.initContext();
       const osc = this.ctx.createOscillator();
@@ -836,8 +860,9 @@ class SoundEngine {
       osc.frequency.setValueAtTime(180, this.ctx.currentTime);
       osc.frequency.exponentialRampToValueAtTime(40, this.ctx.currentTime + 0.035);
 
-      gain.gain.setValueAtTime(0.35, this.ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.035);
+      const targetGain = 0.35 * vol;
+      gain.gain.setValueAtTime(targetGain, this.ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + 0.035);
 
       osc.connect(filter);
       filter.connect(gain);
@@ -846,8 +871,39 @@ class SoundEngine {
       osc.start();
       osc.stop(this.ctx.currentTime + 0.04);
     } catch (e) {
-      // Audio context might require initial user gesture
+      // User gesture might be required
     }
+  }
+
+  // Play soft timer tick for Pomodoro countdown
+  playTimerTick(customVol) {
+    const vol = customVol !== undefined ? Math.max(0, Math.min(1, parseFloat(customVol))) : this.tickVolume;
+    if (vol <= 0.001) return;
+
+    try {
+      this.initContext();
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      const filter = this.ctx.createBiquadFilter();
+
+      filter.type = "highpass";
+      filter.frequency.setValueAtTime(1800, this.ctx.currentTime);
+
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(800, this.ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(200, this.ctx.currentTime + 0.02);
+
+      const targetGain = 0.18 * vol;
+      gain.gain.setValueAtTime(targetGain, this.ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + 0.02);
+
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.masterGain);
+
+      osc.start();
+      osc.stop(this.ctx.currentTime + 0.025);
+    } catch (e) {}
   }
 
   // Play Timer Alarm Chime
@@ -874,7 +930,7 @@ class SoundEngine {
     });
   }
 
-  // Continuous Ambient Atmosphere Synthesizer (Rain, Waves, Fire, Binaural, Noise)
+  // Continuous Ambient Atmosphere Synthesizer
   playAmbient(type) {
     this.stopAmbient();
     if (!type || type === "none") return;
@@ -904,7 +960,6 @@ class SoundEngine {
     this.activeNodes = {};
   }
 
-  // Procedural Noise Buffer Generator
   createNoiseBuffer(type = "pink", duration = 5) {
     const bufferSize = this.ctx.sampleRate * duration;
     const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
@@ -966,9 +1021,8 @@ class SoundEngine {
     filter.type = "lowpass";
     filter.frequency.setValueAtTime(450, this.ctx.currentTime);
 
-    // LFO for wave modulation
     const lfo = this.ctx.createOscillator();
-    lfo.frequency.setValueAtTime(0.12, this.ctx.currentTime); // Wave every 8 seconds
+    lfo.frequency.setValueAtTime(0.12, this.ctx.currentTime);
 
     const lfoGain = this.ctx.createGain();
     lfoGain.gain.setValueAtTime(0.35, this.ctx.currentTime);
@@ -1023,10 +1077,10 @@ class SoundEngine {
     const gain = this.ctx.createGain();
 
     oscLeft.type = "sine";
-    oscLeft.frequency.setValueAtTime(216, this.ctx.currentTime); // 432Hz base octave
+    oscLeft.frequency.setValueAtTime(216, this.ctx.currentTime);
 
     oscRight.type = "sine";
-    oscRight.frequency.setValueAtTime(222, this.ctx.currentTime); // 6Hz Theta binaural beat for deep focus
+    oscRight.frequency.setValueAtTime(222, this.ctx.currentTime);
 
     gain.gain.setValueAtTime(0.25, this.ctx.currentTime);
 
@@ -3310,22 +3364,43 @@ class CustomizeModal {
           </div>
         </div>
 
-        <!-- Clock Behavior -->
+        <!-- Clock Behavior & Sound Customization -->
         <div class="pt-4 border-t border-white/10">
           <label class="block text-xs font-bold text-neutral-400 uppercase tracking-wider mb-2.5">Clock & Sound Behavior</label>
-          <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
-            <label class="flex items-center gap-2 p-2 bg-white/5 rounded-xl border border-white/5 cursor-pointer">
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
+            <label class="flex items-center gap-2 p-2.5 bg-white/5 rounded-xl border border-white/5 cursor-pointer hover:bg-white/10 transition-colors">
               <input type="checkbox" id="chk-24h" ${state.clockConfig.is24Hour ? "checked" : ""} class="rounded" />
               <span class="text-xs font-medium">24-Hour Format</span>
             </label>
-            <label class="flex items-center gap-2 p-2 bg-white/5 rounded-xl border border-white/5 cursor-pointer">
+            <label class="flex items-center gap-2 p-2.5 bg-white/5 rounded-xl border border-white/5 cursor-pointer hover:bg-white/10 transition-colors">
               <input type="checkbox" id="chk-seconds" ${state.clockConfig.showSeconds ? "checked" : ""} class="rounded" />
               <span class="text-xs font-medium">Show Seconds</span>
             </label>
-            <label class="flex items-center gap-2 p-2 bg-white/5 rounded-xl border border-white/5 cursor-pointer">
+            <label class="flex items-center gap-2 p-2.5 bg-white/5 rounded-xl border border-white/5 cursor-pointer hover:bg-white/10 transition-colors">
               <input type="checkbox" id="chk-tick" ${state.clockConfig.tickSound ? "checked" : ""} class="rounded" />
               <span class="text-xs font-medium">Tick Audio</span>
             </label>
+          </div>
+
+          <!-- Tick Sound Volume Slider -->
+          <div class="p-3.5 bg-white/5 rounded-xl border border-white/5 ${state.clockConfig.tickSound ? "" : "opacity-50 pointer-events-none"} transition-all" id="tick-volume-container">
+            <div class="flex items-center justify-between mb-2">
+              <div class="flex items-center gap-2">
+                <span class="text-xs font-bold text-neutral-200">Tick Volume</span>
+                <span class="text-[11px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 font-mono font-bold" id="tick-volume-badge">${Math.round((state.clockConfig.tickVolume ?? 0.5) * 100)}%</span>
+              </div>
+              <button id="btn-preview-tick" class="px-2.5 py-1 text-xs rounded-lg bg-white/10 hover:bg-blue-600 hover:text-white text-neutral-200 transition-colors flex items-center gap-1.5 font-medium shadow-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+                <span>Test 🔊</span>
+              </button>
+            </div>
+            <input type="range" min="0" max="1" step="0.05" id="range-tick-volume" value="${state.clockConfig.tickVolume ?? 0.5}" class="w-full accent-blue-500 h-1.5 bg-neutral-800 rounded-lg cursor-pointer" />
+            <div class="flex justify-between text-[10px] text-neutral-500 mt-1.5 font-mono">
+              <span>Mute (0%)</span>
+              <span>Subtle (30%)</span>
+              <span>Default (50%)</span>
+              <span>Loud (100%)</span>
+            </div>
           </div>
         </div>
 
