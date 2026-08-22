@@ -2789,7 +2789,6 @@ class PomoFocusView {
   init() {
     this.render();
 
-    // Start background Pomodoro ticker
     if (this.timerInterval) clearInterval(this.timerInterval);
     this.timerInterval = setInterval(() => {
       const finished = store.tickPomo();
@@ -2797,7 +2796,7 @@ class PomoFocusView {
         soundEngine.playAlarmChime();
         this.render();
       } else {
-        this.updateDigitsOnly();
+        this.updateTimeOnly();
       }
     }, 1000);
 
@@ -2818,82 +2817,64 @@ class PomoFocusView {
     const s = totalSecs % 60;
     return {
       minutes: String(m).padStart(2, '0'),
-      seconds: String(s).padStart(2, '0'),
-      formatted: `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+      seconds: String(s).padStart(2, '0')
     };
   }
 
   renderThemedTimer(clockId, minutes, seconds) {
-    // 1. Flip Theme
+    // 1. Retro 3D Flip Clock
     if (clockId === 'flip') {
       return `
-        <div class="flip-clock-container" style="gap: clamp(0.3rem, 1.2vw, 0.8rem);">
+        <div class="flip-clock-container" style="gap: 0.4rem;">
           <div class="flip-group">
-            <div class="flip-unit"><div class="flip-card-top"><span>${minutes[0]}</span></div><div class="flip-card-bottom"><span>${minutes[0]}</span></div></div>
-            <div class="flip-unit"><div class="flip-card-top"><span>${minutes[1]}</span></div><div class="flip-card-bottom"><span>${minutes[1]}</span></div></div>
+            <div class="flip-unit" style="width: 2.8rem; height: 3.8rem; font-size: 2.2rem;"><div class="flip-card-top"><span>${minutes[0]}</span></div><div class="flip-card-bottom"><span>${minutes[0]}</span></div></div>
+            <div class="flip-unit" style="width: 2.8rem; height: 3.8rem; font-size: 2.2rem;"><div class="flip-card-top"><span>${minutes[1]}</span></div><div class="flip-card-bottom"><span>${minutes[1]}</span></div></div>
           </div>
-          <div class="flip-divider" style="font-size: clamp(2rem, 6vw, 4.5rem);">:</div>
+          <div class="flip-divider text-2xl">:</div>
           <div class="flip-group">
-            <div class="flip-unit"><div class="flip-card-top"><span>${seconds[0]}</span></div><div class="flip-card-bottom"><span>${seconds[0]}</span></div></div>
-            <div class="flip-unit"><div class="flip-card-top"><span>${seconds[1]}</span></div><div class="flip-card-bottom"><span>${seconds[1]}</span></div></div>
+            <div class="flip-unit" style="width: 2.8rem; height: 3.8rem; font-size: 2.2rem;"><div class="flip-card-top"><span>${seconds[0]}</span></div><div class="flip-card-bottom"><span>${seconds[0]}</span></div></div>
+            <div class="flip-unit" style="width: 2.8rem; height: 3.8rem; font-size: 2.2rem;"><div class="flip-card-top"><span>${seconds[1]}</span></div><div class="flip-card-bottom"><span>${seconds[1]}</span></div></div>
           </div>
         </div>
       `;
     }
-    // 2. Neon Theme
+    // 2. Neon Glow
     if (clockId === 'neon') {
-      return `
-        <div class="neon-clock-container">
-          <div class="neon-time text-6xl md:text-8xl">${minutes}:${seconds}</div>
-        </div>
-      `;
+      return `<div class="neon-time text-5xl md:text-6xl font-bold tracking-tight">${minutes}:${seconds}</div>`;
     }
-    // 3. Matrix Theme
+    // 3. Matrix Digital
     if (clockId === 'matrix') {
       return `
-        <div class="matrix-clock-container">
-          <div class="matrix-sub">POMO_STAGE // ACTIVE_CYCLE</div>
-          <div class="matrix-time text-6xl md:text-8xl">${minutes}:${seconds}</div>
+        <div class="matrix-clock-container py-0">
+          <div class="matrix-time text-5xl font-mono">${minutes}:${seconds}</div>
         </div>
       `;
     }
-    // 4. 7-Segment LED Theme
+    // 4. 7-Segment LED
     if (clockId === 'segmented') {
       return `
-        <div class="segmented-clock-container" style="font-size: clamp(3.5rem, 11vw, 8rem);">
+        <div class="segmented-clock-container text-6xl tracking-wider">
           <div class="seg-digit-group">${minutes}</div>
           <div class="seg-digit-group animate-pulse">:</div>
           <div class="seg-digit-group">${seconds}</div>
         </div>
       `;
     }
-    // 5. AMOLED Theme
+    // 5. AMOLED Minimal
     if (clockId === 'minimal') {
-      return `
-        <div class="amoled-clock-container">
-          <div class="amoled-time text-7xl md:text-9xl">${minutes}:${seconds}</div>
-        </div>
-      `;
+      return `<div class="amoled-time text-6xl md:text-7xl font-sans tracking-tight">${minutes}:${seconds}</div>`;
     }
-    // 6. Star Trek LCARS Theme
+    // 6. Star Trek LCARS
     if (clockId === 'lcars') {
       return `
-        <div class="lcars-clock-container max-w-lg">
-          <div class="lcars-elbow"><span class="lcars-text-id">FOCUS</span><span class="text-[10px] font-bold text-black">POMO</span></div>
-          <div class="lcars-body">
-            <div class="text-xs font-mono text-amber-400">STAGE TELEMETRY</div>
-            <div class="lcars-time text-5xl md:text-7xl">${minutes}:${seconds}</div>
-            <div class="lcars-bar"></div>
-          </div>
+        <div class="text-center font-mono">
+          <div class="text-[10px] text-amber-400 tracking-widest uppercase">LCARS POMO</div>
+          <div class="lcars-time text-5xl">${minutes}:${seconds}</div>
         </div>
       `;
     }
-    // Default Clean Display (Solar, Radial, Day, BigCrop, etc.)
-    return `
-      <div class="font-sans font-extrabold text-7xl md:text-9xl tracking-tight text-white drop-shadow-2xl font-mono">
-        ${minutes}:${seconds}
-      </div>
-    `;
+    // Default Clean Modern Display
+    return `<div class="pomo-primary-time">${minutes}:${seconds}</div>`;
   }
 
   render() {
@@ -2904,8 +2885,8 @@ class PomoFocusView {
     const clockId = activeSpace.clockId || 'flip';
     const { minutes, seconds } = this.formatTime(pomo.remainingSeconds);
 
-    const progressPct = pomo.totalSeconds > 0 ? (pomo.remainingSeconds / pomo.totalSeconds) * 100 : 0;
-    const circumference = 2 * Math.PI * 135;
+    const radius = 118;
+    const circumference = 2 * Math.PI * radius;
     const strokeDashoffset = circumference * (1 - pomo.remainingSeconds / (pomo.totalSeconds || 1));
 
     const totalSessionsInCycle = pomo.settings.longBreakInterval || 4;
@@ -2914,88 +2895,95 @@ class PomoFocusView {
     let cycleDotsHtml = '';
     for (let i = 1; i <= totalSessionsInCycle; i++) {
       if (i < currentInCycle) {
-        cycleDotsHtml += `<span class="w-3 h-3 rounded-full bg-blue-500 shadow-md"></span>`;
+        cycleDotsHtml += `<span class="w-2.5 h-2.5 rounded-full bg-blue-500 shadow-sm"></span>`;
       } else if (i === currentInCycle) {
-        cycleDotsHtml += `<span class="w-3.5 h-3.5 rounded-full bg-blue-400 ring-4 ring-blue-500/20 animate-pulse"></span>`;
+        cycleDotsHtml += `<span class="w-3 h-3 rounded-full bg-blue-400 ring-4 ring-blue-500/25 animate-pulse"></span>`;
       } else {
-        cycleDotsHtml += `<span class="w-3 h-3 rounded-full bg-white/20"></span>`;
+        cycleDotsHtml += `<span class="w-2.5 h-2.5 rounded-full bg-white/20"></span>`;
       }
     }
 
     const stageLabel = pomo.stage === 'focus' ? 'Deep Work Sprint' : pomo.stage === 'shortBreak' ? 'Short Recharge' : 'Long Recovery';
+    const ringColor = pomo.stage === 'focus' ? '#3b82f6' : pomo.stage === 'shortBreak' ? '#10b981' : '#a855f7';
+    const btnBg = pomo.isRunning ? 'bg-amber-600 hover:bg-amber-500 shadow-amber-900/40' : pomo.stage === 'focus' ? 'bg-blue-600 hover:bg-blue-500 shadow-blue-900/40' : pomo.stage === 'shortBreak' ? 'bg-emerald-600 hover:bg-emerald-500 shadow-emerald-900/40' : 'bg-purple-600 hover:bg-purple-500 shadow-purple-900/40';
 
     this.container.innerHTML = `
       <div class="pomo-focus-stage">
         
-        <!-- Non-Distracting Live Corner Clock -->
+        <!-- Sleek Corner Live Clock Pill -->
         <div class="pomo-corner-clock" id="pomo-corner-clock-box">
-          <div class="flex items-center gap-2">
+          <div class="flex items-center gap-1.5">
             <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span class="text-[11px] font-bold text-neutral-400 uppercase tracking-wider">Local Time</span>
+            <span class="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Clock</span>
           </div>
-          <div class="pomo-corner-time font-mono" id="pomo-corner-live-time">12:00:00</div>
-          <div class="text-[10px] text-neutral-400" id="pomo-corner-live-date">Sat, Aug 22</div>
+          <span class="pomo-corner-time" id="pomo-corner-live-time">12:00:00</span>
+          <span class="pomo-corner-date" id="pomo-corner-live-date">Sat, Aug 22</span>
         </div>
 
-        <!-- Central Pomodoro Card -->
+        <!-- Center Focus Dashboard Card -->
         <div class="pomo-center-card">
           
-          <!-- Stage Selector Pills -->
-          <div class="flex items-center gap-2 p-1.5 bg-black/40 backdrop-blur-md rounded-full border border-white/10 mb-4 shadow-xl">
-            <button class="px-4 py-1.5 rounded-full text-xs font-bold transition-all ${pomo.stage === 'focus' ? 'bg-blue-600 text-white shadow-lg' : 'text-neutral-400 hover:text-white'}" data-pomo-stage="focus">
+          <!-- Stage Selector Nav -->
+          <div class="pomo-stage-nav">
+            <button class="pomo-stage-btn ${pomo.stage === 'focus' ? 'active-focus' : ''}" data-pomo-stage="focus">
               Focus (${pomo.settings.focusDuration}m)
             </button>
-            <button class="px-4 py-1.5 rounded-full text-xs font-bold transition-all ${pomo.stage === 'shortBreak' ? 'bg-emerald-600 text-white shadow-lg' : 'text-neutral-400 hover:text-white'}" data-pomo-stage="shortBreak">
+            <button class="pomo-stage-btn ${pomo.stage === 'shortBreak' ? 'active-short' : ''}" data-pomo-stage="shortBreak">
               Short Break (${pomo.settings.shortBreakDuration}m)
             </button>
-            <button class="px-4 py-1.5 rounded-full text-xs font-bold transition-all ${pomo.stage === 'longBreak' ? 'bg-purple-600 text-white shadow-lg' : 'text-neutral-400 hover:text-white'}" data-pomo-stage="longBreak">
+            <button class="pomo-stage-btn ${pomo.stage === 'longBreak' ? 'active-long' : ''}" data-pomo-stage="longBreak">
               Long Break (${pomo.settings.longBreakDuration}m)
             </button>
           </div>
 
-          <!-- Session Cycle Dots & Subtitle -->
-          <div class="flex items-center gap-3 mb-4">
-            <div class="flex items-center gap-2">${cycleDotsHtml}</div>
-            <span class="text-xs font-mono font-medium text-neutral-400">Session ${currentInCycle} of ${totalSessionsInCycle}</span>
+          <!-- Session Cycle Dots -->
+          <div class="pomo-cycle-row">
+            <div class="flex items-center gap-1.5">${cycleDotsHtml}</div>
+            <span class="text-[11px] font-mono font-medium text-neutral-400">Session ${currentInCycle} of ${totalSessionsInCycle}</span>
           </div>
 
-          <!-- Circular Themed Timer Display -->
-          <div class="relative flex items-center justify-center p-6 my-2">
-            <svg class="absolute w-72 h-72 md:w-80 md:h-80 pointer-events-none" viewBox="0 0 300 300">
-              <circle cx="150" cy="150" r="135" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="6" />
-              <circle cx="150" cy="150" r="135" fill="none" stroke="${pomo.stage === 'focus' ? '#3b82f6' : pomo.stage === 'shortBreak' ? '#10b981' : '#a855f7'}" stroke-width="6" stroke-dasharray="${circumference}" stroke-dashoffset="${strokeDashoffset}" stroke-linecap="round" transform="rotate(-90 150 150)" class="transition-all duration-1000 ease-linear" />
+          <!-- Circular Ring & Timer Viewport -->
+          <div class="pomo-circle-wrapper">
+            <svg class="pomo-svg-ring" viewBox="0 0 260 260">
+              <!-- Background Track -->
+              <circle cx="130" cy="130" r="${radius}" fill="none" stroke="rgba(255,255,255,0.06)" stroke-width="7" />
+              <!-- Progress Arc -->
+              <circle id="pomo-progress-arc" cx="130" cy="130" r="${radius}" fill="none" stroke="${ringColor}" stroke-width="7" stroke-dasharray="${circumference}" stroke-dashoffset="${strokeDashoffset}" stroke-linecap="round" class="transition-all duration-1000 ease-linear" />
             </svg>
-            <div id="pomo-digits-wrapper" class="z-10 text-center">
+            <div id="pomo-digits-box" class="pomo-digits-box">
               ${this.renderThemedTimer(clockId, minutes, seconds)}
-              <div class="text-xs font-semibold text-neutral-400 uppercase tracking-widest mt-2">${stageLabel}</div>
+              <div class="pomo-stage-subtitle" id="pomo-stage-subtitle-text">${stageLabel}</div>
             </div>
           </div>
 
           <!-- Quick Duration Presets -->
-          <div class="flex items-center gap-2 my-3">
-            <button class="px-3 py-1 text-[11px] font-semibold rounded-lg bg-white/5 border border-white/5 text-neutral-300 hover:bg-white/10" data-preset="25">25 / 5m</button>
-            <button class="px-3 py-1 text-[11px] font-semibold rounded-lg bg-white/5 border border-white/5 text-neutral-300 hover:bg-white/10" data-preset="50">50 / 10m</button>
-            <button class="px-3 py-1 text-[11px] font-semibold rounded-lg bg-white/5 border border-white/5 text-neutral-300 hover:bg-white/10" data-preset="90">90 / 20m</button>
+          <div class="pomo-presets-bar">
+            <button class="pomo-preset-chip" data-preset="25">25 / 5m</button>
+            <button class="pomo-preset-chip" data-preset="50">50 / 10m</button>
+            <button class="pomo-preset-chip" data-preset="90">90 / 20m</button>
           </div>
 
-          <!-- Primary Control Buttons -->
-          <div class="flex items-center gap-4 mt-2">
+          <!-- Action Controls Bar -->
+          <div class="pomo-controls-bar">
             <button class="btn-icon" id="pomo-btn-reset" title="Reset Session">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
             </button>
-            <button class="px-8 py-3.5 rounded-full font-bold text-sm text-white shadow-2xl transition-all flex items-center gap-2 ${pomo.isRunning ? 'bg-amber-600 hover:bg-amber-500' : 'bg-blue-600 hover:bg-blue-500'}" id="pomo-btn-toggle">
+            
+            <button class="pomo-btn-main shadow-xl ${btnBg}" id="pomo-btn-toggle">
               ${pomo.isRunning ? `
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
                 <span>Pause</span>
               ` : `
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                <span>Start Focus</span>
+                <span>${pomo.stage === 'focus' ? 'Start Focus' : 'Start Break'}</span>
               `}
             </button>
-            <button class="btn-icon" id="pomo-btn-skip" title="Skip to Next Stage">
+
+            <button class="btn-icon" id="pomo-btn-skip" title="Skip Stage">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
             </button>
-            <button class="btn-icon" id="pomo-btn-settings" title="Pomodoro Settings">
+
+            <button class="btn-icon" id="pomo-btn-settings" title="Customize Settings">
               <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
             </button>
           </div>
@@ -3009,16 +2997,23 @@ class PomoFocusView {
     this.startCornerClock();
   }
 
-  updateDigitsOnly() {
+  updateTimeOnly() {
     const pomo = store.getState().pomoState;
     const { minutes, seconds } = this.formatTime(pomo.remainingSeconds);
-    const wrapper = this.container.querySelector('#pomo-digits-wrapper');
+    const box = this.container.querySelector('#pomo-digits-box');
     const clockId = store.getActiveSpace().clockId || 'flip';
-    if (wrapper) {
-      wrapper.innerHTML = `
+    if (box) {
+      box.innerHTML = `
         ${this.renderThemedTimer(clockId, minutes, seconds)}
-        <div class="text-xs font-semibold text-neutral-400 uppercase tracking-widest mt-2">${pomo.stage === 'focus' ? 'Deep Work Sprint' : pomo.stage === 'shortBreak' ? 'Short Recharge' : 'Long Recovery'}</div>
+        <div class="pomo-stage-subtitle" id="pomo-stage-subtitle-text">${pomo.stage === 'focus' ? 'Deep Work Sprint' : pomo.stage === 'shortBreak' ? 'Short Recharge' : 'Long Recovery'}</div>
       `;
+    }
+    const arc = this.container.querySelector('#pomo-progress-arc');
+    if (arc) {
+      const radius = 118;
+      const circumference = 2 * Math.PI * radius;
+      const offset = circumference * (1 - pomo.remainingSeconds / (pomo.totalSeconds || 1));
+      arc.setAttribute('stroke-dashoffset', offset);
     }
   }
 
@@ -3040,7 +3035,6 @@ class PomoFocusView {
   }
 
   initListeners() {
-    // Stage Selector buttons
     this.container.querySelectorAll('[data-pomo-stage]').forEach(btn => {
       btn.addEventListener('click', () => {
         const stage = btn.getAttribute('data-pomo-stage');
@@ -3049,7 +3043,6 @@ class PomoFocusView {
       });
     });
 
-    // Preset buttons
     this.container.querySelectorAll('[data-preset]').forEach(btn => {
       btn.addEventListener('click', () => {
         const p = parseInt(btn.getAttribute('data-preset'), 10);
@@ -3060,7 +3053,6 @@ class PomoFocusView {
       });
     });
 
-    // Start / Pause
     const toggleBtn = this.container.querySelector('#pomo-btn-toggle');
     if (toggleBtn) {
       toggleBtn.addEventListener('click', () => {
@@ -3069,7 +3061,6 @@ class PomoFocusView {
       });
     }
 
-    // Reset
     const resetBtn = this.container.querySelector('#pomo-btn-reset');
     if (resetBtn) {
       resetBtn.addEventListener('click', () => {
@@ -3078,7 +3069,6 @@ class PomoFocusView {
       });
     }
 
-    // Skip
     const skipBtn = this.container.querySelector('#pomo-btn-skip');
     if (skipBtn) {
       skipBtn.addEventListener('click', () => {
@@ -3089,7 +3079,6 @@ class PomoFocusView {
       });
     }
 
-    // Settings Modal Open
     const setBtn = this.container.querySelector('#pomo-btn-settings');
     if (setBtn) {
       setBtn.addEventListener('click', () => {
