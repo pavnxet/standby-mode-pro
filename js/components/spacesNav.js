@@ -1,3 +1,6 @@
+import { store } from '../state/store.js';
+import { soundEngine } from '../engines/soundEngine.js';
+
 export class SpacesNav {
   constructor(containerElement) {
     this.container = containerElement;

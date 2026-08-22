@@ -3,7 +3,7 @@
 class ClockEngine {
   constructor() {
     this.registry = new Map();
-    this.instances = new Map(); // slotId -> { instance, container, clockId, config, timerId }
+    this.instances = new Map();
   }
 
   register(id, clockDefinition) {
