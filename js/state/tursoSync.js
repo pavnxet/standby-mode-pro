@@ -83,6 +83,33 @@ export class TursoSync {
     return await response.json();
   }
 
+  async incrementGlobalViews() {
+    const cfg = store.getState().tursoConfig;
+    if (!cfg || !cfg.url || !cfg.token) return null;
+    try {
+      const now = Date.now();
+      const res = await this.executeStatements([
+        {
+          sql: `INSERT INTO standby_global_views (id, views_count, updated_at)
+                VALUES ('global', 1, ?)
+                ON CONFLICT(id) DO UPDATE SET views_count = standby_global_views.views_count + 1, updated_at = excluded.updated_at;`,
+          args: [{ type: 'integer', value: String(now) }]
+        },
+        {
+          sql: `SELECT views_count FROM standby_global_views WHERE id = 'global';`
+        }
+      ]);
+      const resultObj = res.results && res.results[1];
+      if (resultObj && resultObj.response && resultObj.response.result && resultObj.response.result.rows && resultObj.response.result.rows.length > 0) {
+        const count = parseInt(resultObj.response.result.rows[0][0].value, 10);
+        return count;
+      }
+    } catch (e) {
+      console.warn('incrementGlobalViews error:', e);
+    }
+    return null;
+  }
+
   async testConnection(url, token) {
     const endpoint = this.formatTursoUrl(url);
     const response = await fetch(endpoint, {
@@ -123,6 +150,11 @@ export class TursoSync {
           total_focus_minutes INTEGER NOT NULL DEFAULT 0,
           completed_sessions INTEGER NOT NULL DEFAULT 0,
           water_count INTEGER NOT NULL DEFAULT 0,
+          updated_at INTEGER NOT NULL
+        );`,
+        `CREATE TABLE IF NOT EXISTS standby_global_views (
+          id TEXT PRIMARY KEY,
+          views_count INTEGER NOT NULL DEFAULT 0,
           updated_at INTEGER NOT NULL
         );`,
         `CREATE TABLE IF NOT EXISTS standby_user_state (

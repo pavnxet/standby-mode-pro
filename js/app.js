@@ -87,6 +87,9 @@ class App {
     new NightModeController();
     new Screensaver();
 
+    // 5. Initialize Live View Counter
+    this.initViewsCounter();
+
     // 5. Initialize Wallpaper Layer
     this.updateWallpaper();
     store.subscribe((event) => {
@@ -194,6 +197,32 @@ class App {
     } else {
       layer.style.opacity = "0";
       layer.style.backgroundImage = "none";
+    }
+  }
+
+  async initViewsCounter() {
+    const countEl = document.getElementById('global-views-count');
+    if (!countEl) return;
+
+    // 1. Increment local session view count immediately
+    let localCount = 1;
+    try {
+      const stored = localStorage.getItem('standby_site_views');
+      localCount = (parseInt(stored, 10) || 0) + 1;
+      localStorage.setItem('standby_site_views', String(localCount));
+    } catch (e) {}
+
+    countEl.textContent = localCount.toLocaleString();
+
+    // 2. If Turso DB connected, increment & fetch global cloud count
+    const cfg = store.getState().tursoConfig;
+    if (cfg && cfg.url && cfg.token) {
+      try {
+        const cloudCount = await tursoSync.incrementGlobalViews();
+        if (cloudCount !== null && cloudCount > 0) {
+          countEl.textContent = cloudCount.toLocaleString();
+        }
+      } catch (e) {}
     }
   }
 
