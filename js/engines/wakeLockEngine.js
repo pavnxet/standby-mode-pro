@@ -54,6 +54,7 @@ export class WakeLockEngine {
   }
 
   isActive() { return Boolean(this.wakeLock && !this.wakeLock.released); }
+  isWakeLockActive() { return this.isActive(); }
 }
 
 export const wakeLockEngine = new WakeLockEngine();

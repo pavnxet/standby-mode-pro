@@ -1,26 +1,40 @@
-import { store } from '../state/store.js';
-import { clockEngine } from '../engines/clockEngine.js';
-import { widgetEngine } from '../engines/widgetEngine.js';
-import { wakeLockEngine } from '../engines/wakeLockEngine.js';
+/* StandBy Mode Pro - Customization & Settings Modal */
+import { store } from "../state/store.js";
+import { clockEngine } from "../engines/clockEngine.js";
+import { widgetEngine } from "../engines/widgetEngine.js";
+import { soundEngine } from "../engines/soundEngine.js";
+import { wakeLockEngine } from "../engines/wakeLockEngine.js";
 
 export class CustomizeModal {
   constructor() {
     this.modalEl = document.getElementById("customize-modal");
     this.contentEl = document.getElementById("customize-modal-content");
-    this.openBtn = document.getElementById("btn-customize");
-    this.closeBtn = document.getElementById("btn-close-customize");
-
-    this.initEvents();
+    this.init();
   }
 
-  initEvents() {
-    if (this.openBtn) this.openBtn.addEventListener("click", () => this.open());
-    if (this.closeBtn) this.closeBtn.addEventListener("click", () => this.close());
+  init() {
+    const openBtn = document.getElementById("btn-customize");
+    const closeBtn = document.getElementById("btn-close-customize");
+
+    if (openBtn) openBtn.addEventListener("click", () => this.open());
+    if (closeBtn) closeBtn.addEventListener("click", () => this.close());
+
     if (this.modalEl) {
       this.modalEl.addEventListener("click", (e) => {
         if (e.target === this.modalEl) this.close();
       });
     }
+
+    // Only re-render full modal when space itself changes, NOT during active slider drag
+    store.subscribe((event) => {
+      if (
+        (event === "space_changed" || event === "space_updated") &&
+        this.modalEl &&
+        this.modalEl.classList.contains("open")
+      ) {
+        this.render();
+      }
+    });
   }
 
   open() {
@@ -34,49 +48,60 @@ export class CustomizeModal {
 
   render() {
     if (!this.contentEl) return;
+
     const state = store.getState();
     const activeSpace = store.getActiveSpace();
-    const pomo = state.pomoState;
     const clockList = clockEngine.getClockList();
     const widgetList = widgetEngine.getWidgetList();
-    const isWakeLocked = state.keepScreenAwake;
+    const pomo = state.pomoState;
+    const isWakeLocked = wakeLockEngine.isActive();
+    const currentTickVol = state.clockConfig.tickVolume !== undefined ? state.clockConfig.tickVolume : 0.75;
+    const tickPercent = Math.round(currentTickVol * 100);
 
     this.contentEl.innerHTML = `
       <div class="space-y-6 text-sm text-neutral-200">
         
-        <!-- Screen Wake Lock (Always Screen On) -->
-        <div class="p-3.5 bg-gradient-to-r from-blue-950/40 to-indigo-950/40 rounded-2xl border border-blue-500/25 flex items-center justify-between shadow-lg">
+        <!-- Screen Wake Lock Toggle -->
+        <div class="p-3.5 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-between">
           <div class="flex items-center gap-3">
-            <div class="w-9 h-9 rounded-xl bg-blue-500/20 border border-blue-500/30 flex items-center justify-center text-blue-400">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+            <div class="w-8 h-8 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
             </div>
             <div>
-              <div class="font-bold text-xs text-white flex items-center gap-2">
-                <span>Always Keep Screen Awake</span>
-                <span class="text-[10px] font-mono px-2 py-0.5 rounded-full ${isWakeLocked ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-white/10 text-neutral-400'}">
-                  ${isWakeLocked ? 'Active ⚡' : 'Off'}
-                </span>
-              </div>
-              <div class="text-[11px] text-neutral-400 mt-0.5">Prevents display timeout & sleep during clock sessions</div>
+              <div class="font-bold text-xs text-white">Always Screen On</div>
+              <div class="text-[11px] text-neutral-400">Keep display awake while app is active</div>
             </div>
           </div>
-          <label class="relative inline-flex items-center cursor-pointer">
-            <input type="checkbox" id="chk-wake-lock" ${isWakeLocked ? "checked" : ""} class="sr-only peer" />
-            <div class="w-11 h-6 bg-neutral-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-          </label>
+          <div class="flex items-center gap-2">
+            <span class="text-[11px] font-mono px-2 py-0.5 rounded-full ${isWakeLocked ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/10 text-neutral-400'}">
+              ${isWakeLocked ? 'Active ⚡' : 'Off'}
+            </span>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="chk-wake-lock" ${state.keepScreenAwake ? "checked" : ""} class="sr-only peer" />
+              <div class="w-9 h-5 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+            </label>
+          </div>
         </div>
 
-        <!-- Layout Selection -->
+        <!-- Space Selection -->
         <div>
-          <label class="block text-xs font-bold text-neutral-400 uppercase tracking-wider mb-2.5">Dashboard Layout</label>
-          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+          <label class="block text-xs font-bold text-neutral-400 uppercase tracking-wider mb-2.5">Current Space</label>
+          <div class="grid grid-cols-4 gap-2">
+            ${Object.values(state.spaces).map(s => `
+              <button class="p-2.5 rounded-xl border text-center font-bold text-xs transition-all ${s.id === state.activeSpaceId ? "bg-blue-600 border-blue-500 text-white shadow-lg" : "bg-white/5 border-white/5 text-neutral-400 hover:bg-white/10"}" data-set-space="${s.id}">
+                ${s.name}
+              </button>
+            `).join("")}
+          </div>
+        </div>
+
+        <!-- Layout Selector -->
+        <div>
+          <label class="block text-xs font-bold text-neutral-400 uppercase tracking-wider mb-2.5">Layout Mode</label>
+          <div class="grid grid-cols-3 gap-3">
             <button class="p-3 rounded-xl border text-center font-semibold transition-all flex flex-col items-center gap-1.5 ${activeSpace.layout === "standalone" ? "bg-blue-600/30 border-blue-500 text-white" : "bg-white/5 border-white/10 text-neutral-400 hover:bg-white/10"}" data-set-layout="standalone">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="18" x="3" y="3" rx="3"/><circle cx="12" cy="12" r="4"/></svg>
-              <span class="text-xs">Clock Only</span>
-            </button>
-            <button class="p-3 rounded-xl border text-center font-semibold transition-all flex flex-col items-center gap-1.5 ${activeSpace.layout === "focus" ? "bg-blue-600/30 border-blue-500 text-white" : "bg-white/5 border-white/10 text-neutral-400 hover:bg-white/10"}" data-set-layout="focus">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg>
-              <span class="text-xs">Pomodoro Focus</span>
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="18" x="3" y="3" rx="3"/></svg>
+              <span class="text-xs">Fullscreen Clock</span>
             </button>
             <button class="p-3 rounded-xl border text-center font-semibold transition-all flex flex-col items-center gap-1.5 ${activeSpace.layout === "duo" ? "bg-blue-600/30 border-blue-500 text-white" : "bg-white/5 border-white/10 text-neutral-400 hover:bg-white/10"}" data-set-layout="duo">
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="18" x="3" y="3" rx="3"/><line x1="12" y1="3" x2="12" y2="21"/></svg>
@@ -152,24 +177,24 @@ export class CustomizeModal {
             </label>
           </div>
 
-          <!-- Tick Sound Volume Slider -->
+          <!-- Tick Sound Volume Slider & Instant Preview -->
           <div class="p-3.5 bg-white/5 rounded-xl border border-white/5 ${state.clockConfig.tickSound ? "" : "opacity-50 pointer-events-none"} transition-all" id="tick-volume-container">
             <div class="flex items-center justify-between mb-2">
               <div class="flex items-center gap-2">
                 <span class="text-xs font-bold text-neutral-200">Tick Volume</span>
-                <span class="text-[11px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 font-mono font-bold" id="tick-volume-badge">${Math.round((state.clockConfig.tickVolume ?? 0.5) * 100)}%</span>
+                <span class="text-[11px] px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 font-mono font-bold" id="tick-volume-badge">${tickPercent}%</span>
               </div>
-              <button id="btn-preview-tick" class="px-2.5 py-1 text-xs rounded-lg bg-white/10 hover:bg-blue-600 hover:text-white text-neutral-200 transition-colors flex items-center gap-1.5 font-medium shadow-sm">
+              <button id="btn-preview-tick" class="px-3 py-1 text-xs rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition-all flex items-center gap-1.5 font-bold shadow-md active:scale-95 cursor-pointer">
                 <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
                 <span>Test 🔊</span>
               </button>
             </div>
-            <input type="range" min="0" max="1" step="0.05" id="range-tick-volume" value="${state.clockConfig.tickVolume ?? 0.5}" class="w-full accent-blue-500 h-1.5 bg-neutral-800 rounded-lg cursor-pointer" />
-            <div class="flex justify-between text-[10px] text-neutral-500 mt-1.5 font-mono">
+            <input type="range" min="0" max="1" step="0.05" id="range-tick-volume" value="${currentTickVol}" class="w-full accent-blue-500 h-2 bg-neutral-800 rounded-lg cursor-pointer" />
+            <div class="flex justify-between text-[10px] text-neutral-400 mt-1.5 font-mono">
               <span>Mute (0%)</span>
               <span>Subtle (30%)</span>
-              <span>Default (50%)</span>
-              <span>Loud (100%)</span>
+              <span>Default (75%)</span>
+              <span>Max (100%)</span>
             </div>
           </div>
         </div>
@@ -200,7 +225,11 @@ export class CustomizeModal {
       </div>
     `;
 
-    // Event Listeners
+    this.bindEvents();
+  }
+
+  bindEvents() {
+    // 1. Wake Lock
     const chkWakeLock = this.contentEl.querySelector("#chk-wake-lock");
     if (chkWakeLock) {
       chkWakeLock.addEventListener("change", (e) => {
@@ -209,21 +238,34 @@ export class CustomizeModal {
       });
     }
 
+    // 2. Spaces
+    this.contentEl.querySelectorAll("[data-set-space]").forEach(btn => {
+      btn.addEventListener("click", () => {
+        store.setActiveSpace(btn.getAttribute("data-set-space"));
+        soundEngine.playFlipTick();
+        this.render();
+      });
+    });
+
+    // 3. Layouts
     this.contentEl.querySelectorAll("[data-set-layout]").forEach(btn => {
       btn.addEventListener("click", () => {
         store.setLayout(btn.getAttribute("data-set-layout"));
+        soundEngine.playFlipTick();
         this.render();
       });
     });
 
+    // 4. Clocks
     this.contentEl.querySelectorAll("[data-set-clock]").forEach(btn => {
       btn.addEventListener("click", () => {
         store.setClock(btn.getAttribute("data-set-clock"));
+        soundEngine.playFlipTick();
         this.render();
       });
     });
 
-    // Pomo inputs
+    // 5. Pomodoro inputs
     const inFocus = this.contentEl.querySelector("#input-pomo-focus");
     const inShort = this.contentEl.querySelector("#input-pomo-short");
     const inLong = this.contentEl.querySelector("#input-pomo-long");
@@ -232,11 +274,11 @@ export class CustomizeModal {
 
     const savePomo = () => {
       store.updatePomoSettings({
-        focusDuration: parseInt(inFocus.value, 10) || 25,
-        shortBreakDuration: parseInt(inShort.value, 10) || 5,
-        longBreakDuration: parseInt(inLong.value, 10) || 15,
-        autoStartBreaks: chkAutoBreaks.checked,
-        autoStartPomo: chkAutoPomo.checked
+        focusDuration: parseInt(inFocus?.value, 10) || 25,
+        shortBreakDuration: parseInt(inShort?.value, 10) || 5,
+        longBreakDuration: parseInt(inLong?.value, 10) || 15,
+        autoStartBreaks: chkAutoBreaks ? chkAutoBreaks.checked : false,
+        autoStartPomo: chkAutoPomo ? chkAutoPomo.checked : false
       });
     };
 
@@ -246,13 +288,56 @@ export class CustomizeModal {
     if (chkAutoBreaks) chkAutoBreaks.addEventListener("change", savePomo);
     if (chkAutoPomo) chkAutoPomo.addEventListener("change", savePomo);
 
+    // 6. Clock Behavior Checkboxes
     const chk24 = this.contentEl.querySelector("#chk-24h");
     if (chk24) chk24.addEventListener("change", (e) => store.updateClockConfig({ is24Hour: e.target.checked }));
+
     const chkSec = this.contentEl.querySelector("#chk-seconds");
     if (chkSec) chkSec.addEventListener("change", (e) => store.updateClockConfig({ showSeconds: e.target.checked }));
-    const chkTick = this.contentEl.querySelector("#chk-tick");
-    if (chkTick) chkTick.addEventListener("change", (e) => store.updateClockConfig({ tickSound: e.target.checked }));
 
+    const chkTick = this.contentEl.querySelector("#chk-tick");
+    const volContainer = this.contentEl.querySelector("#tick-volume-container");
+
+    if (chkTick) {
+      chkTick.addEventListener("change", (e) => {
+        store.updateClockConfig({ tickSound: e.target.checked });
+        store.updatePomoSettings({ tickSound: e.target.checked });
+        if (volContainer) {
+          if (e.target.checked) volContainer.classList.remove("opacity-50", "pointer-events-none");
+          else volContainer.classList.add("opacity-50", "pointer-events-none");
+        }
+      });
+    }
+
+    // 7. Tick Volume Slider & Preview Button
+    const rangeTickVol = this.contentEl.querySelector("#range-tick-volume");
+    const tickVolBadge = this.contentEl.querySelector("#tick-volume-badge");
+    const btnPreviewTick = this.contentEl.querySelector("#btn-preview-tick");
+
+    if (rangeTickVol) {
+      const onVolInput = (e) => {
+        const val = parseFloat(e.target.value);
+        if (tickVolBadge) tickVolBadge.textContent = `${Math.round(val * 100)}%`;
+        soundEngine.setTickVolume(val);
+      };
+
+      rangeTickVol.addEventListener("input", onVolInput);
+      rangeTickVol.addEventListener("change", (e) => {
+        const val = parseFloat(e.target.value);
+        onVolInput(e);
+        store.setTickVolume(val);
+        soundEngine.playFlipTick(val);
+      });
+    }
+
+    if (btnPreviewTick) {
+      btnPreviewTick.addEventListener("click", () => {
+        const curVol = rangeTickVol ? parseFloat(rangeTickVol.value) : soundEngine.getTickVolume();
+        soundEngine.playFlipTick(curVol);
+      });
+    }
+
+    // 8. Duo Widgets
     const selW1 = this.contentEl.querySelector("#select-duo-w1");
     const selW2 = this.contentEl.querySelector("#select-duo-w2");
     if (selW1 && selW2) {
