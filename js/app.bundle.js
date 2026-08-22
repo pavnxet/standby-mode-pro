@@ -9,6 +9,23 @@ const STORAGE_KEY = "standby_mode_pro_v1";
 const defaultState = {
   activeSpaceId: "home",
   keepScreenAwake: true,
+  tursoConfig: {
+    url: "",
+    token: "",
+    autoSync: true,
+    lastSyncedAt: null,
+    isConnected: false,
+    isSyncing: false,
+    lastError: null
+  },
+  stats: {
+    history: [
+      { id: "s1", stage: "focus", duration: 25, timestamp: Date.now() - 7200000, dateStr: new Date().toISOString().split('T')[0], timeStr: "02:15 PM" },
+      { id: "s2", stage: "focus", duration: 25, timestamp: Date.now() - 3600000, dateStr: new Date().toISOString().split('T')[0], timeStr: "03:00 PM" }
+    ],
+    dailyTotals: {},
+    streakDays: 1
+  },
   spaces: {
     home: {
       id: "home",
@@ -134,6 +151,14 @@ class Store {
           ...defaultState,
           ...parsed,
           keepScreenAwake: parsed.keepScreenAwake !== undefined ? parsed.keepScreenAwake : true,
+          tursoConfig: {
+            ...defaultState.tursoConfig,
+            ...(parsed.tursoConfig || {})
+          },
+          stats: {
+            ...defaultState.stats,
+            ...(parsed.stats || {})
+          },
           pomoState: {
             ...defaultState.pomoState,
             ...(parsed.pomoState || {}),
@@ -174,6 +199,95 @@ class Store {
         console.error("Store listener error:", err);
       }
     }
+  }
+
+  // --- Turso Cloud Sync Actions ---
+  updateTursoConfig(updates) {
+    this.state.tursoConfig = { ...this.state.tursoConfig, ...updates };
+    this.notify("turso_config_updated", this.state.tursoConfig);
+  }
+
+  triggerTursoSync() {
+    this.notify("turso_sync_triggered", Date.now());
+  }
+
+  mergeCloudState(cloudState) {
+    if (!cloudState) return;
+    if (cloudState.spaces) this.state.spaces = cloudState.spaces;
+    if (cloudState.clockConfig) this.state.clockConfig = cloudState.clockConfig;
+    if (cloudState.pomoSettings) this.state.pomoState.settings = cloudState.pomoSettings;
+    if (cloudState.todos) this.state.todos = cloudState.todos;
+    if (cloudState.tallies) this.state.tallies = cloudState.tallies;
+    if (cloudState.stats) {
+      this.state.stats = {
+        ...this.state.stats,
+        ...cloudState.stats,
+        history: Array.from(new Set([...(this.state.stats.history || []), ...(cloudState.stats.history || [])].map(s => JSON.stringify(s)))).map(s => JSON.parse(s))
+      };
+    }
+    this.notify("cloud_state_merged", this.state);
+  }
+
+  // --- Statistics & Progress Recording ---
+  recordCompletedSession(stage, durationMinutes) {
+    const now = new Date();
+    const dateStr = now.toISOString().split("T")[0];
+    const timeStr = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+    if (!this.state.stats) {
+      this.state.stats = { history: [], dailyTotals: {}, streakDays: 1 };
+    }
+    if (!this.state.stats.history) this.state.stats.history = [];
+    if (!this.state.stats.dailyTotals) this.state.stats.dailyTotals = {};
+
+    const sessionItem = {
+      id: "pomo_" + Date.now(),
+      stage,
+      duration: durationMinutes,
+      timestamp: Date.now(),
+      dateStr,
+      timeStr
+    };
+
+    this.state.stats.history.unshift(sessionItem);
+    // Keep max 100 in history
+    if (this.state.stats.history.length > 100) {
+      this.state.stats.history.pop();
+    }
+
+    // Update Daily Totals
+    if (!this.state.stats.dailyTotals[dateStr]) {
+      this.state.stats.dailyTotals[dateStr] = { focusMinutes: 0, sessions: 0, water: 0 };
+    }
+
+    if (stage === "focus") {
+      this.state.stats.dailyTotals[dateStr].focusMinutes += durationMinutes;
+      this.state.stats.dailyTotals[dateStr].sessions += 1;
+      this.incrementTally("focusSessions", 1);
+    }
+
+    // Calculate Consecutive Day Streak
+    const dates = Object.keys(this.state.stats.dailyTotals).sort().reverse();
+    let streak = 0;
+    let checkDate = new Date();
+
+    for (let i = 0; i < 365; i++) {
+      const dStr = checkDate.toISOString().split("T")[0];
+      if (this.state.stats.dailyTotals[dStr] && this.state.stats.dailyTotals[dStr].focusMinutes > 0) {
+        streak++;
+        checkDate.setDate(checkDate.getDate() - 1);
+      } else {
+        if (i === 0) {
+          // If today has no focus minutes yet, check yesterday before breaking
+          checkDate.setDate(checkDate.getDate() - 1);
+          continue;
+        }
+        break;
+      }
+    }
+    this.state.stats.streakDays = Math.max(1, streak);
+
+    this.notify("stats_updated", this.state.stats);
   }
 
   toggleScreenWakeLock(force) {
@@ -249,8 +363,12 @@ class Store {
       this.notify("pomo_tick", s);
       return false;
     } else {
-      // Stage finished
+      // Stage finished -> Record stats
       s.isRunning = false;
+      const completedStage = s.stage;
+      const completedDuration = Math.round(s.totalSeconds / 60);
+      this.recordCompletedSession(completedStage, completedDuration);
+
       if (s.stage === "focus") {
         s.totalCompletedSessions++;
         const isLong = (s.totalCompletedSessions % s.settings.longBreakInterval) === 0;
@@ -260,7 +378,6 @@ class Store {
         s.totalSeconds = nextMin * 60;
         if (s.settings.autoStartBreaks) s.isRunning = true;
       } else {
-        // Break finished
         s.stage = "focus";
         s.remainingSeconds = s.settings.focusDuration * 60;
         s.totalSeconds = s.settings.focusDuration * 60;
@@ -336,6 +453,264 @@ class Store {
 }
 
 var store = window.standbyStore || (window.standbyStore = new Store());
+
+
+// --- tursoSync.js ---
+
+
+
+class TursoSync {
+  constructor() {
+    this.isSyncing = false;
+    this.syncDebounceTimer = null;
+    this.init();
+  }
+
+  init() {
+    // Auto-init on load if credentials exist
+    const cfg = store.getState().tursoConfig;
+    if (cfg && cfg.url && cfg.token && cfg.autoSync) {
+      this.initSchema().then(() => {
+        this.pullFromCloud();
+      });
+    }
+
+    // Subscribe to store updates to trigger debounced auto-sync
+    store.subscribe((event) => {
+      if (
+        event === 'pomo_completed' ||
+        event === 'todos_updated' ||
+        event === 'tally_updated' ||
+        event === 'space_updated' ||
+        event === 'clock_config_updated' ||
+        event === 'turso_sync_triggered'
+      ) {
+        const config = store.getState().tursoConfig;
+        if (config && config.url && config.token && config.autoSync) {
+          this.scheduleDebouncedSync();
+        }
+      }
+    });
+  }
+
+  formatTursoUrl(url) {
+    if (!url) return '';
+    let clean = url.trim();
+    if (clean.startsWith('libsql://')) {
+      clean = clean.replace('libsql://', 'https://');
+    }
+    if (!clean.startsWith('http://') && !clean.startsWith('https://')) {
+      clean = 'https://' + clean;
+    }
+    clean = clean.replace(/\/+$/, '');
+    if (!clean.endsWith('/v2/pipeline')) {
+      clean = clean + '/v2/pipeline';
+    }
+    return clean;
+  }
+
+  async executeStatements(statements) {
+    const cfg = store.getState().tursoConfig;
+    if (!cfg || !cfg.url || !cfg.token) {
+      throw new Error('Turso Database URL or Token is missing.');
+    }
+
+    const endpoint = this.formatTursoUrl(cfg.url);
+    const requests = statements.map(stmt => {
+      if (typeof stmt === 'string') {
+        return { type: 'execute', stmt: { sql: stmt } };
+      }
+      return { type: 'execute', stmt };
+    });
+
+    requests.push({ type: 'close' });
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${cfg.token.trim()}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ requests })
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`Turso HTTP ${response.status}: ${errText}`);
+    }
+
+    return await response.json();
+  }
+
+  async testConnection(url, token) {
+    const endpoint = this.formatTursoUrl(url);
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token.trim()}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        requests: [
+          { type: 'execute', stmt: { sql: 'SELECT 1 AS connected;' } },
+          { type: 'close' }
+        ]
+      })
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`Connection failed (${response.status}): ${errText}`);
+    }
+
+    return true;
+  }
+
+  async initSchema() {
+    try {
+      const schemaSqls = [
+        `CREATE TABLE IF NOT EXISTS standby_sessions (
+          id TEXT PRIMARY KEY,
+          stage TEXT NOT NULL,
+          duration_minutes INTEGER NOT NULL,
+          completed_at INTEGER NOT NULL,
+          date_str TEXT NOT NULL,
+          time_str TEXT NOT NULL
+        );`,
+        `CREATE TABLE IF NOT EXISTS standby_daily_stats (
+          date_str TEXT PRIMARY KEY,
+          total_focus_minutes INTEGER NOT NULL DEFAULT 0,
+          completed_sessions INTEGER NOT NULL DEFAULT 0,
+          water_count INTEGER NOT NULL DEFAULT 0,
+          updated_at INTEGER NOT NULL
+        );`,
+        `CREATE TABLE IF NOT EXISTS standby_user_state (
+          id TEXT PRIMARY KEY,
+          state_json TEXT NOT NULL,
+          updated_at INTEGER NOT NULL
+        );`
+      ];
+
+      await this.executeStatements(schemaSqls);
+      store.updateTursoConfig({ isConnected: true });
+      return true;
+    } catch (err) {
+      console.warn('Turso initSchema error:', err);
+      store.updateTursoConfig({ isConnected: false, lastError: err.message });
+      return false;
+    }
+  }
+
+  scheduleDebouncedSync() {
+    if (this.syncDebounceTimer) clearTimeout(this.syncDebounceTimer);
+    this.syncDebounceTimer = setTimeout(() => {
+      this.pushToCloud();
+    }, 2500);
+  }
+
+  async pushToCloud() {
+    if (this.isSyncing) return;
+    const cfg = store.getState().tursoConfig;
+    if (!cfg || !cfg.url || !cfg.token) return;
+
+    this.isSyncing = true;
+    store.updateTursoConfig({ isSyncing: true });
+
+    try {
+      const state = store.getState();
+      const now = Date.now();
+      const todayStr = new Date().toISOString().split('T')[0];
+
+      // 1. Sync User State
+      const statePayload = JSON.stringify({
+        spaces: state.spaces,
+        clockConfig: state.clockConfig,
+        pomoSettings: state.pomoState.settings,
+        nightMode: state.nightMode,
+        todos: state.todos,
+        tallies: state.tallies,
+        stats: state.stats
+      });
+
+      const statements = [
+        {
+          sql: `INSERT INTO standby_user_state (id, state_json, updated_at)
+                VALUES ('primary_user', ?, ?)
+                ON CONFLICT(id) DO UPDATE SET state_json = excluded.state_json, updated_at = excluded.updated_at;`,
+          args: [{ type: 'text', value: statePayload }, { type: 'integer', value: String(now) }]
+        }
+      ];
+
+      // 2. Sync Recent Sessions
+      const recentSessions = (state.stats && state.stats.history) ? state.stats.history.slice(-20) : [];
+      for (const s of recentSessions) {
+        statements.push({
+          sql: `INSERT OR IGNORE INTO standby_sessions (id, stage, duration_minutes, completed_at, date_str, time_str)
+                VALUES (?, ?, ?, ?, ?, ?);`,
+          args: [
+            { type: 'text', value: s.id },
+            { type: 'text', value: s.stage },
+            { type: 'integer', value: String(s.duration) },
+            { type: 'integer', value: String(s.timestamp) },
+            { type: 'text', value: s.dateStr },
+            { type: 'text', value: s.timeStr || '' }
+          ]
+        });
+      }
+
+      await this.executeStatements(statements);
+      store.updateTursoConfig({
+        isConnected: true,
+        isSyncing: false,
+        lastSyncedAt: now,
+        lastError: null
+      });
+    } catch (err) {
+      console.warn('Turso pushToCloud error:', err);
+      store.updateTursoConfig({ isSyncing: false, lastError: err.message });
+    } finally {
+      this.isSyncing = false;
+    }
+  }
+
+  async pullFromCloud() {
+    const cfg = store.getState().tursoConfig;
+    if (!cfg || !cfg.url || !cfg.token) return;
+
+    this.isSyncing = true;
+    store.updateTursoConfig({ isSyncing: true });
+
+    try {
+      const res = await this.executeStatements([
+        `SELECT state_json, updated_at FROM standby_user_state WHERE id = 'primary_user';`
+      ]);
+
+      const resultObj = res.results && res.results[0];
+      if (resultObj && resultObj.response && resultObj.response.result && resultObj.response.result.rows && resultObj.response.result.rows.length > 0) {
+        const row = resultObj.response.result.rows[0];
+        const stateJson = row[0].value;
+        if (stateJson) {
+          const parsed = JSON.parse(stateJson);
+          store.mergeCloudState(parsed);
+        }
+      }
+
+      store.updateTursoConfig({
+        isConnected: true,
+        isSyncing: false,
+        lastSyncedAt: Date.now(),
+        lastError: null
+      });
+    } catch (err) {
+      console.warn('Turso pullFromCloud error:', err);
+      store.updateTursoConfig({ isSyncing: false, lastError: err.message });
+    } finally {
+      this.isSyncing = false;
+    }
+  }
+}
+
+var tursoSync = window.standbyTursoSync || (window.standbyTursoSync = new TursoSync());
 
 
 // --- db.js ---
@@ -837,7 +1212,10 @@ var visualizerEngine = window.standbyVisualizerEngine || (window.standbyVisualiz
 class WakeLockEngine {
   constructor() {
     this.wakeLock = null;
-    this.isSupported = "wakeLock" in navigator;
+    this.isSupported = typeof navigator !== "undefined" && "wakeLock" in navigator;
+    this.userGestureHandler = () => {
+      if (store.getState().keepScreenAwake) this.acquire();
+    };
     this.init();
   }
 
@@ -847,37 +1225,29 @@ class WakeLockEngine {
       return;
     }
 
-    // Auto-acquire lock if enabled in store
-    if (store.getState().keepScreenAwake) {
-      this.acquire();
-    }
+    if (store.getState().keepScreenAwake) this.acquire();
 
-    // Re-acquire lock if user switches back to this tab
     document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "visible" && store.getState().keepScreenAwake) {
-        this.acquire();
-      }
+      if (document.visibilityState === "visible" && store.getState().keepScreenAwake) this.acquire();
     });
+
+    window.addEventListener("pointerdown", this.userGestureHandler, { passive: true, once: false });
+    window.addEventListener("keydown", this.userGestureHandler, { passive: true, once: false });
 
     store.subscribe((event) => {
       if (event === "wake_lock_toggled") {
-        if (store.getState().keepScreenAwake) {
-          this.acquire();
-        } else {
-          this.release();
-        }
+        if (store.getState().keepScreenAwake) this.acquire();
+        else this.release();
       }
     });
   }
 
   async acquire() {
-    if (!this.isSupported) return false;
+    if (!this.isSupported || document.visibilityState !== "visible") return false;
     try {
-      if (this.wakeLock !== null && !this.wakeLock.released) return true;
+      if (this.wakeLock && !this.wakeLock.released) return true;
       this.wakeLock = await navigator.wakeLock.request("screen");
-      this.wakeLock.addEventListener("release", () => {
-        this.wakeLock = null;
-      });
+      this.wakeLock.addEventListener("release", () => { this.wakeLock = null; });
       return true;
     } catch (err) {
       console.warn("WakeLock request failed:", err);
@@ -886,17 +1256,13 @@ class WakeLockEngine {
   }
 
   async release() {
-    if (this.wakeLock !== null) {
-      try {
-        await this.wakeLock.release();
-        this.wakeLock = null;
-      } catch (err) {}
-    }
+    if (!this.wakeLock) return;
+    try { await this.wakeLock.release(); }
+    catch (err) { console.warn("WakeLock release failed:", err); }
+    finally { this.wakeLock = null; }
   }
 
-  isActive() {
-    return this.wakeLock !== null && !this.wakeLock.released;
-  }
+  isActive() { return Boolean(this.wakeLock && !this.wakeLock.released); }
 }
 
 var wakeLockEngine = window.standbyWakeLockEngine || (window.standbyWakeLockEngine = new WakeLockEngine());
@@ -909,10 +1275,7 @@ var wakeLockEngine = window.standbyWakeLockEngine || (window.standbyWakeLockEngi
 class ClockEngine {
   constructor() {
     this.registry = new Map();
-    this.activeInstance = null;
-    this.activeClockId = null;
-    this.container = null;
-    this.timerId = null;
+    this.instances = new Map(); // slotId -> { instance, container, clockId, config, timerId }
   }
 
   register(id, clockDefinition) {
@@ -928,28 +1291,34 @@ class ClockEngine {
     }));
   }
 
-  mount(clockId, containerElement, config) {
-    this.unmount();
-    this.container = containerElement;
-    this.activeClockId = clockId;
+  mount(clockId, containerElement, config, slotId = "default") {
+    this.unmount(slotId);
+    if (!containerElement) return;
 
     const clock = this.registry.get(clockId) || this.registry.get("flip");
     if (!clock) return;
 
-    this.container.innerHTML = "";
-    this.activeInstance = clock.mount(this.container, config);
+    containerElement.innerHTML = "";
+    const instance = clock.mount(containerElement, config || {});
+    const entry = {
+      instance,
+      container: containerElement,
+      clockId,
+      config: config || {},
+      timerId: null
+    };
 
-    // Immediate first tick
-    this.tick(config);
-
-    // High accuracy tick interval (every 250ms for snappy seconds)
-    this.timerId = setInterval(() => this.tick(config), 250);
+    this.instances.set(slotId, entry);
+    this.tick(slotId);
+    entry.timerId = setInterval(() => this.tick(slotId), 250);
   }
 
-  tick(config) {
-    if (!this.activeInstance) return;
+  tick(slotId = "default") {
+    const entry = this.instances.get(slotId);
+    if (!entry || !entry.instance) return;
+
     const now = new Date();
-    const is24 = config ? config.is24Hour : false;
+    const is24 = entry.config ? entry.config.is24Hour : false;
 
     let hours = now.getHours();
     let ampm = "";
@@ -957,15 +1326,12 @@ class ClockEngine {
       ampm = hours >= 12 ? "PM" : "AM";
       hours = hours % 12 || 12;
     }
-    const hoursStr = String(hours).padStart(2, "0");
-    const minutesStr = String(now.getMinutes()).padStart(2, "0");
-    const secondsStr = String(now.getSeconds()).padStart(2, "0");
 
-    this.activeInstance.update({
+    entry.instance.update({
       now,
-      hours: hoursStr,
-      minutes: minutesStr,
-      seconds: secondsStr,
+      hours: String(hours).padStart(2, "0"),
+      minutes: String(now.getMinutes()).padStart(2, "0"),
+      seconds: String(now.getSeconds()).padStart(2, "0"),
       ampm,
       is24,
       rawHours: now.getHours(),
@@ -974,18 +1340,18 @@ class ClockEngine {
     });
   }
 
-  unmount() {
-    if (this.timerId) {
-      clearInterval(this.timerId);
-      this.timerId = null;
-    }
-    if (this.activeInstance && this.activeInstance.unmount) {
-      this.activeInstance.unmount();
-    }
-    this.activeInstance = null;
-    if (this.container) {
-      this.container.innerHTML = "";
-    }
+  unmount(slotId = "default") {
+    const entry = this.instances.get(slotId);
+    if (!entry) return;
+
+    if (entry.timerId) clearInterval(entry.timerId);
+    if (entry.instance && entry.instance.unmount) entry.instance.unmount();
+    if (entry.container) entry.container.innerHTML = "";
+    this.instances.delete(slotId);
+  }
+
+  unmountAll() {
+    Array.from(this.instances.keys()).forEach(slotId => this.unmount(slotId));
   }
 }
 
@@ -1657,44 +2023,101 @@ var widgetEngine = window.standbyWidgetEngine || (window.standbyWidgetEngine = n
 const weatherWidget = {
   name: "Weather & Forecast",
   icon: "cloud-sun",
+
   mount(container) {
-    const sunSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>`;
-    const miniSunSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="M2 12h2"/><path d="M20 12h2"/></svg>`;
-    const miniCloudSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg>`;
-    const miniRainSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2"><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M16 14v6"/><path d="M8 14v6"/><path d="M12 16v6"/></svg>`;
+    const iconForCode = (code) => {
+      if (code === 0) return `<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>`;
+      if ([1, 2].includes(code)) return `<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg>`;
+      if ([3, 45, 48].includes(code)) return `<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg>`;
+      return `<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2"><path d="M4 14.9A7 7 0 1 1 15.7 8h1.8a4.5 4.5 0 0 1 2.5 8.24"/><path d="M8 14v6M12 16v6M16 14v6"/></svg>`;
+    };
+
+    const conditionForCode = (code) => {
+      if (code === 0) return "Clear Sky";
+      if ([1, 2].includes(code)) return "Partly Cloudy";
+      if (code === 3) return "Overcast";
+      if ([45, 48].includes(code)) return "Foggy";
+      if ([51, 53, 55, 56, 57].includes(code)) return "Drizzle";
+      if ([61, 63, 65, 66, 67].includes(code)) return "Rain";
+      if ([71, 73, 75, 77].includes(code)) return "Snow";
+      if ([80, 81, 82].includes(code)) return "Rain Showers";
+      if ([95, 96, 99].includes(code)) return "Thunderstorm";
+      return "Weather";
+    };
 
     container.innerHTML = `
       <div class="weather-container">
         <div class="flex items-center gap-2 text-xs font-semibold text-neutral-400">
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
-          <span id="weather-location">Local Forecast</span>
+          <span id="weather-location">Finding location…</span>
         </div>
         <div class="flex items-center justify-center gap-4 my-2">
-          <div id="weather-icon">${sunSvg}</div>
-          <div class="weather-temp-main" id="weather-temp">24°</div>
+          <div id="weather-icon">${iconForCode(0)}</div>
+          <div class="weather-temp-main" id="weather-temp">--°</div>
         </div>
-        <div class="weather-condition" id="weather-desc">Clear Sky</div>
-        <div class="weather-forecast-row">
-          <div class="weather-mini-day"><span>Today</span><span class="my-1">${miniSunSvg}</span><span class="font-bold text-white">26° / 18°</span></div>
-          <div class="weather-mini-day"><span>Tomorrow</span><span class="my-1">${miniCloudSvg}</span><span class="font-bold text-white">25° / 17°</span></div>
-          <div class="weather-mini-day"><span>Mon</span><span class="my-1">${miniRainSvg}</span><span class="font-bold text-white">22° / 16°</span></div>
-        </div>
+        <div class="weather-condition" id="weather-desc">Loading weather…</div>
+        <div class="weather-forecast-row" id="weather-forecast-row"></div>
       </div>
     `;
 
-    const fetchWeather = async () => {
-      try {
-        const res = await fetch("https://api.open-meteo.com/v1/forecast?latitude=51.5074&longitude=-0.1278&current=temperature_2m,weather_code&timezone=auto");
-        if (res.ok) {
-          const data = await res.json();
-          const tempEl = container.querySelector("#weather-temp");
-          if (tempEl) tempEl.textContent = `${Math.round(data.current.temperature_2m)}°`;
-        }
-      } catch (e) {}
+    let cancelled = false;
+    const update = (data) => {
+      if (cancelled) return;
+      const current = data.current || {};
+      const daily = data.daily || {};
+      const locationEl = container.querySelector("#weather-location");
+      const tempEl = container.querySelector("#weather-temp");
+      const descEl = container.querySelector("#weather-desc");
+      const iconEl = container.querySelector("#weather-icon");
+      const forecastEl = container.querySelector("#weather-forecast-row");
+      if (locationEl) locationEl.textContent = data.timezone?.replaceAll("_", " ") || "Local Forecast";
+      if (tempEl && Number.isFinite(current.temperature_2m)) tempEl.textContent = `${Math.round(current.temperature_2m)}°`;
+      if (descEl) descEl.textContent = conditionForCode(current.weather_code);
+      if (iconEl) iconEl.innerHTML = iconForCode(current.weather_code);
+      if (forecastEl && Array.isArray(daily.time)) {
+        forecastEl.innerHTML = daily.time.slice(0, 3).map((date, i) => `
+          <div class="weather-mini-day">
+            <span>${i === 0 ? "Today" : new Date(`${date}T12:00:00`).toLocaleDateString([], { weekday: "short" })}</span>
+            <span class="my-1">${iconForCode(daily.weather_code?.[i] ?? 0).replace('width="36" height="36"', 'width="16" height="16"')}</span>
+            <span class="font-bold text-white">${Math.round(daily.temperature_2m_max?.[i] ?? 0)}° / ${Math.round(daily.temperature_2m_min?.[i] ?? 0)}°</span>
+          </div>
+        `).join("");
+      }
     };
 
-    fetchWeather();
-    return { unmount() {} };
+    const fetchWeather = async (latitude, longitude) => {
+      const url = new URL("https://api.open-meteo.com/v1/forecast");
+      url.search = new URLSearchParams({
+        latitude: String(latitude),
+        longitude: String(longitude),
+        current: "temperature_2m,weather_code",
+        daily: "weather_code,temperature_2m_max,temperature_2m_min",
+        timezone: "auto",
+        forecast_days: "3"
+      });
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`Weather request failed: ${res.status}`);
+      update(await res.json());
+    };
+
+    const fallback = () => fetchWeather(28.6139, 77.2090).catch(() => {
+      const locationEl = container.querySelector("#weather-location");
+      const descEl = container.querySelector("#weather-desc");
+      if (locationEl) locationEl.textContent = "Weather unavailable";
+      if (descEl) descEl.textContent = "Check your connection";
+    });
+
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        position => fetchWeather(position.coords.latitude, position.coords.longitude).catch(fallback),
+        fallback,
+        { enableHighAccuracy: false, timeout: 7000, maximumAge: 900000 }
+      );
+    } else {
+      fallback();
+    }
+
+    return { unmount() { cancelled = true; } };
   }
 };
 
@@ -1765,29 +2188,11 @@ const calendarWidget = {
 
 
 const demoTracks = [
-  {
-    title: "Midnight Lo-Fi Chill",
-    artist: "Aura Ambient",
-    coverGradient: "linear-gradient(135deg, #6366f1 0%, #a855f7 100%)",
-    lyrics: [
-      "Soft raindrops hitting the glass...",
-      "Late night thoughts drifting away...",
-      "Focus mode engaged, time slows down...",
-      "Calm melodies flowing through the night..."
-    ]
-  },
-  {
-    title: "Cosmic Horizon",
-    artist: "Solaris Dream",
-    coverGradient: "linear-gradient(135deg, #3b82f6 0%, #06b6d4 100%)",
-    lyrics: [
-      "Floating above the atmosphere...",
-      "Stars illuminating the distant dark...",
-      "Endless horizons ahead...",
-      "Peace within the silence..."
-    ]
-  }
+  { title: "Midnight Lo-Fi Chill", artist: "Aura Ambient", coverGradient: "linear-gradient(135deg, #6366f1 0%, #a855f7 100%)", lyrics: ["Soft raindrops hitting the glass...", "Late night thoughts drifting away...", "Focus mode engaged, time slows down...", "Calm melodies flowing through the night..."] },
+  { title: "Cosmic Horizon", artist: "Solaris Dream", coverGradient: "linear-gradient(135deg, #3b82f6 0%, #06b6d4 100%)", lyrics: ["Floating above the atmosphere...", "Stars illuminating the distant dark...", "Endless horizons ahead...", "Peace within the silence..."] }
 ];
+
+const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
 
 const mediaWidget = {
   name: "Universal Media Player",
@@ -1799,70 +2204,44 @@ const mediaWidget = {
     let lyricLine = 0;
     let lyricInterval = null;
 
+    const persist = (updates) => store.updateMediaState(updates);
+
     const render = () => {
-      const track = demoTracks[trackIndex];
+      const track = demoTracks[trackIndex] || demoTracks[0];
       container.innerHTML = `
         <div class="media-container">
           <div class="media-track-info">
-            <div class="media-artwork" style="background: ${track.coverGradient}">
-              <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
-            </div>
-            <div class="media-text">
-              <h4>${track.title}</h4>
-              <p>${track.artist}</p>
-            </div>
+            <div class="media-artwork" style="background: ${track.coverGradient}"><svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></div>
+            <div class="media-text"><h4>${escapeHtml(track.title)}</h4><p>${escapeHtml(track.artist)}</p></div>
           </div>
-
-          <div class="media-lyrics-box">
-            <div class="lyrics-active-line" id="lyrics-active">${track.lyrics[lyricLine]}</div>
-            <div class="lyrics-next-line" id="lyrics-next">${track.lyrics[(lyricLine + 1) % track.lyrics.length]}</div>
-          </div>
-
+          <div class="media-lyrics-box"><div class="lyrics-active-line" id="lyrics-active">${escapeHtml(track.lyrics[lyricLine])}</div><div class="lyrics-next-line" id="lyrics-next">${escapeHtml(track.lyrics[(lyricLine + 1) % track.lyrics.length])}</div></div>
           <div class="media-controls">
-            <button class="btn-icon" id="media-prev" aria-label="Previous Track">
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="19" x2="5" y2="5"/></svg>
-            </button>
-
-            <button class="btn-icon bg-blue-600 hover:bg-blue-500 text-white w-12 h-12" id="media-play" aria-label="Play/Pause">
-              ${isPlaying ? `
-                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
-              ` : `
-                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-              `}
-            </button>
-
-            <button class="btn-icon" id="media-next" aria-label="Next Track">
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
-            </button>
+            <button class="btn-icon" id="media-prev" aria-label="Previous Track"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="19 20 9 12 19 4 19 20"/><line x1="5" y1="19" x2="5" y2="5"/></svg></button>
+            <button class="btn-icon bg-blue-600 hover:bg-blue-500 text-white w-12 h-12" id="media-play" aria-label="Play/Pause">${isPlaying ? '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>' : '<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>'}</button>
+            <button class="btn-icon" id="media-next" aria-label="Next Track"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 4 15 12 5 20 5 4"/><line x1="19" y1="5" x2="19" y2="19"/></svg></button>
           </div>
         </div>
       `;
 
-      // Event handlers
       container.querySelector("#media-play").addEventListener("click", () => {
         isPlaying = !isPlaying;
-        store.getState().mediaState.isPlaying = isPlaying;
-        if (isPlaying) {
-          soundEngine.playAmbient("binaural");
-          startLyrics();
-        } else {
-          soundEngine.stopAmbient();
-          stopLyrics();
-        }
+        persist({ isPlaying });
+        if (isPlaying) { soundEngine.playAmbient("binaural"); startLyrics(); }
+        else { soundEngine.stopAmbient(); stopLyrics(); }
         render();
       });
 
       container.querySelector("#media-next").addEventListener("click", () => {
         trackIndex = (trackIndex + 1) % demoTracks.length;
         lyricLine = 0;
-        store.getState().mediaState.currentTrackIndex = trackIndex;
+        persist({ currentTrackIndex: trackIndex });
         render();
       });
 
       container.querySelector("#media-prev").addEventListener("click", () => {
         trackIndex = (trackIndex - 1 + demoTracks.length) % demoTracks.length;
         lyricLine = 0;
-        store.getState().mediaState.currentTrackIndex = trackIndex;
+        persist({ currentTrackIndex: trackIndex });
         render();
       });
     };
@@ -1870,29 +2249,24 @@ const mediaWidget = {
     const startLyrics = () => {
       stopLyrics();
       lyricInterval = setInterval(() => {
-        const track = demoTracks[trackIndex];
+        const track = demoTracks[trackIndex] || demoTracks[0];
         lyricLine = (lyricLine + 1) % track.lyrics.length;
-        const actEl = container.querySelector("#lyrics-active");
-        const nextEl = container.querySelector("#lyrics-next");
-        if (actEl) actEl.textContent = track.lyrics[lyricLine];
-        if (nextEl) nextEl.textContent = track.lyrics[(lyricLine + 1) % track.lyrics.length];
+        const active = container.querySelector("#lyrics-active");
+        const next = container.querySelector("#lyrics-next");
+        if (active) active.textContent = track.lyrics[lyricLine];
+        if (next) next.textContent = track.lyrics[(lyricLine + 1) % track.lyrics.length];
       }, 4000);
     };
 
     const stopLyrics = () => {
-      if (lyricInterval) {
-        clearInterval(lyricInterval);
-        lyricInterval = null;
-      }
+      if (lyricInterval) clearInterval(lyricInterval);
+      lyricInterval = null;
     };
 
     render();
+    if (isPlaying) startLyrics();
 
-    return {
-      unmount() {
-        stopLyrics();
-      }
-    };
+    return { unmount() { stopLyrics(); } };
   }
 };
 
@@ -2088,6 +2462,8 @@ const timerWidget = {
 /* TODO Checklist & Protocol Habits Widget */
 
 
+const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+
 const todoWidget = {
   name: "TODO & Protocols",
   icon: "check-square",
@@ -2100,9 +2476,9 @@ const todoWidget = {
         <div class="flex flex-col w-full h-full justify-between">
           <div class="todo-list-box" id="todo-items-container">
             ${todos.map(t => `
-              <div class="todo-item-row ${t.completed ? "completed" : ""}" data-id="${t.id}">
+              <div class="todo-item-row ${t.completed ? "completed" : ""}" data-id="${escapeHtml(t.id)}">
                 <input type="checkbox" ${t.completed ? "checked" : ""} class="rounded border-neutral-700 text-blue-600 focus:ring-0 cursor-pointer pointer-events-none" />
-                <span class="text-sm font-medium text-neutral-200 flex-1">${t.text}</span>
+                <span class="text-sm font-medium text-neutral-200 flex-1">${escapeHtml(t.text)}</span>
               </div>
             `).join("")}
           </div>
@@ -2116,8 +2492,7 @@ const todoWidget = {
 
       container.querySelectorAll(".todo-item-row").forEach(row => {
         row.addEventListener("click", () => {
-          const id = row.getAttribute("data-id");
-          store.toggleTodo(id);
+          store.toggleTodo(row.getAttribute("data-id"));
           render();
         });
       });
@@ -2126,7 +2501,7 @@ const todoWidget = {
       form.addEventListener("submit", (e) => {
         e.preventDefault();
         const input = container.querySelector("#todo-input");
-        if (input && input.value) {
+        if (input && input.value.trim()) {
           store.addTodo(input.value);
           render();
         }
@@ -2134,10 +2509,7 @@ const todoWidget = {
     };
 
     render();
-
-    return {
-      unmount() {}
-    };
+    return { unmount() {} };
   }
 };
 
@@ -2260,7 +2632,7 @@ const quoteWidget = {
 
 // --- photoWidget.js ---
 
-/* Smart Photo Frame Widget with Face/Center Aware Cropping */
+/* Smart Photo Frame Widget with safe user-photo rendering */
 
 
 const defaultPresetPhotos = [
@@ -2268,6 +2640,13 @@ const defaultPresetPhotos = [
   { url: "https://images.unsplash.com/photo-1519681393784-d120267933ba?w=800&q=80", title: "Starry Alpine" },
   { url: "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=800&q=80", title: "Misty Forest" }
 ];
+
+const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+const safePhotoUrl = (url) => {
+  const value = String(url ?? "");
+  if (value.startsWith("data:image/") || value.startsWith("https://")) return value;
+  return "";
+};
 
 const photoWidget = {
   name: "Smart Photo Frame",
@@ -2277,27 +2656,34 @@ const photoWidget = {
     let photos = [...defaultPresetPhotos];
     let currentIndex = 0;
     let slideTimer = null;
+    let fadeTimeout = null;
+    let cancelled = false;
 
     const loadUserPhotos = async () => {
       try {
         const userPhotos = await photoDB.getAllPhotos();
-        if (userPhotos && userPhotos.length > 0) {
-          photos = userPhotos.map(p => ({ url: p.dataUrl, title: p.title }));
+        if (!cancelled && userPhotos?.length) {
+          photos = userPhotos
+            .map(p => ({ url: safePhotoUrl(p.dataUrl), title: p.title || "Custom Photo" }))
+            .filter(p => p.url);
+          currentIndex = 0;
         }
-        render();
+        if (!cancelled) render();
       } catch (e) {
-        render();
+        if (!cancelled) render();
       }
     };
 
     const render = () => {
+      if (cancelled) return;
       const current = photos[currentIndex] || defaultPresetPhotos[0];
+      const url = safePhotoUrl(current.url);
       container.innerHTML = `
         <div class="photo-frame-container">
-          <img src="${current.url}" alt="${current.title}" class="photo-frame-img" id="photo-frame-element" />
+          <img src="${escapeHtml(url)}" alt="${escapeHtml(current.title)}" class="photo-frame-img" id="photo-frame-element" />
           <div class="photo-frame-overlay">
-            <span class="text-xs font-semibold text-white/90 drop-shadow-md">${current.title}</span>
-            <span class="text-[10px] text-white/60">Smart AI Frame  Auto Slide</span>
+            <span class="text-xs font-semibold text-white/90 drop-shadow-md">${escapeHtml(current.title)}</span>
+            <span class="text-[10px] text-white/60">Smart Photo Frame • Auto Slide</span>
           </div>
         </div>
       `;
@@ -2305,23 +2691,26 @@ const photoWidget = {
 
     const startSlideshow = () => {
       slideTimer = setInterval(() => {
+        if (cancelled || photos.length < 2) return;
         currentIndex = (currentIndex + 1) % photos.length;
         const img = container.querySelector("#photo-frame-element");
         if (img) {
           img.style.opacity = "0";
-          setTimeout(() => {
-            render();
-          }, 600);
+          if (fadeTimeout) clearTimeout(fadeTimeout);
+          fadeTimeout = setTimeout(() => render(), 600);
         }
       }, 10000);
     };
 
     loadUserPhotos();
+    render();
     startSlideshow();
 
     return {
       unmount() {
+        cancelled = true;
         if (slideTimer) clearInterval(slideTimer);
+        if (fadeTimeout) clearTimeout(fadeTimeout);
       }
     };
   }
@@ -2329,6 +2718,9 @@ const photoWidget = {
 
 
 // --- vibesWidget.js ---
+
+
+
 
 const vibesWidget = {
   name: "Vibes & Atmosphere",
@@ -2424,6 +2816,331 @@ class SpacesNav {
         soundEngine.playFlipTick();
       });
     });
+  }
+}
+
+
+// --- statsModal.js ---
+
+
+
+
+class StatsModal {
+  constructor() {
+    this.modalEl = document.getElementById("stats-modal");
+    this.contentEl = document.getElementById("stats-modal-content");
+    this.openBtn = document.getElementById("btn-stats");
+    this.closeBtn = document.getElementById("btn-close-stats");
+
+    this.initEvents();
+  }
+
+  initEvents() {
+    if (this.openBtn) this.openBtn.addEventListener("click", () => this.open());
+    if (this.closeBtn) this.closeBtn.addEventListener("click", () => this.close());
+    if (this.modalEl) {
+      this.modalEl.addEventListener("click", (e) => {
+        if (e.target === this.modalEl) this.close();
+      });
+    }
+
+    store.subscribe((event) => {
+      if (
+        event === 'stats_updated' ||
+        event === 'turso_config_updated' ||
+        event === 'cloud_state_merged'
+      ) {
+        if (this.modalEl && this.modalEl.classList.contains("open")) {
+          this.render();
+        }
+      }
+    });
+  }
+
+  open() {
+    this.render();
+    if (this.modalEl) this.modalEl.classList.add("open");
+  }
+
+  close() {
+    if (this.modalEl) this.modalEl.classList.remove("open");
+  }
+
+  getLast7DaysData() {
+    const dailyTotals = (store.getState().stats && store.getState().stats.dailyTotals) || {};
+    const result = [];
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const dateStr = d.toISOString().split('T')[0];
+      const dayName = days[d.getDay()];
+      const dayData = dailyTotals[dateStr] || { focusMinutes: 0, sessions: 0 };
+      result.push({
+        dateStr,
+        dayName,
+        focusMinutes: dayData.focusMinutes || 0,
+        sessions: dayData.sessions || 0,
+        isToday: i === 0
+      });
+    }
+    return result;
+  }
+
+  renderChart(last7Days) {
+    const maxMin = Math.max(...last7Days.map(d => d.focusMinutes), 60);
+    const chartHeight = 120;
+
+    const bars = last7Days.map((d, index) => {
+      const barHeight = Math.max(8, Math.round((d.focusMinutes / maxMin) * (chartHeight - 30)));
+      const x = index * 52 + 18;
+      const y = chartHeight - barHeight - 20;
+      const isToday = d.isToday;
+      const fillColor = isToday ? 'url(#todayGradient)' : 'rgba(59, 130, 246, 0.45)';
+
+      return `
+        <g class="chart-bar-group cursor-pointer">
+          <title>${d.dateStr}: ${d.focusMinutes}m (${d.sessions} sessions)</title>
+          <!-- Background track -->
+          <rect x="${x}" y="10" width="28" height="${chartHeight - 30}" rx="6" fill="rgba(255,255,255,0.03)" />
+          <!-- Animated Fill Bar -->
+          <rect x="${x}" y="${y}" width="28" height="${barHeight}" rx="6" fill="${fillColor}" class="transition-all duration-700" />
+          <!-- Day Label -->
+          <text x="${x + 14}" y="${chartHeight}" font-size="10" font-weight="${isToday ? 'bold' : 'normal'}" fill="${isToday ? '#60a5fa' : '#9ca3af'}" text-anchor="middle" font-family="var(--font-sans)">${d.dayName}</text>
+          <!-- Minutes Label on top of bar -->
+          <text x="${x + 14}" y="${Math.max(16, y - 4)}" font-size="9" font-family="var(--font-mono)" font-weight="600" fill="${isToday ? '#ffffff' : '#9ca3af'}" text-anchor="middle">${d.focusMinutes}m</text>
+        </g>
+      `;
+    }).join("");
+
+    return `
+      <svg class="w-full h-36" viewBox="0 0 380 ${chartHeight}">
+        <defs>
+          <linearGradient id="todayGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" stop-color="#60a5fa" />
+            <stop offset="100%" stop-color="#2563eb" />
+          </linearGradient>
+        </defs>
+        ${bars}
+      </svg>
+    `;
+  }
+
+  render() {
+    if (!this.contentEl) return;
+    const state = store.getState();
+    const stats = state.stats || { history: [], dailyTotals: {}, streakDays: 1 };
+    const turso = state.tursoConfig || {};
+    const todayStr = new Date().toISOString().split('T')[0];
+    const todayData = (stats.dailyTotals && stats.dailyTotals[todayStr]) || { focusMinutes: 0, sessions: 0 };
+    const last7Days = this.getLast7DaysData();
+    const historyList = stats.history || [];
+
+    const formatMinutes = (min) => {
+      const h = Math.floor(min / 60);
+      const m = min % 60;
+      if (h > 0) return `${h}h ${m}m`;
+      return `${m}m`;
+    };
+
+    const isConnected = turso.isConnected && turso.url && turso.token;
+    const lastSyncedText = turso.lastSyncedAt ? new Date(turso.lastSyncedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Never';
+
+    this.contentEl.innerHTML = `
+      <div class="space-y-6 text-sm text-neutral-200">
+        
+        <!-- Summary Stats Grid -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          
+          <div class="p-3.5 bg-white/5 rounded-2xl border border-white/5 flex flex-col justify-between">
+            <span class="text-[11px] font-bold text-neutral-400 uppercase tracking-wider">Today's Focus</span>
+            <div class="mt-2">
+              <div class="text-2xl font-extrabold text-white font-mono">${formatMinutes(todayData.focusMinutes)}</div>
+              <div class="text-[10px] text-blue-400 mt-0.5">${todayData.sessions} sprint${todayData.sessions === 1 ? '' : 's'}</div>
+            </div>
+          </div>
+
+          <div class="p-3.5 bg-white/5 rounded-2xl border border-white/5 flex flex-col justify-between">
+            <span class="text-[11px] font-bold text-neutral-400 uppercase tracking-wider">Daily Streak</span>
+            <div class="mt-2">
+              <div class="text-2xl font-extrabold text-amber-400 flex items-center gap-1.5 font-mono">
+                <span>🔥</span>
+                <span>${stats.streakDays || 1}</span>
+                <span class="text-xs text-neutral-400 font-sans font-medium">Days</span>
+              </div>
+              <div class="text-[10px] text-neutral-400 mt-0.5">Consecutive focus</div>
+            </div>
+          </div>
+
+          <div class="p-3.5 bg-white/5 rounded-2xl border border-white/5 flex flex-col justify-between">
+            <span class="text-[11px] font-bold text-neutral-400 uppercase tracking-wider">Total Sprints</span>
+            <div class="mt-2">
+              <div class="text-2xl font-extrabold text-purple-400 font-mono">${historyList.length}</div>
+              <div class="text-[10px] text-neutral-400 mt-0.5">Recorded sessions</div>
+            </div>
+          </div>
+
+          <div class="p-3.5 bg-white/5 rounded-2xl border border-white/5 flex flex-col justify-between">
+            <span class="text-[11px] font-bold text-neutral-400 uppercase tracking-wider">Turso Cloud Sync</span>
+            <div class="mt-2">
+              <div class="flex items-center gap-1.5 font-bold text-xs ${isConnected ? 'text-emerald-400' : 'text-amber-400'}">
+                <span class="w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'}"></span>
+                <span>${isConnected ? 'Cloud Active' : 'Local Only'}</span>
+              </div>
+              <div class="text-[10px] text-neutral-400 mt-0.5">Synced: ${lastSyncedText}</div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- 7-Day Focus Activity Chart -->
+        <div class="p-4 bg-white/5 rounded-2xl border border-white/5">
+          <div class="flex items-center justify-between mb-3">
+            <h4 class="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+              <span>7-Day Focus Activity</span>
+            </h4>
+            <span class="text-[10px] font-mono text-neutral-400">Total: ${formatMinutes(last7Days.reduce((acc, d) => acc + d.focusMinutes, 0))}</span>
+          </div>
+          <div class="w-full flex items-center justify-center">
+            ${this.renderChart(last7Days)}
+          </div>
+        </div>
+
+        <!-- Recent Deep Work Sprints History -->
+        <div class="p-4 bg-white/5 rounded-2xl border border-white/5">
+          <div class="flex items-center justify-between mb-3">
+            <h4 class="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#a855f7" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+              <span>Recent Deep Work Sprints</span>
+            </h4>
+            <span class="text-[10px] text-neutral-400">${historyList.length} entries</span>
+          </div>
+          <div class="space-y-2 max-h-40 overflow-y-auto pr-1">
+            ${historyList.length === 0 ? `
+              <div class="text-center py-4 text-xs text-neutral-500 font-mono">No recorded focus sprints yet. Complete a Pomodoro session to log progress!</div>
+            ` : historyList.slice(0, 10).map(s => `
+              <div class="flex items-center justify-between p-2 rounded-xl bg-black/40 border border-white/5 text-xs">
+                <div class="flex items-center gap-2.5">
+                  <span class="w-2 h-2 rounded-full ${s.stage === 'focus' ? 'bg-blue-500' : s.stage === 'shortBreak' ? 'bg-emerald-500' : 'bg-purple-500'}"></span>
+                  <span class="font-bold text-neutral-200 capitalize">${s.stage === 'focus' ? 'Focus Sprint' : s.stage === 'shortBreak' ? 'Short Recharge' : 'Long Recovery'}</span>
+                  <span class="text-[10px] font-mono text-neutral-400">${s.dateStr}</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="font-mono font-bold text-blue-400">${s.duration}m</span>
+                  <span class="text-[10px] text-neutral-500">${s.timeStr || ''}</span>
+                </div>
+              </div>
+            `).join("")}
+          </div>
+        </div>
+
+        <!-- Turso DB Cloud Persistence Settings -->
+        <div class="p-4 bg-gradient-to-r from-neutral-900 to-blue-950/30 rounded-2xl border border-white/10 space-y-4 shadow-xl">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2.5">
+              <div class="w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"/></svg>
+              </div>
+              <div>
+                <h4 class="font-bold text-xs text-white">Turso DB (LibSQL) Cloud Sync</h4>
+                <div class="text-[11px] text-neutral-400">Encrypts & syncs your progress, streaks, and settings to your private cloud SQLite</div>
+              </div>
+            </div>
+            <label class="flex items-center gap-2 text-xs font-medium cursor-pointer">
+              <input type="checkbox" id="chk-turso-autosync" ${turso.autoSync ? "checked" : ""} class="rounded" />
+              <span>Auto-Sync</span>
+            </label>
+          </div>
+
+          <div class="space-y-2.5">
+            <div>
+              <label class="text-[11px] font-semibold text-neutral-400 block mb-1">Turso Database URL (or LibSQL URL)</label>
+              <input type="text" id="input-turso-url" placeholder="https://standby-db-yourusername.turso.io" value="${turso.url || ''}" class="w-full bg-neutral-950 border border-white/10 rounded-xl p-2.5 text-xs text-white font-mono" />
+            </div>
+            <div>
+              <label class="text-[11px] font-semibold text-neutral-400 block mb-1">Turso Auth Token</label>
+              <input type="password" id="input-turso-token" placeholder="eyJhbGciOi..." value="${turso.token || ''}" class="w-full bg-neutral-950 border border-white/10 rounded-xl p-2.5 text-xs text-white font-mono" />
+            </div>
+          </div>
+
+          <div class="flex items-center justify-between pt-2 border-t border-white/10">
+            <div id="turso-status-feedback" class="text-[11px] font-mono ${turso.lastError ? 'text-red-400' : isConnected ? 'text-emerald-400' : 'text-neutral-400'}">
+              ${turso.lastError ? `Error: ${turso.lastError}` : isConnected ? `Connected & Synced (${lastSyncedText})` : 'Enter credentials to connect'}
+            </div>
+            <div class="flex items-center gap-2">
+              <button id="btn-turso-test" class="px-3 py-1.5 text-xs font-bold rounded-xl bg-white/10 hover:bg-white/15 text-neutral-200 transition-colors">
+                Test Connection
+              </button>
+              <button id="btn-turso-sync-now" class="px-4 py-1.5 text-xs font-bold rounded-xl bg-blue-600 hover:bg-blue-500 text-white shadow-lg transition-all flex items-center gap-1.5">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                <span>Sync Now</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    `;
+
+    this.bindEvents();
+  }
+
+  bindEvents() {
+    const inputUrl = this.contentEl.querySelector('#input-turso-url');
+    const inputToken = this.contentEl.querySelector('#input-turso-token');
+    const chkAuto = this.contentEl.querySelector('#chk-turso-autosync');
+    const feedbackEl = this.contentEl.querySelector('#turso-status-feedback');
+
+    const saveTurso = () => {
+      store.updateTursoConfig({
+        url: inputUrl.value.trim(),
+        token: inputToken.value.trim(),
+        autoSync: chkAuto.checked
+      });
+    };
+
+    if (inputUrl) inputUrl.addEventListener('change', saveTurso);
+    if (inputToken) inputToken.addEventListener('change', saveTurso);
+    if (chkAuto) chkAuto.addEventListener('change', saveTurso);
+
+    const btnTest = this.contentEl.querySelector('#btn-turso-test');
+    if (btnTest) {
+      btnTest.addEventListener('click', async () => {
+        saveTurso();
+        const url = inputUrl.value.trim();
+        const token = inputToken.value.trim();
+        if (!url || !token) {
+          if (feedbackEl) feedbackEl.innerHTML = '<span class="text-amber-400">Please enter URL and Token first.</span>';
+          return;
+        }
+        if (feedbackEl) feedbackEl.innerHTML = '<span class="text-blue-400 animate-pulse">Testing connection...</span>';
+        try {
+          await tursoSync.testConnection(url, token);
+          await tursoSync.initSchema();
+          if (feedbackEl) feedbackEl.innerHTML = '<span class="text-emerald-400 font-bold">✓ Connection Successful & Schema Initialized!</span>';
+        } catch (err) {
+          if (feedbackEl) feedbackEl.innerHTML = `<span class="text-red-400">✗ ${err.message}</span>`;
+        }
+      });
+    }
+
+    const btnSync = this.contentEl.querySelector('#btn-turso-sync-now');
+    if (btnSync) {
+      btnSync.addEventListener('click', async () => {
+        saveTurso();
+        if (feedbackEl) feedbackEl.innerHTML = '<span class="text-blue-400 animate-pulse">Syncing with Turso DB...</span>';
+        try {
+          await tursoSync.pushToCloud();
+          await tursoSync.pullFromCloud();
+          if (feedbackEl) feedbackEl.innerHTML = '<span class="text-emerald-400 font-bold">✓ Sync Complete!</span>';
+          this.render();
+        } catch (err) {
+          if (feedbackEl) feedbackEl.innerHTML = `<span class="text-red-400">✗ ${err.message}</span>`;
+        }
+      });
+    }
   }
 }
 
@@ -2818,39 +3535,40 @@ class Screensaver {
   constructor() {
     this.layer = document.getElementById("screensaver-layer");
     this.idleTimer = null;
-    this.idleSeconds = 120; // 2 min idle default
     this.isActive = false;
+    this.activityHandler = () => this.onUserActivity();
+    this.storeUnsubscribe = null;
     this.init();
   }
 
   init() {
     this.resetTimer();
     ["mousemove", "mousedown", "keydown", "touchstart", "scroll"].forEach(evt => {
-      window.addEventListener(evt, () => this.onUserActivity(), { passive: true });
+      window.addEventListener(evt, this.activityHandler, { passive: true });
     });
 
-    if (this.layer) {
-      this.layer.addEventListener("click", () => this.exitScreensaver());
-    }
+    if (this.layer) this.layer.addEventListener("click", () => this.exitScreensaver());
+
+    this.storeUnsubscribe = store.subscribe((event) => {
+      if (event === "space_changed" || event === "space_updated") this.resetTimer();
+    });
   }
 
   onUserActivity() {
-    if (this.isActive) {
-      this.exitScreensaver();
-    }
+    if (this.isActive) this.exitScreensaver();
     this.resetTimer();
     document.body.classList.remove("idle-dim");
   }
 
   resetTimer() {
     if (this.idleTimer) clearTimeout(this.idleTimer);
-    this.idleTimer = setTimeout(() => {
-      this.triggerScreensaver();
-    }, this.idleSeconds * 1000);
+    const config = store.getState().screensaver || {};
+    const idleSeconds = Math.max(5, Number(config.idleSeconds) || 120);
+    this.idleTimer = setTimeout(() => this.triggerScreensaver(), idleSeconds * 1000);
   }
 
   triggerScreensaver() {
-    const config = store.getState().screensaver;
+    const config = store.getState().screensaver || {};
     if (!config.enabled) return;
 
     this.isActive = true;
@@ -2862,9 +3580,7 @@ class Screensaver {
 
   exitScreensaver() {
     this.isActive = false;
-    if (this.layer) {
-      this.layer.classList.remove("active");
-    }
+    if (this.layer) this.layer.classList.remove("active");
     this.resetTimer();
   }
 
@@ -2879,6 +3595,14 @@ class Screensaver {
         <div class="text-xs font-mono text-white/20 tracking-widest mt-3">TAP ANYWHERE TO WAKE</div>
       </div>
     `;
+  }
+
+  destroy() {
+    if (this.idleTimer) clearTimeout(this.idleTimer);
+    this.storeUnsubscribe?.();
+    ["mousemove", "mousedown", "keydown", "touchstart", "scroll"].forEach(evt => {
+      window.removeEventListener(evt, this.activityHandler);
+    });
   }
 }
 
@@ -3255,34 +3979,49 @@ class PomoFocusView {
 
 class BurnInProtector {
   constructor() {
-    this.intervalId = null;
+    this.timeoutId = null;
     this.stageEl = null;
   }
 
   start() {
     this.stageEl = document.getElementById("main-stage");
-    if (this.intervalId) clearInterval(this.intervalId);
+    this.scheduleNextShift();
+  }
 
-    // Shift 1-2px every 60 seconds
-    this.intervalId = setInterval(() => {
-      if (!this.stageEl) this.stageEl = document.getElementById("main-stage");
-      if (!this.stageEl) return;
-      const config = store.getState().burnInProtection;
-      if (!config || !config.enabled) {
-        this.stageEl.style.transform = "none";
-        return;
-      }
+  scheduleNextShift() {
+    if (this.timeoutId) clearTimeout(this.timeoutId);
+    const config = store.getState().burnInProtection || {};
+    const delayMs = Math.max(1, Number(config.intervalMinutes) || 1) * 60000;
+    this.timeoutId = setTimeout(() => {
+      this.shift();
+      this.scheduleNextShift();
+    }, delayMs);
+  }
 
-      const dx = (Math.random() * 4 - 2).toFixed(1);
-      const dy = (Math.random() * 4 - 2).toFixed(1);
-      this.stageEl.style.transform = `translate(${dx}px, ${dy}px)`;
-      this.stageEl.classList.add("burn-in-shifted");
-    }, 60000);
+  shift() {
+    if (!this.stageEl) this.stageEl = document.getElementById("main-stage");
+    if (!this.stageEl) return;
+
+    const config = store.getState().burnInProtection || {};
+    if (!config.enabled) {
+      this.stageEl.style.transform = "none";
+      this.stageEl.classList.remove("burn-in-shifted");
+      return;
+    }
+
+    const dx = (Math.random() * 4 - 2).toFixed(1);
+    const dy = (Math.random() * 4 - 2).toFixed(1);
+    this.stageEl.style.transform = `translate(${dx}px, ${dy}px)`;
+    this.stageEl.classList.add("burn-in-shifted");
   }
 
   stop() {
-    if (this.intervalId) clearInterval(this.intervalId);
-    if (this.stageEl) this.stageEl.style.transform = "none";
+    if (this.timeoutId) clearTimeout(this.timeoutId);
+    this.timeoutId = null;
+    if (this.stageEl) {
+      this.stageEl.style.transform = "none";
+      this.stageEl.classList.remove("burn-in-shifted");
+    }
   }
 }
 
@@ -3290,6 +4029,7 @@ var burnInProtector = window.standbyBurnInProtector || (window.standbyBurnInProt
 
 
 // --- app.js ---
+
 
 
 
@@ -3324,6 +4064,7 @@ var burnInProtector = window.standbyBurnInProtector || (window.standbyBurnInProt
 
 
 // Components
+
 
 
 
@@ -3372,6 +4113,7 @@ class App {
 
     // 4. Initialize Core UI Components
     new SpacesNav(document.getElementById('spaces-nav-container'));
+    new StatsModal();
     new CustomizeModal();
     new PhotoModal();
     new NightModeController();
