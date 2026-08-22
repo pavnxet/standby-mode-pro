@@ -1,25 +1,21 @@
-/* OLED Burn-In Sub-Pixel Micro Shifting Protector */
 import { store } from "../state/store.js";
 
 export class BurnInProtector {
   constructor() {
     this.intervalId = null;
+    this.stageEl = null;
+  }
+
+  start() {
     this.stageEl = document.getElementById("main-stage");
-    this.init();
-  }
-
-  init() {
-    this.startShifting();
-  }
-
-  startShifting() {
     if (this.intervalId) clearInterval(this.intervalId);
 
     // Shift 1-2px every 60 seconds
     this.intervalId = setInterval(() => {
+      if (!this.stageEl) this.stageEl = document.getElementById("main-stage");
       if (!this.stageEl) return;
       const config = store.getState().burnInProtection;
-      if (!config.enabled) {
+      if (!config || !config.enabled) {
         this.stageEl.style.transform = "none";
         return;
       }
@@ -30,4 +26,11 @@ export class BurnInProtector {
       this.stageEl.classList.add("burn-in-shifted");
     }, 60000);
   }
+
+  stop() {
+    if (this.intervalId) clearInterval(this.intervalId);
+    if (this.stageEl) this.stageEl.style.transform = "none";
+  }
 }
+
+export const burnInProtector = new BurnInProtector();

@@ -3109,28 +3109,24 @@ class PomoFocusView {
 
 // --- burnInProtector.js ---
 
-/* OLED Burn-In Sub-Pixel Micro Shifting Protector */
 
 
 class BurnInProtector {
   constructor() {
     this.intervalId = null;
+    this.stageEl = null;
+  }
+
+  start() {
     this.stageEl = document.getElementById("main-stage");
-    this.init();
-  }
-
-  init() {
-    this.startShifting();
-  }
-
-  startShifting() {
     if (this.intervalId) clearInterval(this.intervalId);
 
     // Shift 1-2px every 60 seconds
     this.intervalId = setInterval(() => {
+      if (!this.stageEl) this.stageEl = document.getElementById("main-stage");
       if (!this.stageEl) return;
       const config = store.getState().burnInProtection;
-      if (!config.enabled) {
+      if (!config || !config.enabled) {
         this.stageEl.style.transform = "none";
         return;
       }
@@ -3141,7 +3137,14 @@ class BurnInProtector {
       this.stageEl.classList.add("burn-in-shifted");
     }, 60000);
   }
+
+  stop() {
+    if (this.intervalId) clearInterval(this.intervalId);
+    if (this.stageEl) this.stageEl.style.transform = "none";
+  }
 }
+
+var burnInProtector = window.standbyBurnInProtector || (window.standbyBurnInProtector = new BurnInProtector());
 
 
 // --- app.js ---
