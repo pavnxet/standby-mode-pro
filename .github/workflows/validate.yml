@@ -1,0 +1,67 @@
+name: Validate StandBy Mode Pro
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Syntax check all JavaScript
+        shell: bash
+        run: |
+          set -euo pipefail
+          while IFS= read -r -d '' file; do
+            node --check "$file"
+          done < <(find js -type f -name '*.js' -print0)
+
+      - name: Verify module imports and local assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+
+          root = Path('.')
+          app = root / 'js/app.js'
+          text = app.read_text(encoding='utf-8')
+          imports = re.findall(r"from\s+['\"](\./[^'\"]+|\.\./[^'\"]+)['\"]", text)
+          missing = []
+          for value in imports:
+              target = (app.parent / value).resolve()
+              if not target.exists():
+                  missing.append(str(target.relative_to(root.resolve())))
+          if missing:
+              raise SystemExit('Missing local imports: ' + ', '.join(missing))
+
+          index = (root / 'index.html').read_text(encoding='utf-8')
+          if 'type="module" src="js/app.js"' not in index:
+              raise SystemExit('index.html is not loading the maintained module entry point')
+          if 'js/app.bundle.js' in index:
+              raise SystemExit('index.html still references the stale bundle')
+          print('Module entry point and local imports verified.')
+          PY
+
+      - name: Check required application files
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f index.html
+          test -f js/app.js
+          test -f js/state/store.js
+          test -f js/engines/clockEngine.js
+          test -f js/engines/widgetEngine.js
+          test -f css/main.css
+          test -f css/clocks.css
+          test -f css/widgets.css
+          echo 'Required application files present.'
