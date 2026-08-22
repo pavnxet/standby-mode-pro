@@ -1,4 +1,4 @@
-/* StandBy Mode Pro - Complete Universal Standalone Application (Compatible with file:// and http://) */
+/* StandBy Mode Pro - Complete Universal Application */
 
 (() => {
 
@@ -2192,7 +2192,15 @@ const demoTracks = [
   { title: "Cosmic Horizon", artist: "Solaris Dream", coverGradient: "linear-gradient(135deg, #3b82f6 0%, #06b6d4 100%)", lyrics: ["Floating above the atmosphere...", "Stars illuminating the distant dark...", "Endless horizons ahead...", "Peace within the silence..."] }
 ];
 
-const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+function escapeHtml(value) {
+  if (value === null || value === undefined) return '';
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 
 const mediaWidget = {
   name: "Universal Media Player",
@@ -2462,7 +2470,15 @@ const timerWidget = {
 /* TODO Checklist & Protocol Habits Widget */
 
 
-const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+function escapeHtml(value) {
+  if (value === null || value === undefined) return '';
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 
 const todoWidget = {
   name: "TODO & Protocols",
@@ -2641,7 +2657,15 @@ const defaultPresetPhotos = [
   { url: "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=800&q=80", title: "Misty Forest" }
 ];
 
-const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+function escapeHtml(value) {
+  if (value === null || value === undefined) return '';
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
 const safePhotoUrl = (url) => {
   const value = String(url ?? "");
   if (value.startsWith("data:image/") || value.startsWith("https://")) return value;
