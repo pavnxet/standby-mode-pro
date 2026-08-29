@@ -23,7 +23,6 @@
 <body class="bg-black text-neutral-100 select-none overflow-hidden h-screen w-screen">
   <div id="ambient-wallpaper-layer"></div>
   <canvas id="ambient-canvas-layer"></canvas>
-  <div id="screensaver-layer"></div>
   <div id="app-shell">
     <header id="top-bar" class="autohide-bar">
       <div class="flex items-center gap-2.5">
@@ -71,6 +70,9 @@
   <!-- Photo Modal -->
   <div id="photo-modal" class="modal-overlay"><div class="modal-card"><div class="flex items-center justify-between p-5 border-b border-white/10"><div class="flex items-center gap-2.5"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2"><rect width="18" height="18" x="3" y="3" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg><h3 class="font-bold text-base text-white">Smart Photo Frame Manager</h3></div><button id="btn-close-photo-modal" class="text-neutral-400 hover:text-white p-1.5 rounded-lg hover:bg-white/10 transition-colors" aria-label="Close photo manager"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button></div><div id="photo-modal-content" class="p-6 overflow-y-auto"></div></div></div>
   
+  <!-- Ambient Floating Screensaver Layer -->
+  <div id="screensaver-layer"></div>
+
   <!-- Module Entry Point -->
   <script type="module" src="js/app.js"></script>
 </body>

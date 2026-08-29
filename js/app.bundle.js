@@ -491,6 +491,11 @@ class Store {
     this.notify("night_mode_toggled", this.state.nightMode);
   }
 
+  updateScreensaverConfig(updates) {
+    this.state.screensaver = { ...this.state.screensaver, ...updates };
+    this.notify("screensaver_updated", this.state.screensaver);
+  }
+
   setVibe(vibeId) {
     this.state.vibes.activeTrack = vibeId;
     this.updateActiveSpace({ vibe: vibeId });
@@ -3450,6 +3455,7 @@ class CustomizeModal {
     const widgetList = widgetEngine.getWidgetList();
     const pomo = state.pomoState;
     const isWakeLocked = wakeLockEngine.isActive();
+    const screensaverConfig = state.screensaver || { enabled: true, idleSeconds: 120 };
     const currentTickVol = state.clockConfig.tickVolume !== undefined ? state.clockConfig.tickVolume : 0.75;
     const tickPercent = Math.round(currentTickVol * 100);
 
@@ -3475,6 +3481,40 @@ class CustomizeModal {
               <input type="checkbox" id="chk-wake-lock" ${state.keepScreenAwake ? "checked" : ""} class="sr-only peer" />
               <div class="w-9 h-5 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
             </label>
+          </div>
+        </div>
+
+        <!-- Ambient Screensaver Controls -->
+        <div class="p-3.5 rounded-2xl bg-white/5 border border-white/10 space-y-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div class="w-8 h-8 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+              </div>
+              <div>
+                <div class="font-bold text-xs text-white">Ambient Screensaver</div>
+                <div class="text-[11px] text-neutral-400">Drifting OLED clock & burn-in protection</div>
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <span id="screensaver-status-badge" class="text-[11px] font-mono px-2 py-0.5 rounded-full ${screensaverConfig.enabled ? 'bg-indigo-500/20 text-indigo-400 font-bold' : 'bg-white/10 text-neutral-400'}">
+                ${screensaverConfig.enabled ? 'Active 🌙' : 'Disabled'}
+              </span>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="chk-screensaver-enabled" ${screensaverConfig.enabled ? "checked" : ""} class="sr-only peer" />
+                <div class="w-9 h-5 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+              </label>
+            </div>
+          </div>
+          
+          <div class="flex items-center justify-between pt-2 border-t border-white/5 text-xs">
+            <span class="text-neutral-400">Idle Trigger Delay:</span>
+            <select id="select-screensaver-delay" class="bg-neutral-900 border border-white/10 rounded-lg px-2.5 py-1 text-xs text-neutral-200 focus:border-indigo-500 focus:outline-none">
+              <option value="60" ${screensaverConfig.idleSeconds === 60 ? "selected" : ""}>1 Minute (60s)</option>
+              <option value="120" ${screensaverConfig.idleSeconds === 120 ? "selected" : ""}>2 Minutes (120s)</option>
+              <option value="300" ${screensaverConfig.idleSeconds === 300 ? "selected" : ""}>5 Minutes (300s)</option>
+              <option value="600" ${screensaverConfig.idleSeconds === 600 ? "selected" : ""}>10 Minutes (600s)</option>
+            </select>
           </div>
         </div>
 
@@ -3630,6 +3670,29 @@ class CustomizeModal {
       chkWakeLock.addEventListener("change", (e) => {
         store.toggleScreenWakeLock(e.target.checked);
         this.render();
+      });
+    }
+
+    // 1b. Ambient Screensaver
+    const chkScreensaver = this.contentEl.querySelector("#chk-screensaver-enabled");
+    const badgeScreensaver = this.contentEl.querySelector("#screensaver-status-badge");
+    const selectScreensaverDelay = this.contentEl.querySelector("#select-screensaver-delay");
+
+    if (chkScreensaver) {
+      chkScreensaver.addEventListener("change", (e) => {
+        const isEnabled = e.target.checked;
+        store.updateScreensaverConfig({ enabled: isEnabled });
+        if (badgeScreensaver) {
+          badgeScreensaver.textContent = isEnabled ? "Active 🌙" : "Disabled";
+          badgeScreensaver.className = `text-[11px] font-mono px-2 py-0.5 rounded-full ${isEnabled ? 'bg-indigo-500/20 text-indigo-400 font-bold' : 'bg-white/10 text-neutral-400'}`;
+        }
+      });
+    }
+
+    if (selectScreensaverDelay) {
+      selectScreensaverDelay.addEventListener("change", (e) => {
+        const secs = parseInt(e.target.value, 10) || 120;
+        store.updateScreensaverConfig({ idleSeconds: secs });
       });
     }
 
@@ -4019,6 +4082,7 @@ class Screensaver {
   constructor() {
     this.layer = document.getElementById("screensaver-layer");
     this.idleTimer = null;
+    this.clockInterval = null;
     this.isActive = false;
     this.activityHandler = () => this.onUserActivity();
     this.storeUnsubscribe = null;
@@ -4027,14 +4091,24 @@ class Screensaver {
 
   init() {
     this.resetTimer();
-    ["mousemove", "mousedown", "keydown", "touchstart", "scroll"].forEach(evt => {
+    ["mousemove", "mousedown", "pointerdown", "click", "keydown", "touchstart", "scroll"].forEach(evt => {
       window.addEventListener(evt, this.activityHandler, { passive: true });
     });
 
     if (this.layer) this.layer.addEventListener("click", () => this.exitScreensaver());
 
     this.storeUnsubscribe = store.subscribe((event) => {
-      if (event === "space_changed" || event === "space_updated") this.resetTimer();
+      if (event === "space_changed" || event === "space_updated" || event === "screensaver_updated") {
+        this.resetTimer();
+      }
+      // If Pomodoro or Timer is actively running, keep idle timer reset and dismiss screensaver if open
+      if (event === "pomo_updated" || event === "pomo_tick") {
+        const pomo = store.getState().pomoState || {};
+        if (pomo.isRunning) {
+          if (this.isActive) this.exitScreensaver();
+          this.resetTimer();
+        }
+      }
     });
   }
 
@@ -4047,6 +4121,8 @@ class Screensaver {
   resetTimer() {
     if (this.idleTimer) clearTimeout(this.idleTimer);
     const config = store.getState().screensaver || {};
+    if (!config.enabled) return;
+
     const idleSeconds = Math.max(5, Number(config.idleSeconds) || 120);
     this.idleTimer = setTimeout(() => this.triggerScreensaver(), idleSeconds * 1000);
   }
@@ -4055,34 +4131,88 @@ class Screensaver {
     const config = store.getState().screensaver || {};
     if (!config.enabled) return;
 
+    // Suppress screensaver if Pomodoro focus or break timer is actively running
+    const pomo = store.getState().pomoState || {};
+    if (pomo.isRunning) {
+      this.resetTimer();
+      return;
+    }
+
     this.isActive = true;
     if (this.layer) {
       this.layer.classList.add("active");
       this.renderScreensaverContent();
+      this.startClock();
     }
   }
 
   exitScreensaver() {
     this.isActive = false;
+    this.stopClock();
     if (this.layer) this.layer.classList.remove("active");
     this.resetTimer();
   }
 
+  startClock() {
+    this.stopClock();
+    this.updateClockDisplay();
+    this.clockInterval = setInterval(() => this.updateClockDisplay(), 1000);
+  }
+
+  stopClock() {
+    if (this.clockInterval) {
+      clearInterval(this.clockInterval);
+      this.clockInterval = null;
+    }
+  }
+
+  updateClockDisplay() {
+    const timeEl = document.getElementById("screensaver-time-text");
+    const dateEl = document.getElementById("screensaver-date-text");
+    if (!timeEl) return;
+
+    const now = new Date();
+    const clockConfig = store.getState().clockConfig || {};
+    const is24h = clockConfig.timeFormat === "24h";
+
+    let hours = now.getHours();
+    const minutes = String(now.getMinutes()).padStart(2, "0");
+    const seconds = String(now.getSeconds()).padStart(2, "0");
+    let period = "";
+
+    if (!is24h) {
+      period = hours >= 12 ? " PM" : " AM";
+      hours = hours % 12 || 12;
+    }
+
+    const hoursStr = is24h ? String(hours).padStart(2, "0") : String(hours);
+    timeEl.textContent = `${hoursStr}:${minutes}:${seconds}${period}`;
+
+    if (dateEl) {
+      const options = { weekday: "short", month: "short", day: "numeric" };
+      dateEl.textContent = now.toLocaleDateString(undefined, options);
+    }
+  }
+
   renderScreensaverContent() {
     if (!this.layer) return;
-    const now = new Date();
-    const timeStr = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
     this.layer.innerHTML = `
       <div class="screensaver-float-content text-center">
-        <div class="font-sans font-extralight text-7xl md:text-9xl text-white/40 tracking-tighter">${timeStr}</div>
-        <div class="text-xs font-mono text-white/20 tracking-widest mt-3">TAP ANYWHERE TO WAKE</div>
+        <div id="screensaver-time-text" class="font-sans font-extralight text-7xl md:text-9xl text-white/40 tracking-tighter">--:--:--</div>
+        <div id="screensaver-date-text" class="text-xs md:text-sm font-mono text-white/30 tracking-wider mt-1 uppercase"></div>
+        <div class="text-[11px] font-mono text-white/20 tracking-widest mt-4 flex items-center justify-center gap-1.5">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500/40 animate-ping"></span>
+          TAP ANYWHERE TO WAKE
+        </div>
       </div>
     `;
+    this.updateClockDisplay();
   }
 
   destroy() {
     if (this.idleTimer) clearTimeout(this.idleTimer);
+    this.stopClock();
     this.storeUnsubscribe?.();
     ["mousemove", "mousedown", "keydown", "touchstart", "scroll"].forEach(evt => {
       window.removeEventListener(evt, this.activityHandler);
@@ -4595,13 +4725,12 @@ class App {
       visualizerEngine.setMode(store.getState().vibes.visualizer || 'stars');
     }
 
-    // 4. Initialize Core UI Components
-    new SpacesNav(document.getElementById('spaces-nav-container'));
-    new StatsModal();
-    new CustomizeModal();
-    new PhotoModal();
-    new NightModeController();
-    new Screensaver();
+    this.spacesNav = new SpacesNav(document.getElementById('spaces-nav-container'));
+    this.statsModal = new StatsModal();
+    this.customizeModal = new CustomizeModal();
+    this.photoModal = new PhotoModal();
+    this.nightMode = new NightModeController();
+    this.screensaver = new Screensaver();
 
     // 5. Initialize Live View Counter
     this.initViewsCounter();

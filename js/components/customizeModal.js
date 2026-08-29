@@ -55,6 +55,7 @@ export class CustomizeModal {
     const widgetList = widgetEngine.getWidgetList();
     const pomo = state.pomoState;
     const isWakeLocked = wakeLockEngine.isActive();
+    const screensaverConfig = state.screensaver || { enabled: true, idleSeconds: 120 };
     const currentTickVol = state.clockConfig.tickVolume !== undefined ? state.clockConfig.tickVolume : 0.75;
     const tickPercent = Math.round(currentTickVol * 100);
 
@@ -80,6 +81,40 @@ export class CustomizeModal {
               <input type="checkbox" id="chk-wake-lock" ${state.keepScreenAwake ? "checked" : ""} class="sr-only peer" />
               <div class="w-9 h-5 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
             </label>
+          </div>
+        </div>
+
+        <!-- Ambient Screensaver Controls -->
+        <div class="p-3.5 rounded-2xl bg-white/5 border border-white/10 space-y-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <div class="w-8 h-8 rounded-full bg-indigo-500/20 text-indigo-400 flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+              </div>
+              <div>
+                <div class="font-bold text-xs text-white">Ambient Screensaver</div>
+                <div class="text-[11px] text-neutral-400">Drifting OLED clock & burn-in protection</div>
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <span id="screensaver-status-badge" class="text-[11px] font-mono px-2 py-0.5 rounded-full ${screensaverConfig.enabled ? 'bg-indigo-500/20 text-indigo-400 font-bold' : 'bg-white/10 text-neutral-400'}">
+                ${screensaverConfig.enabled ? 'Active 🌙' : 'Disabled'}
+              </span>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="chk-screensaver-enabled" ${screensaverConfig.enabled ? "checked" : ""} class="sr-only peer" />
+                <div class="w-9 h-5 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+              </label>
+            </div>
+          </div>
+          
+          <div class="flex items-center justify-between pt-2 border-t border-white/5 text-xs">
+            <span class="text-neutral-400">Idle Trigger Delay:</span>
+            <select id="select-screensaver-delay" class="bg-neutral-900 border border-white/10 rounded-lg px-2.5 py-1 text-xs text-neutral-200 focus:border-indigo-500 focus:outline-none">
+              <option value="60" ${screensaverConfig.idleSeconds === 60 ? "selected" : ""}>1 Minute (60s)</option>
+              <option value="120" ${screensaverConfig.idleSeconds === 120 ? "selected" : ""}>2 Minutes (120s)</option>
+              <option value="300" ${screensaverConfig.idleSeconds === 300 ? "selected" : ""}>5 Minutes (300s)</option>
+              <option value="600" ${screensaverConfig.idleSeconds === 600 ? "selected" : ""}>10 Minutes (600s)</option>
+            </select>
           </div>
         </div>
 
@@ -235,6 +270,29 @@ export class CustomizeModal {
       chkWakeLock.addEventListener("change", (e) => {
         store.toggleScreenWakeLock(e.target.checked);
         this.render();
+      });
+    }
+
+    // 1b. Ambient Screensaver
+    const chkScreensaver = this.contentEl.querySelector("#chk-screensaver-enabled");
+    const badgeScreensaver = this.contentEl.querySelector("#screensaver-status-badge");
+    const selectScreensaverDelay = this.contentEl.querySelector("#select-screensaver-delay");
+
+    if (chkScreensaver) {
+      chkScreensaver.addEventListener("change", (e) => {
+        const isEnabled = e.target.checked;
+        store.updateScreensaverConfig({ enabled: isEnabled });
+        if (badgeScreensaver) {
+          badgeScreensaver.textContent = isEnabled ? "Active 🌙" : "Disabled";
+          badgeScreensaver.className = `text-[11px] font-mono px-2 py-0.5 rounded-full ${isEnabled ? 'bg-indigo-500/20 text-indigo-400 font-bold' : 'bg-white/10 text-neutral-400'}`;
+        }
+      });
+    }
+
+    if (selectScreensaverDelay) {
+      selectScreensaverDelay.addEventListener("change", (e) => {
+        const secs = parseInt(e.target.value, 10) || 120;
+        store.updateScreensaverConfig({ idleSeconds: secs });
       });
     }
 

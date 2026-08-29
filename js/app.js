@@ -79,13 +79,12 @@ class App {
       visualizerEngine.setMode(store.getState().vibes.visualizer || 'stars');
     }
 
-    // 4. Initialize Core UI Components
-    new SpacesNav(document.getElementById('spaces-nav-container'));
-    new StatsModal();
-    new CustomizeModal();
-    new PhotoModal();
-    new NightModeController();
-    new Screensaver();
+    this.spacesNav = new SpacesNav(document.getElementById('spaces-nav-container'));
+    this.statsModal = new StatsModal();
+    this.customizeModal = new CustomizeModal();
+    this.photoModal = new PhotoModal();
+    this.nightMode = new NightModeController();
+    this.screensaver = new Screensaver();
 
     // 5. Initialize Live View Counter
     this.initViewsCounter();

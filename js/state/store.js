@@ -485,6 +485,11 @@ export class Store {
     this.notify("night_mode_toggled", this.state.nightMode);
   }
 
+  updateScreensaverConfig(updates) {
+    this.state.screensaver = { ...this.state.screensaver, ...updates };
+    this.notify("screensaver_updated", this.state.screensaver);
+  }
+
   setVibe(vibeId) {
     this.state.vibes.activeTrack = vibeId;
     this.updateActiveSpace({ vibe: vibeId });
