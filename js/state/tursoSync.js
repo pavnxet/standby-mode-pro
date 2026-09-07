@@ -10,9 +10,11 @@ export class TursoSync {
   init() {
     // Auto-init on load if credentials exist
     const cfg = store.getState().tursoConfig;
-    if (cfg && cfg.url && cfg.token && cfg.autoSync) {
+    if (cfg && cfg.url && cfg.token) {
       this.initSchema().then(() => {
-        this.pullFromCloud();
+        if (cfg.autoSync) {
+          this.pullFromCloud();
+        }
       });
     }
 
@@ -20,6 +22,7 @@ export class TursoSync {
     store.subscribe((event) => {
       if (
         event === 'pomo_completed' ||
+        event === 'stats_updated' ||
         event === 'todos_updated' ||
         event === 'tally_updated' ||
         event === 'space_updated' ||
@@ -30,6 +33,8 @@ export class TursoSync {
         if (config && config.url && config.token && config.autoSync) {
           this.scheduleDebouncedSync();
         }
+      } else if (event === 'user_switched') {
+        this.pullFromCloud();
       }
     });
   }
@@ -137,6 +142,23 @@ export class TursoSync {
   async initSchema() {
     try {
       const schemaSqls = [
+        `CREATE TABLE IF NOT EXISTS standby_users (
+          id TEXT PRIMARY KEY,
+          display_name TEXT,
+          created_at INTEGER,
+          last_active_at INTEGER
+        );`,
+        `CREATE TABLE IF NOT EXISTS standby_user_focus_sessions (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL,
+          stage TEXT NOT NULL,
+          duration_minutes INTEGER NOT NULL,
+          completed_at INTEGER NOT NULL,
+          date_str TEXT NOT NULL,
+          month_str TEXT NOT NULL,
+          year_int INTEGER NOT NULL
+        );`,
+        `CREATE INDEX IF NOT EXISTS idx_user_sessions ON standby_user_focus_sessions(user_id, date_str);`,
         `CREATE TABLE IF NOT EXISTS standby_sessions (
           id TEXT PRIMARY KEY,
           stage TEXT NOT NULL,
@@ -165,7 +187,7 @@ export class TursoSync {
       ];
 
       await this.executeStatements(schemaSqls);
-      store.updateTursoConfig({ isConnected: true });
+      store.updateTursoConfig({ isConnected: true, lastError: null });
       return true;
     } catch (err) {
       console.warn('Turso initSchema error:', err);
@@ -178,7 +200,29 @@ export class TursoSync {
     if (this.syncDebounceTimer) clearTimeout(this.syncDebounceTimer);
     this.syncDebounceTimer = setTimeout(() => {
       this.pushToCloud();
-    }, 2500);
+    }, 1500);
+  }
+
+  async registerOrUpdateUser(userId, displayName) {
+    if (!userId) return;
+    const now = Date.now();
+    try {
+      await this.executeStatements([
+        {
+          sql: `INSERT INTO standby_users (id, display_name, created_at, last_active_at)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET display_name = excluded.display_name, last_active_at = excluded.last_active_at;`,
+          args: [
+            { type: 'text', value: userId },
+            { type: 'text', value: displayName || userId },
+            { type: 'integer', value: String(now) },
+            { type: 'integer', value: String(now) }
+          ]
+        }
+      ]);
+    } catch (e) {
+      console.warn('registerOrUpdateUser error:', e);
+    }
   }
 
   async pushToCloud() {
@@ -192,9 +236,13 @@ export class TursoSync {
     try {
       const state = store.getState();
       const now = Date.now();
-      const todayStr = new Date().toISOString().split('T')[0];
+      const currentUserId = (state.currentUser && state.currentUser.userId) || 'primary_user';
+      const displayName = (state.currentUser && state.currentUser.displayName) || currentUserId;
 
-      // 1. Sync User State
+      // 1. Ensure user is registered
+      await this.registerOrUpdateUser(currentUserId, displayName);
+
+      // 2. Sync User State
       const statePayload = JSON.stringify({
         spaces: state.spaces,
         clockConfig: state.clockConfig,
@@ -208,25 +256,35 @@ export class TursoSync {
       const statements = [
         {
           sql: `INSERT INTO standby_user_state (id, state_json, updated_at)
-                VALUES ('primary_user', ?, ?)
+                VALUES (?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET state_json = excluded.state_json, updated_at = excluded.updated_at;`,
-          args: [{ type: 'text', value: statePayload }, { type: 'integer', value: String(now) }]
+          args: [
+            { type: 'text', value: currentUserId },
+            { type: 'text', value: statePayload },
+            { type: 'integer', value: String(now) }
+          ]
         }
       ];
 
-      // 2. Sync Recent Sessions
-      const recentSessions = (state.stats && state.stats.history) ? state.stats.history.slice(-20) : [];
+      // 3. Sync Focus Sessions to dedicated user table
+      const recentSessions = (state.stats && state.stats.history) ? state.stats.history.slice(0, 30) : [];
       for (const s of recentSessions) {
+        const dStr = s.dateStr || new Date(s.timestamp).toISOString().split('T')[0];
+        const mStr = s.monthStr || dStr.substring(0, 7);
+        const yInt = s.yearInt || parseInt(dStr.substring(0, 4), 10) || new Date().getFullYear();
+
         statements.push({
-          sql: `INSERT OR IGNORE INTO standby_sessions (id, stage, duration_minutes, completed_at, date_str, time_str)
-                VALUES (?, ?, ?, ?, ?, ?);`,
+          sql: `INSERT OR IGNORE INTO standby_user_focus_sessions (id, user_id, stage, duration_minutes, completed_at, date_str, month_str, year_int)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?);`,
           args: [
             { type: 'text', value: s.id },
-            { type: 'text', value: s.stage },
-            { type: 'integer', value: String(s.duration) },
-            { type: 'integer', value: String(s.timestamp) },
-            { type: 'text', value: s.dateStr },
-            { type: 'text', value: s.timeStr || '' }
+            { type: 'text', value: currentUserId },
+            { type: 'text', value: s.stage || 'focus' },
+            { type: 'integer', value: String(s.duration || 25) },
+            { type: 'integer', value: String(s.timestamp || now) },
+            { type: 'text', value: dStr },
+            { type: 'text', value: mStr },
+            { type: 'integer', value: String(yInt) }
           ]
         });
       }
@@ -254,17 +312,84 @@ export class TursoSync {
     store.updateTursoConfig({ isSyncing: true });
 
     try {
+      const currentUserId = (store.getState().currentUser && store.getState().currentUser.userId) || 'primary_user';
+
+      // 1. Fetch user state & focus sessions
       const res = await this.executeStatements([
-        `SELECT state_json, updated_at FROM standby_user_state WHERE id = 'primary_user';`
+        {
+          sql: `SELECT state_json, updated_at FROM standby_user_state WHERE id = ?;`,
+          args: [{ type: 'text', value: currentUserId }]
+        },
+        {
+          sql: `SELECT id, stage, duration_minutes, completed_at, date_str, month_str, year_int 
+                FROM standby_user_focus_sessions 
+                WHERE user_id = ? 
+                ORDER BY completed_at DESC 
+                LIMIT 500;`,
+          args: [{ type: 'text', value: currentUserId }]
+        }
       ]);
 
-      const resultObj = res.results && res.results[0];
-      if (resultObj && resultObj.response && resultObj.response.result && resultObj.response.result.rows && resultObj.response.result.rows.length > 0) {
-        const row = resultObj.response.result.rows[0];
+      // Handle User State
+      const stateResult = res.results && res.results[0];
+      if (stateResult && stateResult.response && stateResult.response.result && stateResult.response.result.rows && stateResult.response.result.rows.length > 0) {
+        const row = stateResult.response.result.rows[0];
         const stateJson = row[0].value;
         if (stateJson) {
           const parsed = JSON.parse(stateJson);
           store.mergeCloudState(parsed);
+        }
+      }
+
+      // Handle Sessions from cloud table
+      const sessionsResult = res.results && res.results[1];
+      if (sessionsResult && sessionsResult.response && sessionsResult.response.result && sessionsResult.response.result.rows) {
+        const rows = sessionsResult.response.result.rows;
+        if (rows.length > 0) {
+          const cloudHistory = rows.map(r => ({
+            id: r[0].value,
+            stage: r[1].value,
+            duration: parseInt(r[2].value, 10),
+            timestamp: parseInt(r[3].value, 10),
+            dateStr: r[4].value,
+            monthStr: r[5].value,
+            yearInt: parseInt(r[6].value, 10),
+            timeStr: new Date(parseInt(r[3].value, 10)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          }));
+
+          // Rebuild daily, monthly, and yearly totals from cloud history
+          const dailyTotals = {};
+          const monthlyTotals = {};
+          const yearlyTotals = {};
+
+          for (const s of cloudHistory) {
+            if (s.stage === 'focus') {
+              // Daily
+              if (!dailyTotals[s.dateStr]) dailyTotals[s.dateStr] = { focusMinutes: 0, sessions: 0 };
+              dailyTotals[s.dateStr].focusMinutes += s.duration;
+              dailyTotals[s.dateStr].sessions += 1;
+
+              // Monthly
+              if (!monthlyTotals[s.monthStr]) monthlyTotals[s.monthStr] = { focusMinutes: 0, sessions: 0 };
+              monthlyTotals[s.monthStr].focusMinutes += s.duration;
+              monthlyTotals[s.monthStr].sessions += 1;
+
+              // Yearly
+              const yrStr = String(s.yearInt);
+              if (!yearlyTotals[yrStr]) yearlyTotals[yrStr] = { focusMinutes: 0, sessions: 0 };
+              yearlyTotals[yrStr].focusMinutes += s.duration;
+              yearlyTotals[yrStr].sessions += 1;
+            }
+          }
+
+          store.mergeCloudState({
+            stats: {
+              history: cloudHistory,
+              dailyTotals,
+              monthlyTotals,
+              yearlyTotals
+            }
+          });
         }
       }
 
@@ -281,6 +406,16 @@ export class TursoSync {
       this.isSyncing = false;
     }
   }
+
+  async loginWithUserId(userId) {
+    if (!userId || !userId.trim()) throw new Error('Please provide a valid User ID.');
+    const cleanId = userId.trim();
+    store.setUserId(cleanId);
+    await this.initSchema();
+    await this.pullFromCloud();
+    return true;
+  }
 }
 
 export const tursoSync = new TursoSync();
+

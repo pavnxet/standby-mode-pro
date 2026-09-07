@@ -342,7 +342,10 @@ class App {
   }
 }
 
-// Global Launcher
+// Global Launcher & Testing Hooks
+window.__STANDBY_STORE__ = store;
+window.__TURSO_SYNC__ = tursoSync;
+
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => {
     window.standbyApp = new App();
@@ -350,3 +353,4 @@ if (document.readyState === 'loading') {
 } else {
   window.standbyApp = new App();
 }
+

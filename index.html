@@ -50,17 +50,22 @@
   
   <!-- Stats & Cloud Sync Modal -->
   <div id="stats-modal" class="modal-overlay">
-    <div class="modal-card">
-      <div class="flex items-center justify-between p-5 border-b border-white/10">
+    <div class="modal-card !max-w-3xl">
+      <div class="flex items-center justify-between p-4 sm:p-5 border-b border-white/10 bg-neutral-900/60">
         <div class="flex items-center gap-2.5">
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
-          <h3 class="font-bold text-base text-white">Productivity &amp; Turso Cloud Sync</h3>
+          <div class="w-8 h-8 rounded-xl bg-blue-500/20 border border-blue-500/30 flex items-center justify-center text-blue-400">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          </div>
+          <div>
+            <h3 class="font-bold text-sm sm:text-base text-white">Focus Analytics &amp; Cloud Profile</h3>
+            <p class="text-[11px] text-neutral-400 font-mono">Turso DB Cross-Device Sync &amp; Historical Insights</p>
+          </div>
         </div>
         <button id="btn-close-stats" class="text-neutral-400 hover:text-white p-1.5 rounded-lg hover:bg-white/10 transition-colors" aria-label="Close stats">
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
       </div>
-      <div id="stats-modal-content" class="p-6 overflow-y-auto"></div>
+      <div id="stats-modal-content" class="p-4 sm:p-6 overflow-y-auto max-h-[80vh]"></div>
     </div>
   </div>
 

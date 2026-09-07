@@ -3,6 +3,11 @@ const STORAGE_KEY = "standby_mode_pro_v1";
 const defaultState = {
   activeSpaceId: "home",
   keepScreenAwake: true,
+  currentUser: {
+    userId: "",
+    displayName: "Focus User",
+    createdAt: Date.now()
+  },
   tursoConfig: {
     url: "",
     token: "",
@@ -14,10 +19,12 @@ const defaultState = {
   },
   stats: {
     history: [
-      { id: "s1", stage: "focus", duration: 25, timestamp: Date.now() - 7200000, dateStr: new Date().toISOString().split('T')[0], timeStr: "02:15 PM" },
-      { id: "s2", stage: "focus", duration: 25, timestamp: Date.now() - 3600000, dateStr: new Date().toISOString().split('T')[0], timeStr: "03:00 PM" }
+      { id: "s1", stage: "focus", duration: 25, timestamp: Date.now() - 7200000, dateStr: new Date().toISOString().split('T')[0], monthStr: new Date().toISOString().substring(0, 7), yearInt: new Date().getFullYear(), timeStr: "02:15 PM" },
+      { id: "s2", stage: "focus", duration: 25, timestamp: Date.now() - 3600000, dateStr: new Date().toISOString().split('T')[0], monthStr: new Date().toISOString().substring(0, 7), yearInt: new Date().getFullYear(), timeStr: "03:00 PM" }
     ],
     dailyTotals: {},
+    monthlyTotals: {},
+    yearlyTotals: {},
     streakDays: 1
   },
   spaces: {
@@ -150,9 +157,21 @@ export class Store {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
+        const loadedUser = parsed.currentUser || {};
+        let finalUserId = loadedUser.userId;
+        if (!finalUserId) {
+          // Check dedicated user storage or generate unique ID
+          finalUserId = localStorage.getItem("standby_user_id") || ("usr_" + Math.random().toString(36).substring(2, 8) + Date.now().toString(36).slice(-4));
+          try { localStorage.setItem("standby_user_id", finalUserId); } catch(e) {}
+        }
         return {
           ...defaultState,
           ...parsed,
+          currentUser: {
+            userId: finalUserId,
+            displayName: loadedUser.displayName || ("User " + finalUserId.slice(-4).toUpperCase()),
+            createdAt: loadedUser.createdAt || Date.now()
+          },
           keepScreenAwake: parsed.keepScreenAwake !== undefined ? parsed.keepScreenAwake : true,
           tursoConfig: {
             ...defaultState.tursoConfig,
@@ -175,7 +194,16 @@ export class Store {
     } catch (e) {
       console.warn("LocalStorage unavailable:", e);
     }
-    return defaultState;
+    const defaultUserId = "usr_" + Math.random().toString(36).substring(2, 8) + Date.now().toString(36).slice(-4);
+    try { localStorage.setItem("standby_user_id", defaultUserId); } catch(e) {}
+    return {
+      ...defaultState,
+      currentUser: {
+        userId: defaultUserId,
+        displayName: "User " + defaultUserId.slice(-4).toUpperCase(),
+        createdAt: Date.now()
+      }
+    };
   }
 
   saveState() {
@@ -231,17 +259,34 @@ export class Store {
     this.notify("cloud_state_merged", this.state);
   }
 
+  setUserId(newUserId, newDisplayName) {
+    if (!newUserId || !newUserId.trim()) return;
+    const cleanId = newUserId.trim();
+    this.state.currentUser.userId = cleanId;
+    if (newDisplayName) {
+      this.state.currentUser.displayName = newDisplayName.trim();
+    }
+    try {
+      localStorage.setItem("standby_user_id", cleanId);
+    } catch (e) {}
+    this.notify("user_switched", this.state.currentUser);
+  }
+
   // --- Statistics & Progress Recording ---
   recordCompletedSession(stage, durationMinutes) {
     const now = new Date();
     const dateStr = now.toISOString().split("T")[0];
+    const monthStr = dateStr.substring(0, 7); // YYYY-MM
+    const yearInt = now.getFullYear();
     const timeStr = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
     if (!this.state.stats) {
-      this.state.stats = { history: [], dailyTotals: {}, streakDays: 1 };
+      this.state.stats = { history: [], dailyTotals: {}, monthlyTotals: {}, yearlyTotals: {}, streakDays: 1 };
     }
     if (!this.state.stats.history) this.state.stats.history = [];
     if (!this.state.stats.dailyTotals) this.state.stats.dailyTotals = {};
+    if (!this.state.stats.monthlyTotals) this.state.stats.monthlyTotals = {};
+    if (!this.state.stats.yearlyTotals) this.state.stats.yearlyTotals = {};
 
     const sessionItem = {
       id: "pomo_" + Date.now(),
@@ -249,12 +294,14 @@ export class Store {
       duration: durationMinutes,
       timestamp: Date.now(),
       dateStr,
+      monthStr,
+      yearInt,
       timeStr
     };
 
     this.state.stats.history.unshift(sessionItem);
-    // Keep max 100 in history
-    if (this.state.stats.history.length > 100) {
+    // Keep max 200 in local history
+    if (this.state.stats.history.length > 200) {
       this.state.stats.history.pop();
     }
 
@@ -262,10 +309,23 @@ export class Store {
     if (!this.state.stats.dailyTotals[dateStr]) {
       this.state.stats.dailyTotals[dateStr] = { focusMinutes: 0, sessions: 0, water: 0 };
     }
+    // Update Monthly Totals
+    if (!this.state.stats.monthlyTotals[monthStr]) {
+      this.state.stats.monthlyTotals[monthStr] = { focusMinutes: 0, sessions: 0 };
+    }
+    // Update Yearly Totals
+    const yearStr = String(yearInt);
+    if (!this.state.stats.yearlyTotals[yearStr]) {
+      this.state.stats.yearlyTotals[yearStr] = { focusMinutes: 0, sessions: 0 };
+    }
 
     if (stage === "focus") {
       this.state.stats.dailyTotals[dateStr].focusMinutes += durationMinutes;
       this.state.stats.dailyTotals[dateStr].sessions += 1;
+      this.state.stats.monthlyTotals[monthStr].focusMinutes += durationMinutes;
+      this.state.stats.monthlyTotals[monthStr].sessions += 1;
+      this.state.stats.yearlyTotals[yearStr].focusMinutes += durationMinutes;
+      this.state.stats.yearlyTotals[yearStr].sessions += 1;
       this.incrementTally("focusSessions", 1);
     }
 
