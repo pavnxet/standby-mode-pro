@@ -61,7 +61,8 @@ export class TursoSync {
       throw new Error('Turso Database URL or Token is missing.');
     }
 
-    const endpoint = this.formatTursoUrl(cfg.url);
+    const isProxy = cfg.url === '/api/sync' || (typeof window !== 'undefined' && window.location && cfg.url === `${window.location.origin}/api/sync`);
+    const endpoint = isProxy ? cfg.url : this.formatTursoUrl(cfg.url);
     const requests = statements.map(stmt => {
       if (typeof stmt === 'string') {
         return { type: 'execute', stmt: { sql: stmt } };
@@ -71,12 +72,14 @@ export class TursoSync {
 
     requests.push({ type: 'close' });
 
+    const headers = { 'Content-Type': 'application/json' };
+    if (!isProxy && cfg.token) {
+      headers['Authorization'] = `Bearer ${cfg.token.trim()}`;
+    }
+
     const response = await fetch(endpoint, {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${cfg.token.trim()}`,
-        'Content-Type': 'application/json'
-      },
+      headers,
       body: JSON.stringify({ requests })
     });
 

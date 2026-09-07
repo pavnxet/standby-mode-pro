@@ -35,4 +35,16 @@ Append-only running log of session execution history for this project.
 - Result: Clean consumer-grade UX with full admin infrastructure encapsulation.
 - Open: None
 
+## 2026-09-07 09:48 — Security Audit, Sanitization, and Backend Proxy Alignment
+- Task: Complete security audit and debugging across codebase, verifying secrets handling, XSS protection, injection attack surfaces, and backend/proxy alignment.
+- Did:
+  1. Audited codebase for secret exposures and XSS vulnerabilities.
+  2. Enhanced `statsModal.js` with `escapeHtml` to sanitize dynamic User IDs, display names, and asynchronous error messages.
+  3. Upgraded `tursoSync.js` with support for serverless proxy `/api/sync` (Vercel Serverless Function) so database credentials can live strictly in server environment variables / GitHub secrets without exposing tokens to the client browser.
+  4. Verified SQL queries in `tursoSync.js` strictly use parameterized statement arguments (`args: [{ type: 'text', value: ... }]`) preventing SQL injection.
+  5. Rebuilt `js/app.bundle.js` and verified with automated test suite.
+- Result: All security vectors passed; hardened against XSS and injection.
+- Open: None
+
+
 

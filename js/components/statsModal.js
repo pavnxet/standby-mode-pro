@@ -1,6 +1,16 @@
 import { store } from '../state/store.js';
 import { tursoSync } from '../state/tursoSync.js';
 
+function escapeHtml(value) {
+  if (value === null || value === undefined) return '';
+  return String(value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 export class StatsModal {
   constructor() {
     this.modalEl = document.getElementById("stats-modal");
@@ -293,14 +303,14 @@ export class StatsModal {
             </div>
             <div>
               <div class="flex items-center gap-2">
-                <span class="font-bold text-xs text-white">${currentUser.displayName || 'Focus User'}</span>
+                <span class="font-bold text-xs text-white">${escapeHtml(currentUser.displayName || 'Focus User')}</span>
                 <span class="px-2 py-0.5 text-[10px] font-mono rounded-full ${isConnected ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'}">
                   ${isConnected ? '☁️ Cloud Synced' : '💾 Local Only'}
                 </span>
               </div>
               <div class="flex items-center gap-2 mt-0.5">
                 <span class="text-[11px] text-neutral-400 font-mono">User ID:</span>
-                <span id="label-current-user-id" class="text-xs font-mono font-bold text-blue-300 select-all bg-white/5 px-2 py-0.5 rounded border border-white/5"><span id="active-user-id-display">${currentUser.userId}</span></span>
+                <span id="label-current-user-id" class="text-xs font-mono font-bold text-blue-300 select-all bg-white/5 px-2 py-0.5 rounded border border-white/5"><span id="active-user-id-display">${escapeHtml(currentUser.userId)}</span></span>
                 <button id="btn-copy-user-id" class="text-[11px] text-neutral-400 hover:text-white px-1.5 py-0.5 rounded hover:bg-white/10 transition-colors" title="Copy User ID">
                   📋 Copy
                 </button>
@@ -746,13 +756,13 @@ export class StatsModal {
         if (userFeedback) userFeedback.innerHTML = '<span class="text-blue-400 animate-pulse">Connecting to Turso DB and loading profile...</span>';
         try {
           await tursoSync.loginWithUserId(targetId);
-          if (userFeedback) userFeedback.innerHTML = `<span class="text-emerald-400 font-bold">✓ Profile "${targetId}" successfully loaded and synced!</span>`;
+          if (userFeedback) userFeedback.innerHTML = `<span class="text-emerald-400 font-bold">✓ Profile "${escapeHtml(targetId)}" successfully loaded and synced!</span>`;
           setTimeout(() => {
             this.activeTab = "overview";
             this.render();
           }, 1200);
         } catch (err) {
-          if (userFeedback) userFeedback.innerHTML = `<span class="text-red-400">✗ Failed to load: ${err.message}</span>`;
+          if (userFeedback) userFeedback.innerHTML = `<span class="text-red-400">✗ Failed to load: ${escapeHtml(err.message)}</span>`;
         }
       });
     }
@@ -763,13 +773,13 @@ export class StatsModal {
       btnCreateNew.addEventListener("click", async () => {
         const newId = "usr_" + Math.random().toString(36).substring(2, 8) + Date.now().toString(36).slice(-4);
         store.setUserId(newId, "User " + newId.slice(-4).toUpperCase());
-        if (userFeedback) userFeedback.innerHTML = `<span class="text-emerald-400">Generated new ID: ${newId}. Registering in cloud...</span>`;
+        if (userFeedback) userFeedback.innerHTML = `<span class="text-emerald-400">Generated new ID: ${escapeHtml(newId)}. Registering in cloud...</span>`;
         try {
           await tursoSync.pushToCloud();
-          if (userFeedback) userFeedback.innerHTML = `<span class="text-emerald-400 font-bold">✓ New profile created and active: ${newId}</span>`;
+          if (userFeedback) userFeedback.innerHTML = `<span class="text-emerald-400 font-bold">✓ New profile created and active: ${escapeHtml(newId)}</span>`;
           setTimeout(() => { this.render(); }, 1200);
         } catch (err) {
-          if (userFeedback) userFeedback.innerHTML = `<span class="text-amber-400">ID created locally: ${newId} (offline)</span>`;
+          if (userFeedback) userFeedback.innerHTML = `<span class="text-amber-400">ID created locally: ${escapeHtml(newId)} (offline)</span>`;
           setTimeout(() => { this.render(); }, 1200);
         }
       });
@@ -813,7 +823,7 @@ export class StatsModal {
           if (feedbackEl) feedbackEl.innerHTML = '<span class="text-emerald-400 font-bold">✓ Connected &amp; Synced with Turso DB!</span>';
           this.render();
         } catch (err) {
-          if (feedbackEl) feedbackEl.innerHTML = `<span class="text-red-400">✗ ${err.message}</span>`;
+          if (feedbackEl) feedbackEl.innerHTML = `<span class="text-red-400">✗ ${escapeHtml(err.message)}</span>`;
         }
       });
     }
