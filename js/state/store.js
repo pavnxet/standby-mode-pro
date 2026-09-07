@@ -290,7 +290,7 @@ export class Store {
     if (!this.state.stats.yearlyTotals) this.state.stats.yearlyTotals = {};
 
     const sessionItem = {
-      id: "pomo_" + Date.now(),
+      id: "pomo_" + Date.now() + "_" + Math.random().toString(36).substring(2, 7),
       stage,
       duration: durationMinutes,
       timestamp: Date.now(),
@@ -306,52 +306,91 @@ export class Store {
       this.state.stats.history.pop();
     }
 
-    // Update Daily Totals
-    if (!this.state.stats.dailyTotals[dateStr]) {
-      this.state.stats.dailyTotals[dateStr] = { focusMinutes: 0, sessions: 0, water: 0 };
+    this.recalculateAggregates();
+    this.notify("stats_updated", this.state.stats);
+  }
+
+  // Recalculate dailyTotals, monthlyTotals, yearlyTotals, and streak from history
+  recalculateAggregates() {
+    if (!this.state.stats) {
+      this.state.stats = { history: [], dailyTotals: {}, monthlyTotals: {}, yearlyTotals: {}, streakDays: 1 };
     }
-    // Update Monthly Totals
-    if (!this.state.stats.monthlyTotals[monthStr]) {
-      this.state.stats.monthlyTotals[monthStr] = { focusMinutes: 0, sessions: 0 };
-    }
-    // Update Yearly Totals
-    const yearStr = String(yearInt);
-    if (!this.state.stats.yearlyTotals[yearStr]) {
-      this.state.stats.yearlyTotals[yearStr] = { focusMinutes: 0, sessions: 0 };
+    const history = this.state.stats.history || [];
+    const dailyTotals = {};
+    const monthlyTotals = {};
+    const yearlyTotals = {};
+
+    for (const s of history) {
+      if (s.stage === "focus") {
+        const dStr = s.dateStr || new Date(s.timestamp).toISOString().split("T")[0];
+        const mStr = s.monthStr || dStr.substring(0, 7);
+        const yStr = String(s.yearInt || dStr.substring(0, 4) || new Date().getFullYear());
+        const dur = parseInt(s.duration, 10) || 0;
+
+        if (!dailyTotals[dStr]) dailyTotals[dStr] = { focusMinutes: 0, sessions: 0, water: 0 };
+        dailyTotals[dStr].focusMinutes += dur;
+        dailyTotals[dStr].sessions += 1;
+
+        if (!monthlyTotals[mStr]) monthlyTotals[mStr] = { focusMinutes: 0, sessions: 0 };
+        monthlyTotals[mStr].focusMinutes += dur;
+        monthlyTotals[mStr].sessions += 1;
+
+        if (!yearlyTotals[yStr]) yearlyTotals[yStr] = { focusMinutes: 0, sessions: 0 };
+        yearlyTotals[yStr].focusMinutes += dur;
+        yearlyTotals[yStr].sessions += 1;
+      }
     }
 
-    if (stage === "focus") {
-      this.state.stats.dailyTotals[dateStr].focusMinutes += durationMinutes;
-      this.state.stats.dailyTotals[dateStr].sessions += 1;
-      this.state.stats.monthlyTotals[monthStr].focusMinutes += durationMinutes;
-      this.state.stats.monthlyTotals[monthStr].sessions += 1;
-      this.state.stats.yearlyTotals[yearStr].focusMinutes += durationMinutes;
-      this.state.stats.yearlyTotals[yearStr].sessions += 1;
-      this.incrementTally("focusSessions", 1);
-    }
-
-    // Calculate Consecutive Day Streak
-    const dates = Object.keys(this.state.stats.dailyTotals).sort().reverse();
+    // Recalculate streak
     let streak = 0;
     let checkDate = new Date();
-
     for (let i = 0; i < 365; i++) {
       const dStr = checkDate.toISOString().split("T")[0];
-      if (this.state.stats.dailyTotals[dStr] && this.state.stats.dailyTotals[dStr].focusMinutes > 0) {
+      if (dailyTotals[dStr] && dailyTotals[dStr].focusMinutes > 0) {
         streak++;
         checkDate.setDate(checkDate.getDate() - 1);
       } else {
         if (i === 0) {
-          // If today has no focus minutes yet, check yesterday before breaking
           checkDate.setDate(checkDate.getDate() - 1);
           continue;
         }
         break;
       }
     }
-    this.state.stats.streakDays = Math.max(1, streak);
 
-    this.notify("stats_updated", this.state.stats);
+    this.state.stats.dailyTotals = dailyTotals;
+    this.state.stats.monthlyTotals = monthlyTotals;
+    this.state.stats.yearlyTotals = yearlyTotals;
+    this.state.stats.streakDays = Math.max(1, streak);
+  }
+
+  // Delete a session (e.g. ghost session recorded by mistake)
+  deleteSession(sessionId) {
+    if (!sessionId || !this.state.stats || !this.state.stats.history) return false;
+    const initialLen = this.state.stats.history.length;
+    this.state.stats.history = this.state.stats.history.filter(s => s.id !== sessionId);
+    if (this.state.stats.history.length !== initialLen) {
+      this.recalculateAggregates();
+      this.notify("stats_updated", this.state.stats);
+      this.notify("session_deleted", { sessionId });
+      return true;
+    }
+    return false;
+  }
+
+  // Edit duration of an existing session
+  editSessionDuration(sessionId, newDurationMinutes) {
+    if (!sessionId || !this.state.stats || !this.state.stats.history) return false;
+    const dur = Math.max(1, parseInt(newDurationMinutes, 10) || 1);
+    const session = this.state.stats.history.find(s => s.id === sessionId);
+    if (session) {
+      session.duration = dur;
+      this.recalculateAggregates();
+      this.notify("stats_updated", this.state.stats);
+      this.notify("session_updated", { sessionId, newDuration: dur });
+      return true;
+    }
+    return false;
   }
 
   toggleScreenWakeLock(force) {

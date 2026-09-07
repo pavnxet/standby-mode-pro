@@ -19,7 +19,7 @@ export class TursoSync {
     }
 
     // Subscribe to store updates to trigger debounced auto-sync
-    store.subscribe((event) => {
+    store.subscribe((event, payload) => {
       if (
         event === 'pomo_completed' ||
         event === 'stats_updated' ||
@@ -32,6 +32,12 @@ export class TursoSync {
         const config = store.getState().tursoConfig;
         if (config && config.url && config.token && config.autoSync) {
           this.scheduleDebouncedSync();
+        }
+      } else if (event === 'session_deleted') {
+        if (payload && payload.sessionId) this.deleteCloudSession(payload.sessionId);
+      } else if (event === 'session_updated') {
+        if (payload && payload.sessionId && payload.newDuration) {
+          this.updateCloudSessionDuration(payload.sessionId, payload.newDuration);
         }
       } else if (event === 'user_switched') {
         this.pullFromCloud();
@@ -417,6 +423,52 @@ export class TursoSync {
     await this.initSchema();
     await this.pullFromCloud();
     return true;
+  }
+
+  async deleteCloudSession(sessionId) {
+    if (!sessionId) return;
+    const cfg = store.getState().tursoConfig;
+    if (!cfg || !cfg.url || !cfg.token) return;
+    const currentUserId = (store.getState().currentUser && store.getState().currentUser.userId) || 'primary_user';
+
+    try {
+      await this.executeStatements([
+        {
+          sql: `DELETE FROM standby_user_focus_sessions WHERE id = ? AND user_id = ?;`,
+          args: [
+            { type: 'text', value: sessionId },
+            { type: 'text', value: currentUserId }
+          ]
+        }
+      ]);
+      // Also trigger a state push to update standby_user_state
+      this.scheduleDebouncedSync();
+    } catch (e) {
+      console.warn('deleteCloudSession error:', e);
+    }
+  }
+
+  async updateCloudSessionDuration(sessionId, newDurationMinutes) {
+    if (!sessionId) return;
+    const cfg = store.getState().tursoConfig;
+    if (!cfg || !cfg.url || !cfg.token) return;
+    const currentUserId = (store.getState().currentUser && store.getState().currentUser.userId) || 'primary_user';
+
+    try {
+      await this.executeStatements([
+        {
+          sql: `UPDATE standby_user_focus_sessions SET duration_minutes = ? WHERE id = ? AND user_id = ?;`,
+          args: [
+            { type: 'integer', value: String(newDurationMinutes) },
+            { type: 'text', value: sessionId },
+            { type: 'text', value: currentUserId }
+          ]
+        }
+      ]);
+      this.scheduleDebouncedSync();
+    } catch (e) {
+      console.warn('updateCloudSessionDuration error:', e);
+    }
   }
 }
 

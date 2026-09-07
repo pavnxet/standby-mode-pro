@@ -399,7 +399,7 @@ export class StatsModal {
             </div>
           </div>
 
-          <!-- Recent Sessions -->
+            <!-- Recent Sessions with Edit and Delete capability -->
           <div class="p-4 bg-white/5 rounded-2xl border border-white/5">
             <div class="flex items-center justify-between mb-3">
               <h4 class="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
@@ -408,19 +408,27 @@ export class StatsModal {
               </h4>
               <span class="text-[10px] text-neutral-400">${historyList.length} recorded</span>
             </div>
-            <div class="space-y-2 max-h-36 overflow-y-auto pr-1">
+            <div class="space-y-2 max-h-48 overflow-y-auto pr-1">
               ${historyList.length === 0 ? `
                 <div class="text-center py-4 text-xs text-neutral-500 font-mono">No recorded focus sprints yet. Start a Pomodoro timer to log progress!</div>
-              ` : historyList.slice(0, 8).map(s => `
-                <div class="flex items-center justify-between p-2 rounded-xl bg-black/40 border border-white/5 text-xs">
+              ` : historyList.slice(0, 15).map(s => `
+                <div class="flex items-center justify-between p-2.5 rounded-xl bg-black/40 border border-white/5 text-xs hover:border-white/10 transition-colors group" data-session-id="${escapeHtml(s.id)}">
                   <div class="flex items-center gap-2.5">
                     <span class="w-2 h-2 rounded-full ${s.stage === 'focus' ? 'bg-blue-500' : s.stage === 'shortBreak' ? 'bg-emerald-500' : 'bg-purple-500'}"></span>
-                    <span class="font-bold text-neutral-200 capitalize">${s.stage === 'focus' ? 'Focus Sprint' : s.stage === 'shortBreak' ? 'Short Recharge' : 'Long Recovery'}</span>
-                    <span class="text-[10px] font-mono text-neutral-400">${s.dateStr}</span>
+                    <div>
+                      <span class="font-bold text-neutral-200 capitalize">${s.stage === 'focus' ? 'Focus Sprint' : s.stage === 'shortBreak' ? 'Short Recharge' : 'Long Recovery'}</span>
+                      <span class="text-[10px] font-mono text-neutral-400 ml-1.5">${escapeHtml(s.dateStr)}</span>
+                      <span class="text-[10px] text-neutral-500 ml-1">(${escapeHtml(s.timeStr || '')})</span>
+                    </div>
                   </div>
                   <div class="flex items-center gap-2">
-                    <span class="font-mono font-bold text-blue-400">${s.duration}m</span>
-                    <span class="text-[10px] text-neutral-500">${s.timeStr || ''}</span>
+                    <span class="font-mono font-bold text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20">${s.duration}m</span>
+                    <button class="btn-edit-session opacity-70 group-hover:opacity-100 hover:text-blue-400 p-1 rounded hover:bg-white/5 transition-all text-[11px]" data-id="${escapeHtml(s.id)}" data-duration="${s.duration}" title="Edit session duration">
+                      ✏️
+                    </button>
+                    <button class="btn-delete-session opacity-70 group-hover:opacity-100 hover:text-red-400 p-1 rounded hover:bg-red-500/10 transition-all text-[11px]" data-id="${escapeHtml(s.id)}" title="Delete ghost/accidental session">
+                      🗑️
+                    </button>
                   </div>
                 </div>
               `).join("")}
@@ -718,6 +726,39 @@ export class StatsModal {
         }
       });
     }
+
+    // 4b. Edit and Delete Focus Sessions
+    this.contentEl.querySelectorAll(".btn-delete-session").forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const sessionId = btn.getAttribute("data-id");
+        if (!sessionId) return;
+        const confirmDelete = window.confirm("Delete this focus session? This will remove it from your statistics and cloud profile.");
+        if (confirmDelete) {
+          store.deleteSession(sessionId);
+          this.render();
+        }
+      });
+    });
+
+    this.contentEl.querySelectorAll(".btn-edit-session").forEach(btn => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const sessionId = btn.getAttribute("data-id");
+        const currentDuration = btn.getAttribute("data-duration") || "25";
+        if (!sessionId) return;
+        const newDuration = window.prompt("Enter new duration in minutes for this session:", currentDuration);
+        if (newDuration !== null && newDuration.trim() !== "") {
+          const parsed = parseInt(newDuration.trim(), 10);
+          if (parsed > 0) {
+            store.editSessionDuration(sessionId, parsed);
+            this.render();
+          } else {
+            window.alert("Please enter a valid number of minutes (greater than 0).");
+          }
+        }
+      });
+    });
 
     // 5. Month-wise selector
     const inputMonth = this.contentEl.querySelector("#input-select-month");

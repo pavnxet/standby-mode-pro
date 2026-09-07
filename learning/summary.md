@@ -55,8 +55,15 @@ Append-only running log of session execution history for this project.
   4. Enforced minimum 1 full minute threshold to prevent recording accidental zero-second triggers.
   5. Recompiled `js/app.bundle.js` and confirmed with Playwright that abandoning a 50m session at 20m increments Today's Focus and Month/Year totals by exactly 20 minutes.
 - Result: Fully verified; partial focus time is preserved seamlessly.
+- Open: None## 2026-09-07 11:16 — Focus Session Edit & Delete (Ghost Session Management)
+- Task: Add edit and delete capabilities for focus sessions without altering timer logic, supporting correction of accidental or ghost sessions with full recalculation and cloud sync.
+- Did:
+  1. Updated `store.js` with `recalculateAggregates()` to dynamically re-derive `dailyTotals`, `monthlyTotals`, `yearlyTotals`, and consecutive streaks directly from session history.
+  2. Implemented `store.deleteSession(sessionId)` and `store.editSessionDuration(sessionId, newDurationMinutes)` to emit `stats_updated`, `session_deleted`, and `session_updated`.
+  3. Added `deleteCloudSession` and `updateCloudSessionDuration` in `tursoSync.js` with parameterized queries (`DELETE FROM standby_user_focus_sessions` & `UPDATE standby_user_focus_sessions`) to ensure cloud profile consistency.
+  4. Updated `statsModal.js` to render interactive edit (✏️) and delete (🗑️) buttons on each session card with confirmation prompts.
+  5. Recompiled `js/app.bundle.js` and verified end-to-end with Playwright automated tests and visual screenshot comparison.
+- Result: Ghost and accidental sessions can now be edited or deleted effortlessly with instant aggregate recalculation and cloud sync.
 - Open: None
-
-
 
 
