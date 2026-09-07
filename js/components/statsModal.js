@@ -11,6 +11,7 @@ export class StatsModal {
     this.activeTab = "overview"; // "overview" | "monthly" | "yearly" | "cloud"
     this.selectedMonth = new Date().toISOString().substring(0, 7); // "YYYY-MM"
     this.selectedYear = new Date().getFullYear(); // YYYY
+    this.showAdminControls = false;
 
     this.initEvents();
   }
@@ -329,7 +330,7 @@ export class StatsModal {
             📈 Year-wise
           </button>
           <button class="flex-1 py-2 rounded-xl text-xs font-bold transition-all ${this.activeTab === 'cloud' ? 'bg-blue-600 text-white shadow-md' : 'text-neutral-400 hover:text-white hover:bg-white/5'}" data-tab="cloud">
-            ⚙️ Turso Cloud
+            📱 Devices &amp; Sync
           </button>
         </div>
 
@@ -560,72 +561,90 @@ export class StatsModal {
           </div>
         ` : ''}
 
-        <!-- TAB 4: TURSO CLOUD & DEVICES -->
+        <!-- TAB 4: DEVICES & SYNC (Consumer-friendly with hidden Admin DB config) -->
         ${this.activeTab === 'cloud' ? `
           <div class="space-y-4">
             
             <!-- Cross-Device User Access Card -->
-            <div class="p-4 bg-gradient-to-r from-blue-900/30 to-purple-900/20 rounded-2xl border border-white/10 space-y-3">
-              <div class="flex items-center gap-2.5">
-                <span class="text-xl">📱 💻 🌐</span>
+            <div class="p-5 bg-gradient-to-r from-blue-950/40 via-neutral-900 to-purple-950/30 rounded-2xl border border-white/10 space-y-3">
+              <div class="flex items-center gap-3">
+                <span class="text-2xl">📱</span>
                 <div>
-                  <h4 class="font-bold text-xs text-white">Access Analytics on Any Device</h4>
-                  <p class="text-[11px] text-neutral-300">Enter your unique User ID on any other phone, tablet, or browser to seamlessly load your profile and history.</p>
+                  <h4 class="font-bold text-sm text-white">Switch Profile or Use on Multiple Devices</h4>
+                  <p class="text-xs text-neutral-400 mt-0.5">Enter your unique User ID on any other phone, tablet, or laptop to sync your entire focus history in seconds.</p>
                 </div>
               </div>
 
               <div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-2">
-                <input type="text" id="input-switch-userid" placeholder="Paste your User ID here..." class="flex-1 bg-black/60 border border-white/15 rounded-xl px-3 py-2 text-xs text-white font-mono focus:border-blue-500 focus:outline-none" />
-                <button id="btn-load-user-id" class="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl shadow transition-all whitespace-nowrap">
+                <input type="text" id="input-switch-userid" placeholder="Paste your User ID here (e.g. usr_...)" class="flex-1 bg-black/60 border border-white/15 rounded-xl px-3.5 py-2.5 text-xs text-white font-mono focus:border-blue-500 focus:outline-none placeholder-neutral-500" />
+                <button id="btn-load-user-id" class="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl shadow transition-all whitespace-nowrap">
                   Load Profile &amp; Data
                 </button>
-                <button id="btn-create-new-user-id" class="px-3 py-2 bg-white/10 hover:bg-white/15 text-neutral-200 text-xs font-bold rounded-xl transition-colors whitespace-nowrap">
+                <button id="btn-create-new-user-id" class="px-3.5 py-2.5 bg-white/10 hover:bg-white/15 text-neutral-200 text-xs font-bold rounded-xl transition-colors whitespace-nowrap">
                   Generate New ID
                 </button>
               </div>
               <div id="user-sync-feedback" class="text-[11px] font-mono text-neutral-400"></div>
             </div>
 
-            <!-- Turso DB Cloud Persistence Settings -->
-            <div class="p-4 bg-neutral-900/80 rounded-2xl border border-white/10 space-y-4 shadow-xl">
-              <div class="flex items-center justify-between">
-                <div class="flex items-center gap-2.5">
-                  <div class="w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4 3 9 3s9-1.34 9-3"/></svg>
+            <!-- Seamless Cloud Sync Status (No raw secrets visible to user) -->
+            <div class="p-4 bg-neutral-900/60 rounded-2xl border border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+              <div class="flex items-center gap-3">
+                <div class="w-9 h-9 rounded-xl ${isConnected ? 'bg-emerald-500/20 border border-emerald-500/30 text-emerald-400' : 'bg-blue-500/20 border border-blue-500/30 text-blue-400'} flex items-center justify-center">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9Z"/></svg>
+                </div>
+                <div>
+                  <div class="flex items-center gap-2">
+                    <h4 class="font-bold text-xs text-white">Cloud Backup &amp; Synchronization</h4>
+                    <span class="px-2 py-0.5 text-[10px] font-mono rounded-full ${isConnected ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-neutral-700/40 text-neutral-400'}">
+                      ${isConnected ? 'Active & Healthy' : 'Offline / Standby'}
+                    </span>
+                  </div>
+                  <p class="text-[11px] text-neutral-400 mt-0.5">Sessions are securely archived. Last synchronized: <span class="font-mono text-neutral-300 font-bold">${lastSyncedText}</span></p>
+                </div>
+              </div>
+
+              <div class="flex items-center gap-2 self-end sm:self-center">
+                <button id="btn-user-sync-now" class="px-4 py-2 text-xs font-bold rounded-xl bg-blue-600 hover:bg-blue-500 text-white shadow-lg transition-all flex items-center gap-1.5">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+                  <span>Sync Now</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Admin Infrastructure Drawer (Collapsed by default, accessible if needed) -->
+            <div class="pt-2">
+              <button id="btn-toggle-admin-drawer" class="text-[11px] text-neutral-500 hover:text-neutral-300 transition-colors flex items-center gap-1">
+                <span>⚙️ Developer / Admin Database Controls</span>
+                <span id="admin-drawer-icon" class="text-[10px] transition-transform font-mono">${this.showAdminControls ? '▲' : '▼'}</span>
+              </button>
+
+              <div id="admin-db-drawer" class="${this.showAdminControls ? 'block' : 'hidden'} mt-3 p-4 bg-black/50 rounded-2xl border border-white/10 space-y-3">
+                <div class="flex items-center justify-between">
+                  <div class="text-xs font-bold text-neutral-300">Edge Database Endpoint (Backend / GitHub Secrets)</div>
+                  <label class="flex items-center gap-1.5 text-xs text-neutral-400 cursor-pointer">
+                    <input type="checkbox" id="chk-turso-autosync" ${turso.autoSync ? "checked" : ""} class="rounded" />
+                    <span>Auto-Sync</span>
+                  </label>
+                </div>
+
+                <div class="space-y-2">
+                  <div>
+                    <label class="text-[10px] text-neutral-500 font-mono block mb-1">TURSO_DATABASE_URL</label>
+                    <input type="text" id="input-turso-url" placeholder="https://..." value="${turso.url || ''}" class="w-full bg-neutral-950 border border-white/10 rounded-xl p-2 text-xs text-neutral-300 font-mono" />
                   </div>
                   <div>
-                    <h4 class="font-bold text-xs text-white">Turso DB (LibSQL) Cloud Configuration</h4>
-                    <div class="text-[11px] text-neutral-400">Pre-configured with instant cloud sync (custom credentials optional)</div>
+                    <label class="text-[10px] text-neutral-500 font-mono block mb-1">TURSO_AUTH_TOKEN</label>
+                    <input type="password" id="input-turso-token" placeholder="JWT Auth Token" value="${turso.token || ''}" class="w-full bg-neutral-950 border border-white/10 rounded-xl p-2 text-xs text-neutral-300 font-mono" />
                   </div>
                 </div>
-                <label class="flex items-center gap-2 text-xs font-medium cursor-pointer">
-                  <input type="checkbox" id="chk-turso-autosync" ${turso.autoSync ? "checked" : ""} class="rounded" />
-                  <span>Auto-Sync</span>
-                </label>
-              </div>
 
-              <div class="space-y-2.5">
-                <div>
-                  <label class="text-[11px] font-semibold text-neutral-400 block mb-1">Turso Database URL (or LibSQL URL)</label>
-                  <input type="text" id="input-turso-url" placeholder="" value="${turso.url || ''}" class="w-full bg-neutral-950 border border-white/10 rounded-xl p-2.5 text-xs text-white font-mono" />
-                </div>
-                <div>
-                  <label class="text-[11px] font-semibold text-neutral-400 block mb-1">Turso Auth Token</label>
-                  <input type="password" id="input-turso-token" placeholder="eyJhbGciOi..." value="${turso.token || ''}" class="w-full bg-neutral-950 border border-white/10 rounded-xl p-2.5 text-xs text-white font-mono" />
-                </div>
-              </div>
-
-              <div class="flex items-center justify-between pt-2 border-t border-white/10">
-                <div id="turso-status-feedback" class="text-[11px] font-mono ${turso.lastError ? 'text-red-400' : isConnected ? 'text-emerald-400' : 'text-neutral-400'}">
-                  ${turso.lastError ? `Error: ${turso.lastError}` : isConnected ? `Connected & Synced (${lastSyncedText})` : 'Connected to default Turso cloud'}
-                </div>
-                <div class="flex items-center gap-2">
+                <div class="flex items-center justify-between pt-2 border-t border-white/10">
+                  <div id="turso-status-feedback" class="text-[11px] font-mono ${turso.lastError ? 'text-red-400' : isConnected ? 'text-emerald-400' : 'text-neutral-400'}">
+                    ${turso.lastError ? `Error: ${turso.lastError}` : isConnected ? `Connected to Database` : 'Disconnected'}
+                  </div>
                   <button id="btn-turso-test" class="px-3 py-1.5 text-xs font-bold rounded-xl bg-white/10 hover:bg-white/15 text-neutral-200 transition-colors">
                     Test Connection
-                  </button>
-                  <button id="btn-turso-sync-now" class="px-4 py-1.5 text-xs font-bold rounded-xl bg-blue-600 hover:bg-blue-500 text-white shadow-lg transition-all flex items-center gap-1.5">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
-                    <span>Sync Now</span>
                   </button>
                 </div>
               </div>
@@ -799,18 +818,36 @@ export class StatsModal {
       });
     }
 
-    const btnSync = this.contentEl.querySelector('#btn-turso-sync-now');
-    if (btnSync) {
-      btnSync.addEventListener('click', async () => {
-        saveTurso();
-        if (feedbackEl) feedbackEl.innerHTML = '<span class="text-blue-400 animate-pulse">Syncing with Turso DB...</span>';
+    // 10. User-facing Sync Now button in Devices & Sync tab
+    const btnUserSyncNow = this.contentEl.querySelector('#btn-user-sync-now');
+    if (btnUserSyncNow) {
+      btnUserSyncNow.addEventListener('click', async () => {
+        btnUserSyncNow.innerHTML = '<span>Syncing...</span>';
         try {
           await tursoSync.pushToCloud();
           await tursoSync.pullFromCloud();
-          if (feedbackEl) feedbackEl.innerHTML = '<span class="text-emerald-400 font-bold">✓ Sync Complete!</span>';
-          this.render();
+          btnUserSyncNow.innerHTML = '<span>✓ Synced!</span>';
+          setTimeout(() => { this.render(); }, 1200);
         } catch (err) {
-          if (feedbackEl) feedbackEl.innerHTML = `<span class="text-red-400">✗ ${err.message}</span>`;
+          btnUserSyncNow.innerHTML = '<span>Error</span>';
+          setTimeout(() => { this.render(); }, 1500);
+        }
+      });
+    }
+
+    // 11. Admin Drawer Toggle
+    const btnToggleAdmin = this.contentEl.querySelector('#btn-toggle-admin-drawer');
+    if (btnToggleAdmin) {
+      btnToggleAdmin.addEventListener('click', () => {
+        this.showAdminControls = !this.showAdminControls;
+        const drawerEl = this.contentEl.querySelector('#admin-db-drawer');
+        const iconEl = this.contentEl.querySelector('#admin-drawer-icon');
+        if (drawerEl) {
+          drawerEl.classList.toggle('hidden', !this.showAdminControls);
+          drawerEl.classList.toggle('block', this.showAdminControls);
+        }
+        if (iconEl) {
+          iconEl.textContent = this.showAdminControls ? '▲' : '▼';
         }
       });
     }

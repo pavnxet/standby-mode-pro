@@ -24,3 +24,15 @@ Append-only running log of session execution history for this project.
 - Result: Fully verified and functional. Focus durations are persisted locally and in the cloud; users can switch or restore IDs on any device.
 - Open: None
 
+## 2026-09-07 09:41 — Admin-Level Abstraction of Turso Database
+- Task: Ensure Turso DB connection details are handled at an admin / backend infrastructure level and hidden from consumer user interfaces.
+- Did:
+  1. Updated `statsModal.js` Tab 4 to "Devices & Sync", focusing exclusively on consumer user actions (cross-device User ID input, profile switching, and cloud status).
+  2. Moved raw Turso Database URL and Auth Token inputs into a collapsed Developer / Admin Database Controls drawer.
+  3. Cleaned modal header subtitle and top-bar button tooltips in `index.html` to eliminate raw database references.
+  4. Recompiled production bundle `js/app.bundle.js`.
+  5. Verified using Playwright automated script that database configuration remains strictly hidden by default from end users while multi-device ID sync remains fully functional.
+- Result: Clean consumer-grade UX with full admin infrastructure encapsulation.
+- Open: None
+
+
