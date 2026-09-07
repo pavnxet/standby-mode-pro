@@ -46,5 +46,17 @@ Append-only running log of session execution history for this project.
 - Result: All security vectors passed; hardened against XSS and injection.
 - Open: None
 
+## 2026-09-07 10:57 — Partial Focus Session Tracking (Elapsed Time)
+- Task: Accurately count elapsed focus minutes if a user leaves, pauses, resets, or closes the tab mid-session (e.g. 20m of a 50m session).
+- Did:
+  1. Updated `store.js` with `sessionStartTime` and implemented `flushElapsedFocusTime()`.
+  2. Integrated auto-flushing on `togglePomoRunning(false)`, `resetPomo()`, and `setPomoStage()`.
+  3. Added `beforeunload` and `pagehide` event hooks in `app.js` to ensure time spent focusing is persisted even when the browser tab is closed or navigated away.
+  4. Enforced minimum 1 full minute threshold to prevent recording accidental zero-second triggers.
+  5. Recompiled `js/app.bundle.js` and confirmed with Playwright that abandoning a 50m session at 20m increments Today's Focus and Month/Year totals by exactly 20 minutes.
+- Result: Fully verified; partial focus time is preserved seamlessly.
+- Open: None
+
+
 
 

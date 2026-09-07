@@ -95,6 +95,7 @@ const defaultState = {
     totalSeconds: 1500,
     isRunning: false,
     targetEndTime: null,
+    sessionStartTime: null,
     currentCycle: 1,
     totalCompletedSessions: 0,
     settings: {
@@ -433,12 +434,33 @@ class Store {
     this.notify("clock_config_updated", this.state.clockConfig);
   }
 
+  // Flush and record elapsed focus time (e.g. if user stops at 20m of a 50m session)
+  flushElapsedFocusTime() {
+    const s = this.state.pomoState;
+    if (s.stage !== "focus" || !s.sessionStartTime) return 0;
+    const now = Date.now();
+    const elapsedSeconds = Math.max(0, Math.round((now - s.sessionStartTime) / 1000));
+    s.sessionStartTime = null;
+
+    // Minimum 1 full minute (60s) needed to count as valid focus time
+    const elapsedMinutes = Math.floor(elapsedSeconds / 60);
+    if (elapsedMinutes >= 1) {
+      this.recordCompletedSession("focus", elapsedMinutes);
+      return elapsedMinutes;
+    }
+    return 0;
+  }
+
   // --- Pomodoro State Actions ---
   setPomoStage(stage, manualMinutes = null) {
     const s = this.state.pomoState;
+    if (s.isRunning && s.stage === "focus") {
+      this.flushElapsedFocusTime();
+    }
     s.stage = stage;
     s.isRunning = false;
     s.targetEndTime = null;
+    s.sessionStartTime = null;
     let minutes = manualMinutes;
     if (minutes === null) {
       if (stage === "focus") minutes = s.settings.focusDuration;
@@ -452,11 +474,20 @@ class Store {
 
   togglePomoRunning(force) {
     const s = this.state.pomoState;
-    s.isRunning = force !== undefined ? force : !s.isRunning;
+    const willRun = force !== undefined ? force : !s.isRunning;
+
+    if (!willRun && s.isRunning && s.stage === "focus") {
+      // User paused or stopped midway -> flush actual elapsed focus time
+      this.flushElapsedFocusTime();
+    }
+
+    s.isRunning = willRun;
     if (s.isRunning) {
       s.targetEndTime = Date.now() + (s.remainingSeconds * 1000);
+      s.sessionStartTime = Date.now();
     } else {
       s.targetEndTime = null;
+      s.sessionStartTime = null;
     }
     this.notify("pomo_updated", s);
   }
@@ -494,12 +525,22 @@ class Store {
       this.notify("pomo_tick", s);
       return false;
     } else {
-      // Stage finished -> Record stats
+      // Stage finished naturally -> Flush elapsed focus or record full duration
       s.isRunning = false;
       s.targetEndTime = null;
       const completedStage = s.stage;
-      const completedDuration = Math.round(s.totalSeconds / 60);
-      this.recordCompletedSession(completedStage, completedDuration);
+
+      if (completedStage === "focus") {
+        const recorded = this.flushElapsedFocusTime();
+        if (recorded === 0) {
+          // Fallback if sessionStartTime wasn't set: record entire totalSeconds
+          const fullMin = Math.round(s.totalSeconds / 60);
+          this.recordCompletedSession("focus", fullMin);
+        }
+      } else {
+        const completedDuration = Math.round(s.totalSeconds / 60);
+        this.recordCompletedSession(completedStage, completedDuration);
+      }
 
       if (s.stage === "focus") {
         s.totalCompletedSessions++;
@@ -511,6 +552,7 @@ class Store {
         if (s.settings.autoStartBreaks) {
           s.isRunning = true;
           s.targetEndTime = Date.now() + (s.remainingSeconds * 1000);
+          s.sessionStartTime = Date.now();
         }
       } else {
         s.stage = "focus";
@@ -519,6 +561,7 @@ class Store {
         if (s.settings.autoStartPomo) {
           s.isRunning = true;
           s.targetEndTime = Date.now() + (s.remainingSeconds * 1000);
+          s.sessionStartTime = Date.now();
         }
       }
       this.notify("pomo_completed", s);
@@ -528,7 +571,11 @@ class Store {
 
   resetPomo() {
     const s = this.state.pomoState;
+    if (s.isRunning && s.stage === "focus") {
+      this.flushElapsedFocusTime();
+    }
     s.isRunning = false;
+    s.sessionStartTime = null;
     let minutes = s.settings.focusDuration;
     if (s.stage === "shortBreak") minutes = s.settings.shortBreakDuration;
     else if (s.stage === "longBreak") minutes = s.settings.longBreakDuration;
@@ -5504,6 +5551,13 @@ class App {
     };
     document.addEventListener('visibilitychange', syncOnResume);
     window.addEventListener('focus', syncOnResume);
+
+    // Save partial focus time if user closes tab or navigates away mid-session
+    const flushOnLeave = () => {
+      store.flushElapsedFocusTime();
+    };
+    window.addEventListener('beforeunload', flushOnLeave);
+    window.addEventListener('pagehide', flushOnLeave);
 
     // 6. Bind Global Fullscreen and Keyboard Actions
     this.initGlobalControls();

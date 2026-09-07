@@ -118,6 +118,13 @@ class App {
     document.addEventListener('visibilitychange', syncOnResume);
     window.addEventListener('focus', syncOnResume);
 
+    // Save partial focus time if user closes tab or navigates away mid-session
+    const flushOnLeave = () => {
+      store.flushElapsedFocusTime();
+    };
+    window.addEventListener('beforeunload', flushOnLeave);
+    window.addEventListener('pagehide', flushOnLeave);
+
     // 6. Bind Global Fullscreen and Keyboard Actions
     this.initGlobalControls();
 
