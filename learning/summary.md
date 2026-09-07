@@ -64,6 +64,14 @@ Append-only running log of session execution history for this project.
   4. Updated `statsModal.js` to render interactive edit (✏️) and delete (🗑️) buttons on each session card with confirmation prompts.
   5. Recompiled `js/app.bundle.js` and verified end-to-end with Playwright automated tests and visual screenshot comparison.
 - Result: Ghost and accidental sessions can now be edited or deleted effortlessly with instant aggregate recalculation and cloud sync.
-- Open: None
+## 2026-09-07 14:05 — Security Incident Remediation & Git History Scrub
+- Task: Immediate remediation of hardcoded Turso DB JWT token detected by GitGuardian in commit history.
+- Did:
+  1. Purged hardcoded `url` and `token` from `defaultState.tursoConfig` in `store.js` and regenerated `js/app.bundle.js`.
+  2. Executed `git-filter-repo` with expression replacement to rewrite all historical commits containing the token and raw database URL across the entire git tree.
+  3. Re-verified commit history with `git log -S` ensuring zero occurrences across all historical commits, trees, and blobs.
+  4. Force-pushed scrubbed repository history to `origin/master`.
+- Result: Repository history is completely clean of secrets.
+- Open: Revoke/regenerate the exposed Turso token in the Turso console.
 
 
