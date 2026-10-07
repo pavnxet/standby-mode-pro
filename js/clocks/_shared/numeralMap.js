@@ -21,9 +21,16 @@ export const NUMERAL_SYSTEMS = {
   pers: { id: "pers", name: "Persian (۰ ۱ ۲)", digits: ["۰","۱","۲","۳","۴","۵","۶","۷","۸","۹"] }
 };
 
-/** Braille cell mapping used by the Braille clock (A11). */
+/**
+ * Braille cell mapping used by the Braille clock (A11).
+ *
+ * Grade-1 braille encodes digits as the letters a-j, so 0 is U+281A (j) and 1
+ * is U+2801 (a). U+2834 is the NUMBER SIGN, which signals "the digits that
+ * follow are a numeral" - rendering it as the digit zero makes 10:30 read as
+ * "1n3n", which is the opposite of what a braille clock is for.
+ */
 const BRAILLE_DOTS = {
-  "0": "⠴", "1": "⠁", "2": "⠃", "3": "⠉", "4": "⠙",
+  "0": "⠚", "1": "⠁", "2": "⠃", "3": "⠉", "4": "⠙",
   "5": "⠑", "6": "⠋", "7": "⠛", "8": "⠓", "9": "⠊"
 };
 
