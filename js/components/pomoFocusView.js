@@ -26,7 +26,12 @@ export class PomoFocusView {
       }
     }, 1000);
 
-    store.subscribe((event) => {
+    // AUDIT.md D2 (HIGH): this subscription's return value was discarded, so
+    // every stage re-render created a permanently orphaned view that kept its
+    // two setIntervals alive and ticking against detached DOM. app.js recreates
+    // this view on every space_updated / clock_config_updated event, which made
+    // the leak grow linearly with user interaction.
+    this.unsubscribeStore = store.subscribe((event) => {
       if (
         event === 'pomo_updated' ||
         event === 'pomo_settings_updated' ||
@@ -350,9 +355,15 @@ export class PomoFocusView {
   }
 
   unmount() {
+    // AUDIT.md D2: unsubscribing FIRST is what stops this view reacting to store
+    // events after it is detached. Everything below only clears timers.
+    if (this.unsubscribeStore) this.unsubscribeStore();
     if (this.timerInterval) clearInterval(this.timerInterval);
     if (this.cornerClockInterval) clearInterval(this.cornerClockInterval);
     if (this.peekTimeout) clearTimeout(this.peekTimeout);
+    this.timerInterval = null;
+    this.cornerClockInterval = null;
+    this.peekTimeout = null;
     if (this.appShell) {
       this.appShell.classList.remove('zen-focus-active');
       this.appShell.classList.remove('zen-peek-active');
