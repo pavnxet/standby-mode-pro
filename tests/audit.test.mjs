@@ -9,7 +9,7 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
@@ -405,7 +405,144 @@ test("no asset path is absolute, so GitHub Pages sub-paths resolve", () => {
 test("the new core modules referenced by app.js exist", () => {
   for (const rel of ["js/core/registry.js", "js/core/schema.js", "js/core/scheduler.js",
                      "js/core/escape.js", "js/core/a11y.js", "js/components/modalRuntime.js",
-                     "js/clocks/_shared/numeralMap.js"]) {
+                     "js/clocks/_shared/numeralMap.js",
+                     "js/clocks/index.js", "js/clocks/_shared/primitives.js",
+                     "js/clocks/_shared/solarMath.js", "js/clocks/_shared/words.js",
+                     "js/clocks/_shared/worldLand.js", "css/clocks-m3.css"]) {
     assert.ok(existsSync(join(ROOT, rel)), `missing ${rel}`);
   }
+});
+
+// ------------------------------------------ Milestone 3: the clock index
+
+test("app.js registers clocks from the index, not a hand-written list", async () => {
+  // Before the index, the two registries were written out separately in app.js
+  // and could drift. The whole point of FEATURE_PLAN.md A1 is that one loop
+  // feeds both, so a face cannot land in one without the other.
+  const { CLOCKS } = await import("../js/clocks/index.js");
+
+  assert.ok(Array.isArray(CLOCKS) && CLOCKS.length > 0, "the index must export CLOCKS");
+
+  const ids = CLOCKS.map((c) => c.id);
+  assert.equal(new Set(ids).size, ids.length,
+    `duplicate clock ids: ${ids.filter((id, i) => ids.indexOf(id) !== i).join(", ")}`);
+
+  for (const { id, clock, milestone } of CLOCKS) {
+    assert.match(id, /^[a-z][a-z0-9]*$/, `clock id "${id}" must be a lowercase slug`);
+    assert.equal(typeof clock, "object", `${id} has no clock definition`);
+    assert.ok(clock && typeof clock.mount === "function", `${id} has no mount()`);
+    assert.ok(clock && typeof clock.name === "string" && clock.name,
+      `${id} has no display name`);
+    assert.ok(clock && typeof clock.description === "string" && clock.description,
+      `${id} has no description`);
+    assert.match(String(milestone), /^M[0-9]$/, `${id} has no valid milestone tag`);
+  }
+});
+
+test("the clock inventory is 11 legacy plus 18 Milestone 3 faces", async () => {
+  // The plan ships A2-A16 as 15 features, but A5 is an "analog skins suite" that
+  // registers four distinct faces. Pinning the exact count catches an accidental
+  // removal or duplicate, which a "greater than N" assertion would not.
+  const { CLOCKS } = await import("../js/clocks/index.js");
+
+  const legacy = CLOCKS.filter((c) => c.milestone === "M1");
+  const m3 = CLOCKS.filter((c) => c.milestone === "M3");
+
+  assert.equal(legacy.length, 11, `expected 11 legacy faces, found ${legacy.length}`);
+  assert.equal(m3.length, 18, `expected 18 Milestone 3 faces, found ${m3.length}`);
+  assert.equal(CLOCKS.length, 29);
+
+  // The four analog skins are the documented reason 15 features yield 18 faces.
+  assert.equal(m3.filter((c) => c.id.startsWith("analog")).length, 4);
+});
+
+test("all eleven original clock faces survive in the index", async () => {
+  // Backward compatibility: every id the app registered before Milestone 3 must
+  // still be present, or a saved Space silently falls back to the flip clock.
+  const { CLOCKS } = await import("../js/clocks/index.js");
+  const ids = new Set(CLOCKS.map((c) => c.id));
+
+  for (const legacy of ["flip", "neon", "matrix", "solar", "bigcrop", "radial",
+                        "day", "segmented", "analogdigital", "minimal", "lcars"]) {
+    assert.ok(ids.has(legacy), `legacy clock "${legacy}" is missing from the index`);
+  }
+});
+
+test("app.js no longer imports clock modules one by one", () => {
+  assert.match(APP_JS, /import\s*\{\s*CLOCKS\s*\}\s*from\s*['"]\.\/clocks\/index\.js['"]/,
+    "app.js must take its clock list from the index");
+  assert.ok(!/from\s*['"]\.\/clocks\/[a-zA-Z]+Clock\.js['"]/.test(APP_JS),
+    "app.js still imports individual clock modules; it should import the index only");
+  assert.match(APP_JS, /for\s*\(\s*const\s*\{\s*id\s*,\s*clock\s*\}\s*of\s*CLOCKS\s*\)/,
+    "app.js must register both registries from the same loop");
+});
+
+test("no M3 stylesheet rule restyles a legacy clock face", () => {
+  // css/clocks.css must stay byte-identical to master so the eleven original
+  // faces render exactly as before. A stray selector here would silently change
+  // them, which is the one thing this milestone promises not to do.
+  const LEGACY = [
+    "flip", "neon", "matrix", "solar", "bigcrop", "big-crop", "radial",
+    "day", "segmented", "analogdigital", "analog-digital", "amoled",
+    "minimal", "lcars"
+  ];
+
+  const m3 = read("css", "clocks-m3.css");
+  const selectors = m3
+    .split("\n")
+    .filter((line) => line.trim().startsWith(".") && line.includes("{"))
+    .map((line) => line.split("{")[0].trim());
+
+  for (const selector of selectors) {
+    for (const legacy of LEGACY) {
+      assert.ok(
+        !new RegExp(`\\.${legacy}[-_.\\s,{:>[]`, "i").test(selector),
+        `clocks-m3.css selector "${selector}" targets legacy face "${legacy}"`
+      );
+    }
+  }
+});
+
+test("M3 stylesheets size faces from the container, not the viewport", () => {
+  // A face is mounted into panels from ~180px to a full-screen stage. vw units
+  // measure the viewport, which produced 118px numerals inside a 223px panel.
+  const m3 = read("css", "clocks-m3.css");
+
+  assert.match(m3, /container-type:\s*inline-size/,
+    "M3 wrappers must establish a container for cqi units to resolve against");
+  assert.ok(!/\d+vw\b/.test(m3),
+    "clocks-m3.css still uses vw, which sizes faces from the viewport instead of the panel");
+});
+
+test("every service-worker precached module actually exists", async () => {
+  // AUDIT: an incomplete precache means the app fails to render offline. The
+  // precache list grew by nineteen entries this milestone, so re-assert the
+  // invariant CI also checks.
+  const sw = read("sw.js");
+  const block = sw.split("const SHELL_ASSETS")[1].split("const THIRD_PARTY_HOSTS")[0];
+  const paths = Array.from(block.matchAll(/"\.\/([^"]+)"/g)).map((m) => m[1]);
+
+  assert.ok(paths.length >= 60, `precache list looks too small: ${paths.length} entries`);
+
+  const missing = paths.filter((p) => !existsSync(join(ROOT, p)));
+  assert.deepEqual(missing, [], `precached but missing: ${missing.join(", ")}`);
+
+  // And nothing in js/clocks may be reachable-but-uncached, or the M3 faces
+  // would work online and fail offline.
+  const clockDir = join(ROOT, "js", "clocks");
+  const clockFiles = readdirSync(clockDir, { recursive: true })
+    .filter((f) => f.endsWith(".js"))
+    .map((f) => join("js", "clocks", f).split("\\").join("/"));
+
+  const uncached = clockFiles.filter((f) => !paths.includes(f));
+  assert.deepEqual(uncached, [],
+    `clock modules missing from the service worker precache: ${uncached.join(", ")}`);
+});
+
+test("index.html links the M3 stylesheet and no path is absolute", () => {
+  assert.match(INDEX_HTML, /href="css\/clocks-m3\.css"/,
+    "clocks-m3.css must be linked from index.html");
+  const absoluteRefs = Array.from(INDEX_HTML.matchAll(/(?:src|href)="\/(?!\/)[^"]+"/g));
+  assert.equal(absoluteRefs.length, 0,
+    `absolute asset paths break /standby-mode-pro/: ${absoluteRefs.map((m) => m[0]).join(", ")}`);
 });
