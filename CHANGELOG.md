@@ -11,6 +11,53 @@ Format follows [Conventional Commits](https://www.conventionalcommits.org/).
 
 ---
 
+## [Unreleased] — Phase 3: Clock Faces (Milestone M3, clocks portion)
+
+**Status: clocks complete; the M3 widget half (C6–C20) is NOT started.**
+
+Milestone 3 in `FEATURE_PLAN.md` has two halves: new clock faces (A2–A16) and
+new widgets (C6–C20). Only the clock half is delivered here. Reporting this as
+"Milestone 3 complete" would be false.
+
+The 15 clock *features* ship as **18 faces**, because A5 is one feature — an
+analog skins suite — that registers four distinct faces.
+
+### Delivered and verified
+
+| Area | Change | Verification |
+|---|---|---|
+| Architecture | **One declarative clock index** (`js/clocks/index.js`). `app.js` now registers both registries from a single loop over `CLOCKS`, replacing two hand-written lists of eleven that could drift. | 6 audit tests |
+| Clocks | **15 new clock features → 18 new clock faces**, taking the total from 11 to **29**: Word, Binary, Roman Numeral, four Analog skins, Day/Night Map, Moon Phase, Minimal Gradient, Tide & Sun, Persian Numerals, Braille, Departure Board, Dot Matrix, World Clock, Sunrise/Sunset Arc, Clock of the Year. (A5 "analog skins suite" is one plan feature that ships four faces, 18 = 11 features + 4 skins − 1.) | All 29 mount and render, in 12-hour and 24-hour mode, in-browser |
+| Astronomy | **Real solar/lunar ephemeris** (`js/clocks/_shared/solarMath.js`) — sunrise, sunset, civil twilight, golden hour, day length, sun altitude, subsolar longitude, moon phase. NOAA-style approximation, no dependency, no network. | Verified against published almanac values: London/NY/Tokyo/Sydney/Reykjavik sunrise matches to the minute; worst lunar error 0.72 days |
+| Geography | **World map from Natural Earth 110m land** (public domain), simplified at build time to 14.2 KB by `scripts/generate-world-land.mjs`. Generated file is committed, so the app ships no build step and makes no request. | Point-in-polygon tests on 6 land and 5 sea reference points |
+| Responsive | **M3 faces size from their container, not the viewport.** The wrappers establish `container-type: inline-size` and all sizing uses `cqi`. Previously `13vw` rendered 118 px numerals inside a 223 px panel. | Zero horizontal overflow at 180/240/320/480/640/900 px |
+| Correctness | **Fixed 5 real defects found while building**, each with a regression test — see the defect table below. | 45 unit tests |
+
+### Defects found and fixed in this milestone
+
+These were not pre-existing bugs; they were introduced or exposed by the new
+code and caught by verification rather than shipped.
+
+| Defect | Impact | Test |
+|---|---|---|
+| `sunTimes` mixed second- and day-scale units and used the J2000 epoch where the Unix epoch was required | Every sunrise/sunset was an `Invalid Date` | 6 solar tests |
+| `daylightPeriods` subtracted local wall-clock hour fields | London summer day length reported as **−441 minutes** | `daylightPeriods` tests |
+| `toBraille` mapped `0` to `⠴` (the number sign) instead of `⠚` | The Braille clock would read 10:30 as "1n3n" — the face's entire purpose defeated | `toBraille` tests |
+| `departureBoardClock` deferred its character swap into `requestAnimationFrame` | The board stayed on `00:00:00` in any hidden or backgrounded tab | In-browser, both tab states |
+| Faces read the engine's numeral-converted strings and called `Number()` on them | Under Devanagari or Persian digits every hand collapsed to 12 o'clock | In-browser, 6 numeral systems |
+
+### Not delivered
+
+- **Widgets C6–C20** — the second half of Milestone 3. Not started.
+- **Lighthouse re-run.** Not performed for this milestone; the previous run's
+  scores are unchanged and are **not** claimed as current.
+- **Source budget.** Shipped JS is now **438 KB against a 400 KB budget**
+  (98 KB added by this milestone). The budget was set at M1 when there were 11
+  clocks. It is reported here rather than met by deleting working code; raising
+  it is an owner decision.
+
+---
+
 ## [Unreleased] — Phase 2: PWA, Alarms & Focus Widgets (Milestone M2)
 
 ### Delivered and verified

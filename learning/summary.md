@@ -120,3 +120,21 @@ Append-only running log of session execution history for this project.
   - `.claude/` and `CLAUDE.md` remain untracked in the working tree; preserved untouched.
 
 
+
+### 2026-10-07 — Milestone 3, clock half: 15 new clock faces
+- **Task:** Build the clock half of Milestone 3 (features A2–A16) from `FEATURE_PLAN.md`, on branch `phase-3-clocks` off `phase-2-pwa-alarm-focus`.
+- **Sequence followed:** audit (already done, `AUDIT.md`) → research (already done, `COMPETITOR_MATRIX.md`) → plan (already done, `FEATURE_PLAN.md`) → code. No code was written before the plan existed.
+- **Actions:**
+  1. Created `js/clocks/_shared/solarMath.js` (ephemeris), `primitives.js` (SVG/format primitives), `words.js` (word-clock grammar).
+  2. Wrote 15 new clock modules plus `js/clocks/index.js` as a declarative index.
+  3. Rewrote `app.js` registration from two hand-written 11-line lists to one loop over `CLOCKS`.
+  4. Added `css/clocks-m3.css` (19.2 KB), converting all M3 sizing from `vw` to `cqi` with `container-type: inline-size` wrappers.
+  5. Added `scripts/generate-world-land.mjs` and generated `js/clocks/_shared/worldLand.js` from Natural Earth 110m land after hand-written coastlines rendered as an unrecognisable blob.
+  6. Updated `sw.js` precache (59 → 80), `index.html`, and `.github/workflows/validate.yml`.
+  7. Wrote `tests/clocks-m3.test.mjs` (45 tests) and 6 new guards in `tests/audit.test.mjs`.
+- **Defects found and fixed during verification** (each with a regression test): `sunTimes` epoch + unit errors producing `Invalid Date`; `daylightPeriods` wall-clock subtraction giving −441 minutes; `toBraille` mapping `0` to the Braille number sign; `departureBoardClock` deferring its character swap into rAF; M3 faces calling `Number()` on numeral-converted strings.
+- **Results:** `npm test` → **132 pass, 0 fail**. `npm run validate` passes. All 29 faces mount and render in 12h and 24h mode. Zero horizontal overflow for all 15 M3 faces at six panel widths from 180 px to 900 px. Sunrise matches published almanac values to the minute for 6 cities; worst lunar error 0.72 days.
+- **Milestone reached:** M3 **clock half only** (A2–A16 + A1/A17/A19). **The widget half (C6–C20) is not started.** M3 is therefore NOT complete.
+- **Known gaps left open:** Lighthouse not re-run for M3; offline load with the network down still not verifiable with available tooling; geolocation-resolved rendering of `sunarc`/`tide`/`terminator` not verified in-browser (only the degraded state); the 11 legacy faces still overflow narrow panels (pre-existing, unchanged, asserted not to be a regression).
+- **Out of budget:** shipped JS is 438 KB against a 400 KB budget set at M1. Dead code was removed (7 unused exports, a duplicated Braille table, a 4× glyph encoding) taking it from 441.8 KB to 438 KB, but the remainder is working functionality. Reported for an owner decision rather than resolved by deleting features.
+- **Not pushed.** All work is local on `phase-3-clocks`. `.claude/` and `CLAUDE.md` remain untracked user files, untouched.

@@ -1,7 +1,7 @@
 # StandBy Mode Pro — Test Checklist & Verification Record
 
 > **Date:** 2026-10-07
-> **Scope:** Phase 1 (Foundation / Milestone M1) plus regression coverage for the pre-existing product.
+> **Scope:** Phase 1 (Foundation / Milestone M1), Phase 2 (Milestone M2), and §3A for the clock half of Milestone M3. Regression coverage for the pre-existing product throughout.
 > **Rule:** Only results actually observed in this session are marked PASS. Anything not executed is marked **NOT RUN**, never assumed.
 
 ---
@@ -13,8 +13,11 @@
 npm run serve          # http://localhost:8080
 
 # Automated checks
-npm test               # 43 unit + audit regression tests
+npm test               # 132 unit + audit regression tests
 npm run validate       # syntax check + tests
+
+# Regenerate the world map geometry from Natural Earth 110m land
+node scripts/generate-world-land.mjs <path-to-ne_110m_land.geojson>
 ```
 
 CI (`.github/workflows/validate.yml`) runs on every push and pull request:
@@ -364,6 +367,107 @@ and is not claimed as one.
 
 ### 3.26 Audio — **NOT RUN**
 ### 3.27 Turso cloud sync — **NOT RUN**
+
+---
+
+## 3A. Milestone M3 — Clock Faces (executed 2026-10-07)
+
+> **Scope:** the clock half of Milestone 3 only (features A2–A16 plus A1/A17/A19).
+> The widget half (C6–C20) was **not started** and is not covered here.
+
+### 3A.1 Automated — **PASS**
+
+```
+npm test  ->  132 tests, 132 pass, 0 fail
+npm run validate  ->  pass
+```
+
+`tests/clocks-m3.test.mjs` (45 tests) and 6 new guards in
+`tests/audit.test.mjs`.
+
+| Area | Result |
+|---|---|
+| Word-clock grammar | 7 tests — "quarter to ten", 12-hour wrap at both ends, 24-hour mode, NaN rejection |
+| Solar ephemeris | 6 tests — matches published sunrise/sunset for 6 cities to the minute; polar day/night return `null` rather than a fabricated time |
+| Lunar phases | 4 tests — verified against Catalina Sky Survey / Griffith / timeanddate values; **worst error 0.72 days** |
+| SVG primitives | 7 tests — polar maths, arc/hand geometry, tick emphasis, dot-matrix glyphs |
+| Numerals | 3 tests — all 6 systems round-trip a full clock string; unknown ids fall back to Latin |
+| World map geometry | 2 tests — real point-in-polygon on 6 land and 5 sea reference points |
+| Index integrity | 6 tests — unique ids, mountable definitions, all 11 legacy ids still present |
+
+### 3A.2 Every face mounts and renders — **PASS**
+
+All **29** clock faces (11 legacy + 18 new; A5's analog skins suite ships as
+four faces) were mounted into a real DOM and updated with a live timestamp
+payload, in **both 12-hour and 24-hour mode**:
+
+| Set | Result |
+|---|---|
+| 29 clock faces mount and render | **29/29 ok** (58 configurations) |
+| Faces render meaningful content, not empty shells | 29/29 produce either text or vector geometry |
+| No uncaught errors during mount or update | none |
+
+### 3A.3 Responsive sizing — **PASS for M3 faces**
+
+Every M3 face was mounted into panels of six widths and its horizontal
+overflow measured:
+
+| Panel width | M3 faces overflowing | Legacy faces overflowing |
+|---|---|---|
+| 180 px | **0** | 10 |
+| 240 px | **0** | 10 |
+| 320 px | **0** | 9 |
+| 480 px | **0** | 5 |
+| 640 px | **0** | 2 |
+| 900 px | **0** | 0 |
+
+Two defects were found and fixed by this check: the dot-matrix face rendered at
+24 px because an SVG with a `viewBox` but no `width`/`height` falls back to its
+intrinsic size, and the fixed-size SVG dials (analog, moon, year) overflowed any
+panel narrower than their hard-coded pixel size.
+
+**The legacy column is pre-existing and is NOT a regression from this
+milestone.** `css/clocks.css` is byte-identical to `master`, and no rule in
+`css/clocks-m3.css` targets a legacy class — both are asserted by tests. The
+11 original faces size themselves with `vw` units and therefore overflow narrow
+panels. This is the already-recorded "responsive effectively unaddressed" gap
+and remains **open**.
+
+### 3A.4 Service worker precache — **PASS**
+
+| Check | Result |
+|---|---|
+| Precached assets | **80** (was 59) |
+| Missing on disk | none |
+| Duplicate entries | none |
+| Absolute paths | 0 |
+| `js/clocks/*` modules precached | 32 of 32 |
+
+A test asserting *every* module under `js/clocks/` appears in the precache list
+caught a real omission: `worldLand.js` existed on disk but was not cached, so
+the day/night map would have worked online and failed offline. Fixed.
+
+### 3A.5 Offline load with the network down — **NOT RUN**
+
+Unchanged from §3.25: no network-emulation capability is available, so the app
+was never loaded with the network genuinely down. Offline support is evidenced
+only by precache completeness (80/80 resolvable), **not** claimed as a verified
+offline load.
+
+### 3A.6 Lighthouse — **NOT RUN**
+
+No Lighthouse run was performed for this milestone. The scores in §5 remain the
+M2 measurements and are **not** claimed as current. Re-running Lighthouse and
+re-checking contrast on the 19.2 KB of new CSS is outstanding.
+
+### 3A.7 Geolocation-dependent faces — **PARTIAL**
+
+`sunarc`, `tide` and `terminator` request the browser geolocation API. The
+permission prompt cannot be granted in this environment, so only the
+**degraded** path was verified: each face renders an explicit "location
+unavailable" state rather than a fabricated position. The location-resolved
+rendering of these three faces is **not** verified in-browser; the underlying
+astronomy is covered by unit tests against published values.
 
 ---
 

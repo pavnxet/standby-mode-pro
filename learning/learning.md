@@ -66,3 +66,32 @@
 
 ## Project Protocol
 - The owner's `features to be implemented/MONETIZATION_PHASE_ROADMAP.md` mandates a **read-only Phase 0 audit** and forbids entitlement, gating, and pricing code until Phase 1 is explicitly requested. The 2026-10-07 overhaul honoured this: the audit produced `AUDIT.md` with **zero application-code changes at the time of writing**, and the subsequent implementation work deliberately added no paywall.
+## Astronomy & Ephemeris
+- **Derive solar noon from the calendar date, not from epoch arithmetic.** Reproducing NOAA's published formula literally (Julian day -> J2000 seconds -> Date) introduced a 12-hour error here, twice, from two different off-by-epoch mistakes. `solarNoonMinutes = 720 - 4*longitude - equationOfTime`, anchored to `Date.UTC(y, m, d)`, is far easier to verify and was correct on the first run.
+- **Watch the epoch constant.** The formula counts days from **J2000.0 (JD 2451545.0)**; `toJulian` returns days since the **Unix epoch (JD 2440587.5)**. Mixing them shifts results by decades, not hours, which is why the first broken version landed in 1996.
+- **Multiply a seconds-since-epoch value by 1000, not by 86400000.** `86400000` is ms-per-*day*. Using it on a seconds value produced `Invalid Date` for every sunrise.
+- **Never subtract local wall-clock hour fields to get a duration.** `sunrise.getHours() - sunset.getHours()` gave a London summer day length of **-441 minutes**. Always take the difference of two absolute instants.
+- **Anchor a local calendar date at `Date.UTC(y, m, d)`, not `new Date(y, m, d)`.** Local midnight in IST is 18:30 UTC the previous day, which silently moves the computed day by one.
+- **`sunAltitude` answers for an absolute instant; `altitudeAtHour` answers for a local wall-clock hour.** These are different questions. Mixing them (e.g. asking for London at "local midnight" on a machine set to UTC+5:30) is only meaningful when the two timezones agree - a test must not assume they do.
+- **Solar midnight is 12 hours after solar noon, not 12 hours after sunrise.** At London's latitude the June solstice has 16h39m of daylight, so sunrise+12h lands in mid-afternoon.
+- **Assert solar maxima as `90 - latitude +/- declination`.** The June solstice peak at London is 61.9 degrees; December is 15.1. A single threshold across seasons silently encodes one season's geometry.
+- **A linear synodic month is accurate to roughly ±1.2 days**, not minutes. Verified against Catalina Sky Survey, Griffith Observatory and timeanddate.com: worst error 0.72 days over verified 2026 phases. Assert the tolerance in *days*, and never assert the `waxing` flag at exactly phase 0.5 - the model straddles that boundary.
+- **Do not trust a remembered moon phase.** October 2026 has Last Quarter on the 3rd and New Moon on the **10th**, not the reverse. Checking an almanac took one search and saved a wrong test.
+
+## Rendering & Responsive
+- **Size a component from its container, not the viewport.** `13vw` rendered 118px numerals inside a 223px panel. `container-type: inline-size` plus `cqi` fixes it, and `cqi` degrades to viewport units where container queries are unsupported, so no `@supports` fallback is needed.
+- **An SVG with a `viewBox` but no `width`/`height` does not scale - it uses the 300x150 (or 100%) default.** A fixed pixel width clipped the leading digit; fixed 280px dials overflowed any narrower panel.
+- **Never make correctness depend on `requestAnimationFrame`.** The departure board deferred its character swap into a rAF callback and sat on `00:00:00` in every hidden or backgrounded tab. Write the value synchronously and layer the animation class on top.
+- **Restart a CSS animation by removing the class, forcing reflow, then re-adding it**, otherwise repeated changes to the same element do not re-trigger.
+- **Check the browser's HTTP cache before concluding CSS did not apply.** A stale stylesheet parsed with `containerType: "normal"` while the served file provably contained the rule. Fetch with `cache: 'no-store'` to compare.
+- **The service worker caches your own edits.** Unregister it and clear caches before debugging anything SW-served.
+
+## Braille & Numeral Systems
+- **Grade-1 braille encodes digits as the letters a-j**, so `0` is U+281A (`j`) and `1` is U+2801 (`a`). U+2834 is the NUMBER SIGN, which signals "digits follow" - rendering it as zero makes 10:30 read as "1n3n". The existing test covered only digits 1 and 2, which is why this survived.
+- **A face that does arithmetic on engine-formatted time is broken under non-Latin numerals.** `clockEngine` converts `hours`/`minutes`/`seconds` to the active numeral system before any face sees them, so `Number("१४")` is NaN and every hand collapses to 12 o'clock. Use `rawHours`/`rawMinutes`/`rawSeconds` for anything numeric.
+
+## Map Data
+- **Never hand-write geography.** Coarse continent coordinates looked plausible in source and rendered as an unrecognisable blob. Use Natural Earth (public domain) and generate the asset.
+- **Simplify generated geometry with iterative Douglas-Peucker**, not recursion: Natural Earth rings have thousands of points and would overflow the call stack.
+- **Store coordinates as scaled integers** (tenths of a degree) - avoids a decimal point per value and cut the payload by ~25%.
+- **Test map data with real point-in-polygon**, not by marking ring vertices: a vertex grid reports the interior of every continent as sea.

@@ -119,3 +119,32 @@ Meaningful technical decisions, library choices, and trade-offs for flip clock.
 - **Decision:** Offline support is evidenced by two direct measurements — the worker activating and controlling the page, and **all 59 precached shell assets resolving from the cache** — rather than by an offline page load, because no network-emulation capability was available.
 - **Why:** Claiming "works offline" from cache inspection alone would overstate what was tested, in a feature whose entire value proposition is reliability.
 - **Consequence:** `TESTING.md` §3.25 records this explicitly as **PARTIAL**, and no Lighthouse PWA or Performance score is quoted anywhere because the report contains no such category.
+### 2026-10-07 ADR-021: Clock registration flows from one declarative index
+- **Status:** Accepted and implemented
+- **Decision:** `js/clocks/index.js` exports `CLOCKS`, an array of `{ id, clock, milestone }`. `app.js` iterates it once and calls `clockEngine.register` and `registry.registerClock` in the same loop. No clock module is imported by name anywhere else.
+- **Why:** Previously the two registries were written out separately, eleven lines each, and could drift - a face landing in one list but not the other would render but not appear in settings. One loop makes that unrepresentable. Tests assert uniqueness, mountability, and that all eleven legacy ids survive.
+- **Consequence:** Adding a face touches exactly one file. Cost: the index is eagerly imported, so every face module loads on startup. That was already true of the eleven originals, so nothing regressed; the registry still accepts lazy descriptors for later.
+
+### 2026-10-07 ADR-022: M3 faces size from their container, using cqi
+- **Status:** Accepted and implemented
+- **Decision:** M3 wrappers declare `container-type: inline-size`; every size in `css/clocks-m3.css` is expressed in `cqi` rather than `vw`. `css/clocks.css` is untouched.
+- **Why:** A face is mounted into panels from ~180px to a full-screen stage. `vw` measures the *viewport*, so a 13vw headline rendered 118px text inside a 223px panel. `cqi` measures the container the face is actually in.
+- **Consequence:** Where container queries are unsupported, `cqi` resolves against the small viewport, so it degrades to exactly the old `vw` behaviour and needs no `@supports` fallback. Verified: 0 horizontal overflow across 6 widths, 15 faces.
+
+### 2026-10-07 ADR-023: World map geometry is generated from Natural Earth, never hand-written
+- **Status:** Accepted and implemented
+- **Decision:** `scripts/generate-world-land.mjs` downloads Natural Earth 110m land, simplifies it (Douglas-Peucker, 0.6 degrees) and quantises to tenths of a degree, emitting `js/clocks/_shared/worldLand.js` (14.2 KB, committed).
+- **Why:** The first implementation hand-wrote continent coordinates. At desk-display scale it rendered as an unrecognisable blob - the shapes carried no geographic meaning. **Fabricating map data is worse than omitting it.** Natural Earth is public domain.
+- **Consequence:** The app ships no build step and makes no request; the generator is only run deliberately. A test does real point-in-polygon against 6 land and 5 sea reference points, so a future over-tightening of the tolerance fails loudly rather than silently unrecognising the map.
+
+### 2026-10-07 ADR-024: Astronomy uses local ephemeris; the tide clock refuses to fake a tide height
+- **Status:** Accepted and implemented
+- **Decision:** `solarMath.js` computes sunrise, sunset, twilight, golden hour, sun altitude, subsolar longitude and moon phase locally. `tideClock` renders the solar and lunar halves fully and states in the UI that tide *height* needs a marine API key, showing no number.
+- **Why:** A clock that invents a tide height is worse than one that admits the gap. Marine tide data has no keyless endpoint, and adding a key would breach the no-tracking/no-external-API default.
+- **Consequence:** Verified against published almanac values - sunrise matches to the minute for six cities, worst lunar error 0.72 days, which is the honest accuracy of a linear synodic model.
+
+### 2026-10-07 ADR-025: The 400 KB source budget is reported, not met by deleting working code
+- **Status:** Accepted (constraint)
+- **Decision:** Shipped JS is 438 KB against the 400 KB budget set at M1. This milestone added 98 KB for 15 working faces.
+- **Why:** The budget was set when there were 11 clocks and 9 widgets. Meeting it now would mean deleting features, comments or the map geometry. Dead code *was* removed (seven unused exports, one duplicated Braille table, a 4x glyph encoding), taking it from 441.8 KB to 438 KB - but the remainder is real functionality.
+- **Consequence:** Reported in `CHANGELOG.md` and `TESTING.md` with the breakdown. Raising the budget is an owner decision and is left open, not silently decided here.

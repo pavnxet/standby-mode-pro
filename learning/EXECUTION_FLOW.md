@@ -5,6 +5,7 @@ Call paths, entry points, and recent changes specific to flip clock.
 ## Entry Points
 - `index.html`: Main application interface — ambient layers, top bar, clock stage, three modal roots, screensaver layer.
 - `js/app.js`: **Sole module entry point.** Registers all clocks and widgets, wires the visualizer, constructs UI components, installs the modal runtime, and renders the active stage.
+- `js/clocks/index.js`: **Single source of truth for the clock inventory.** Exports `CLOCKS` (`{ id, clock, milestone }[]`, 29 entries). `app.js` iterates it once to feed both `clockEngine` and `registry`; adding a face touches only this file.
 - `js/app.bundle.js`: Legacy concatenated bundle. **Not referenced by `index.html`**; CI fails the build if it ever is. Diverged from source (shadowed `store` identifier at lines 1210-1233). Deletion pending owner approval.
 - `scripts/serve.mjs`: Zero-dependency dev server. ES modules cannot load over `file://`, so an HTTP origin is required.
 
@@ -111,3 +112,21 @@ store.notify(event)
 - **Tests:** 43 → 80. CI extended with `sw.js` syntax, precache integrity, and manifest/SW relative-path checks.
 - **Measured:** Lighthouse Accessibility 1.00, Best Practices 1.00, SEO 1.00, zero failing audits. 11/11 clocks, 12/12 widgets, 4/4 layouts verified. 59/59 precached assets resolve from cache.
 - **Milestone reached:** M2 (partial). 16 features shipped, 1 partial, 39 planned.
+
+### 2026-10-07 — Milestone 3 (clocks): 15 new clock faces (branch `phase-3-clocks`)
+- **Entry point change:** `js/app.js` no longer imports clock modules individually. It imports `CLOCKS` from `js/clocks/index.js` and registers both `clockEngine` and `registry` in one loop.
+- **New `js/clocks/index.js`:** The single source of truth for clock inventory (`{ id, clock, milestone }[]`), plus `M3_CLOCKS` and `CLOCK_CATEGORIES`. 29 faces total.
+- **New shared modules:**
+  - `js/clocks/_shared/solarMath.js` — `solarPosition`, `sunTimes`, `daylightPeriods`, `sunAltitude`, `subsolarLongitude`, `moonPhase`, `moonPhaseName`, `moonPath`, `altitudeAtHour`. Local, dependency-free ephemeris.
+  - `js/clocks/_shared/primitives.js` — `polarToXY`, `arcPath`, `handPath`, `tickMarks`, `dialNumerals`, `analogDialSvg`, `handAngles`, `dotMatrixGlyph/Grid`, `humanDuration`.
+  - `js/clocks/_shared/words.js` — `numberToWords`, `wordsFor` (word-clock grammar).
+  - `js/clocks/_shared/worldLand.js` — **generated**, 14.2 KB world outline.
+- **New clock modules:** `wordClock`, `binaryClock`, `romanClock`, `analogSkins` (4 faces from one factory), `terminatorClock`, `moonClock`, `gradientClock`, `tideClock`, `persianClock`, `brailleClock`, `departureBoardClock`, `dotMatrixClock`, `worldClock`, `sunArcClock`, `yearClock`.
+- **New CSS:** `css/clocks-m3.css` (19.2 KB). `css/clocks.css` is **byte-identical to master** — asserted by test.
+- **New tooling:** `scripts/generate-world-land.mjs` (Natural Earth 110m land → simplified JS asset).
+- **Call path for a new face:** `index.html` → `js/app.js` → `js/clocks/index.js` → face module → `clockEngine.mount()` → `scheduler.subscribe()` → `face.update({ now, hours, ..., rawHours, ... })`. **A face doing arithmetic must use the `raw*` fields.**
+- **Bugs fixed (all caught by verification, all with regression tests):** `sunTimes` epoch/unit errors (every result was `Invalid Date`); `daylightPeriods` wall-clock subtraction (day length −441 min); `toBraille` mapping `0` to the number sign; `departureBoardClock` deferring its text swap into rAF (stuck on `00:00:00` in hidden tabs); M3 faces calling `Number()` on numeral-converted strings (all hands collapsed to 12 o'clock under Devanagari/Persian digits).
+- **Tests:** 80 → 132. `tests/clocks-m3.test.mjs` (45) plus 6 new guards in `tests/audit.test.mjs` (index integrity, legacy-id survival, no legacy selector in M3 CSS, `cqi` not `vw`, precache completeness, stylesheet linkage).
+- **CI:** required-files list extended; precache grew 59 → 80 entries.
+- **Measured:** 29/29 faces mount and render in 12h and 24h mode. 0 horizontal overflow for all 15 M3 faces at 180/240/320/480/640/900 px. Sunrise verified to the minute for 6 cities; worst lunar error 0.72 days. Lighthouse **not re-run**.
+- **Milestone reached:** M3 **clock half only**. The widget half (C6–C20) is **not started**. Shipped JS is 438 KB against the 400 KB budget — reported, not met by deleting working code.
