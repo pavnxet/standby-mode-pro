@@ -22,9 +22,12 @@ jobs:
           set -euo pipefail
           while IFS= read -r -d '' file; do
             node --check "$file"
-          done < <(find js -type f -name '*.js' -print0)
+          done < <(find js scripts tests -type f \( -name '*.js' -o -name '*.mjs' \) -print0)
 
-      - name: Verify module imports and local assets
+      # Extended in this change. The previous version only matched static
+      # `from '...'` imports, which would not catch a broken dynamic import()
+      # introduced by lazy module loading (FEATURE_PLAN.md J1/J5).
+      - name: Verify static and dynamic imports resolve
         shell: bash
         run: |
           set -euo pipefail
@@ -32,36 +35,136 @@ jobs:
           import re
           from pathlib import Path
 
-          root = Path('.')
-          app = root / 'js/app.js'
-          text = app.read_text(encoding='utf-8')
-          imports = re.findall(r"from\s+['\"](\./[^'\"]+|\.\./[^'\"]+)['\"]", text)
+          root = Path('.').resolve()
           missing = []
-          for value in imports:
-              target = (app.parent / value).resolve()
-              if not target.exists():
-                  missing.append(str(target.relative_to(root.resolve())))
-          if missing:
-              raise SystemExit('Missing local imports: ' + ', '.join(missing))
+          checked = 0
 
-          index = (root / 'index.html').read_text(encoding='utf-8')
-          if 'type="module" src="js/app.js"' not in index:
-              raise SystemExit('index.html is not loading the maintained module entry point')
-          if 'js/app.bundle.js' in index:
-              raise SystemExit('index.html still references the stale bundle')
-          print('Module entry point and local imports verified.')
+          static_re = re.compile(r"from\s+['\"](\.[^'\"]+)['\"]")
+          dynamic_re = re.compile(r"import\s*\(\s*['\"](\.[^'\"]+)['\"]\s*\)")
+          bare_re = re.compile(r"^\s*import\s+['\"](\.[^'\"]+)['\"]", re.MULTILINE)
+
+          for path in sorted(root.glob('js/**/*.js')) + sorted(root.glob('js/**/*.mjs')):
+              text = path.read_text(encoding='utf-8')
+              for pattern in (static_re, dynamic_re, bare_re):
+                  for value in pattern.findall(text):
+                      target = (path.parent / value).resolve()
+                      checked += 1
+                      if not target.exists():
+                          missing.append(f"{path.relative_to(root)} -> {value}")
+
+          if missing:
+              raise SystemExit('Missing local imports:\n  ' + '\n  '.join(missing))
+          print(f'Resolved {checked} local imports across all modules.')
+          PY
+
+      - name: Verify module entry point
+        shell: bash
+        run: |
+          set -euo pipefail
+          index="$(cat index.html)"
+          grep -q 'type="module" src="js/app.js"' <<<"$index" || {
+            echo 'index.html is not loading the maintained module entry point'; exit 1; }
+          if grep -q 'js/app.bundle.js' <<<"$index"; then
+            echo 'index.html still references the stale bundle'; exit 1; fi
+          echo 'Entry point verified.'
+
+      # New. GitHub Pages serves the app from /standby-mode-pro/, so any
+      # root-absolute asset path silently 404s in production.
+      - name: Verify deployment-safe relative asset paths
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+
+          offenders = []
+          for name in ['index.html']:
+              text = Path(name).read_text(encoding='utf-8')
+              for m in re.finditer(r'(?:src|href)="(/[^"]*)"', text):
+                  offenders.append(f'{name}: {m.group(0)}')
+
+          if offenders:
+              raise SystemExit(
+                  'Absolute asset paths break the GitHub Pages sub-path:\n  '
+                  + '\n  '.join(offenders))
+          print('All asset paths are relative.')
           PY
 
       - name: Check required application files
         shell: bash
         run: |
           set -euo pipefail
-          test -f index.html
-          test -f js/app.js
-          test -f js/state/store.js
-          test -f js/engines/clockEngine.js
-          test -f js/engines/widgetEngine.js
-          test -f css/main.css
-          test -f css/clocks.css
-          test -f css/widgets.css
+          for f in index.html js/app.js js/state/store.js js/state/schema.js \
+                   js/core/schema.js js/core/registry.js js/core/scheduler.js \
+                   js/core/escape.js js/core/a11y.js js/components/modalRuntime.js \
+                   js/clocks/_shared/numeralMap.js \
+                   js/engines/clockEngine.js js/engines/widgetEngine.js \
+                   css/main.css css/clocks.css css/widgets.css css/a11y.css \
+                   package.json; do
+            test -f "$f" || { echo "missing $f"; exit 1; }
+          done
           echo 'Required application files present.'
+
+      - name: Check registered module ids are unique
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+
+          app = Path('js/app.js').read_text(encoding='utf-8')
+
+          def collect(pattern, label):
+              found = re.findall(pattern, app)
+              dupes = {v for v in found if found.count(v) > 1}
+              if dupes:
+                  raise SystemExit(f'Duplicate {label} ids: {sorted(dupes)}')
+              return found
+
+          # registry.registerClock('x', y) and clockEngine.register('x', y)
+          clocks = collect(r"registerClock\('([^']+)'", 'clock')
+          engines = collect(r"clockEngine\.register\('([^']+)'", 'clockEngine')
+          widgets = collect(r"registerWidget\('([^']+)'", 'widget')
+          engine_widgets = collect(r"widgetEngine\.register\('([^']+)'", 'widgetEngine')
+
+          for label, ids, minimum in (
+              ('clockEngine', engines, 11),
+              ('widgetEngine', engine_widgets, 9),
+          ):
+              if len(ids) < minimum:
+                  raise SystemExit(f'{label} registered {len(ids)} modules, expected >= {minimum}')
+
+          if set(clocks) != set(engines):
+              raise SystemExit(
+                  f'registry clocks {sorted(set(clocks) ^ set(engines))} differ from clockEngine')
+          if set(widgets) != set(engine_widgets):
+              raise SystemExit(
+                  f'registry widgets {sorted(set(widgets) ^ set(engine_widgets))} differ from widgetEngine')
+
+          print(f'{len(engines)} clocks and {len(engine_widgets)} widgets registered consistently.')
+          PY
+
+      - name: Unit and audit regression tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm test
+
+      # New. The repository shipped a 231 KB app.bundle.js that has already
+      # diverged from source; CI forbids its use. This guard makes sure first-load
+      # JavaScript does not silently grow (FEATURE_PLAN.md J4).
+      - name: Bundle size budget
+        shell: bash
+        run: |
+          set -euo pipefail
+          BUDGET_KB=400
+          # Everything reachable as a static import from the entry point, plus
+          # the modules index.html loads. The legacy bundle is excluded on purpose.
+          TOTAL_KB=$(find js -type f -name '*.js' ! -name 'app.bundle.js' -exec cat {} + | wc -c | awk '{printf "%d", $1/1024}')
+          if [ "$TOTAL_KB" -gt "$BUDGET_KB" ]; then
+            echo "Source JS is ${TOTAL_KB} KB, over the ${BUDGET_KB} KB budget."
+            exit 1
+          fi
+          echo "Source JS within budget: ${TOTAL_KB} KB / ${BUDGET_KB} KB."
