@@ -2,6 +2,11 @@
 import { photoDB } from "../state/db.js";
 import { store } from "../state/store.js";
 import { soundEngine } from "../engines/soundEngine.js";
+// AUDIT.md S4: this file had no escaping helper, so a user-supplied filename
+// (stored via db.js) was interpolated straight into an alt/src attribute.
+import { escapeHtml, safeUrl } from "../core/escape.js";
+
+const safePhotoUrl = (url) => safeUrl(url, { allowDataImage: true });
 
 const presetWallpapers = [
   { id: "p1", title: "Cosmic Aurora", category: "Cosmic", url: "assets/wallpapers/aurora_nebula.jpg" },
@@ -104,19 +109,22 @@ export class PhotoModal {
             <label class="block text-xs font-bold text-neutral-400 uppercase tracking-wider mb-2.5">Your Uploaded Photos (${photos.length})</label>
             <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 max-h-48 overflow-y-auto pr-1">
               ${photos.map(p => `
-                <div class="relative group rounded-xl overflow-hidden aspect-video border ${wp.activeUrl === p.dataUrl ? "border-blue-500 ring-2 ring-blue-500/50" : "border-white/10"} cursor-pointer bg-neutral-900" data-apply-wp="${p.dataUrl}">
-                  <img src="${p.dataUrl}" alt="${p.title}" class="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                <div class="relative group rounded-xl overflow-hidden aspect-video border ${wp.activeUrl === p.dataUrl ? "border-blue-500 ring-2 ring-blue-500/50" : "border-white/10"} bg-neutral-900">
+                  <button type="button" class="absolute inset-0 z-0 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-400" data-apply-wp="${escapeHtml(p.dataUrl)}" aria-pressed="${wp.activeUrl === p.dataUrl}">
+                    <span class="sr-only">Set as wallpaper: ${escapeHtml(p.title)}</span>
+                  </button>
+                  <img src="${escapeHtml(safePhotoUrl(p.dataUrl))}" alt="${escapeHtml(p.title)}" class="w-full h-full object-cover group-hover:scale-105 transition-transform pointer-events-none" />
                   ${wp.activeUrl === p.dataUrl ? `
-                    <div class="absolute top-1.5 left-1.5 bg-blue-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-md">
+                    <div class="absolute top-1.5 left-1.5 bg-blue-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-md pointer-events-none">
                       Active
                     </div>
                   ` : `
-                    <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                    <div class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 flex items-center justify-center transition-opacity pointer-events-none">
                       <span class="text-xs font-bold text-white bg-blue-600 px-2.5 py-1 rounded-lg shadow-lg">Set Wallpaper</span>
                     </div>
                   `}
-                  <button class="absolute top-1.5 right-1.5 bg-red-600/90 text-white rounded-full p-1.5 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500 shadow-md" data-del-photo="${p.id}" title="Delete Photo">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                  <button type="button" class="absolute top-1.5 right-1.5 z-10 bg-red-600/90 text-white rounded-full p-2 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 focus:opacity-100 transition-opacity hover:bg-red-500 shadow-md" data-del-photo="${escapeHtml(p.id)}" title="Delete Photo" aria-label="Delete photo ${escapeHtml(p.title)}">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                   </button>
                 </div>
               `).join("")}
@@ -129,17 +137,17 @@ export class PhotoModal {
           <label class="block text-xs font-bold text-neutral-400 uppercase tracking-wider mb-2.5">Preset Aesthetic Wallpapers</label>
           <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
             ${presetWallpapers.map(p => `
-              <div class="relative group rounded-xl overflow-hidden aspect-video border ${wp.activeUrl === p.url ? "border-blue-500 ring-2 ring-blue-500/50" : "border-white/10"} cursor-pointer bg-neutral-900" data-apply-wp="${p.url}">
-                <img src="${p.url}" alt="${p.title}" class="w-full h-full object-cover group-hover:scale-105 transition-transform" />
-                <div class="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent p-1.5 text-[10px] font-semibold text-white truncate text-center">
-                  ${p.title}
-                </div>
+              <button type="button" class="relative group rounded-xl overflow-hidden aspect-video border ${wp.activeUrl === p.url ? "border-blue-500 ring-2 ring-blue-500/50" : "border-white/10"} bg-neutral-900 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400" data-apply-wp="${escapeHtml(p.url)}" aria-pressed="${wp.activeUrl === p.url}">
+                <img src="${escapeHtml(p.url)}" alt="" class="w-full h-full object-cover group-hover:scale-105 transition-transform pointer-events-none" />
+                <span class="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 to-transparent p-1.5 text-[10px] font-semibold text-white truncate text-center pointer-events-none">
+                  ${escapeHtml(p.title)}
+                </span>
                 ${wp.activeUrl === p.url ? `
-                  <div class="absolute top-1 left-1 bg-blue-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full">
+                  <span class="absolute top-1 left-1 bg-blue-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full pointer-events-none">
                     Active
-                  </div>
+                  </span>
                 ` : ""}
-              </div>
+              </button>
             `).join("")}
           </div>
         </div>
@@ -166,11 +174,13 @@ export class PhotoModal {
       });
     }
 
-    // Set Wallpaper click
+    // Set Wallpaper click. Guarded by safePhotoUrl so a stored value that is no
+    // longer an accepted scheme cannot reach store.setWallpaper().
     content.querySelectorAll("[data-apply-wp]").forEach(card => {
       card.addEventListener("click", (e) => {
         if (e.target.closest("[data-del-photo]")) return;
-        const url = card.getAttribute("data-apply-wp");
+        const url = safePhotoUrl(card.getAttribute("data-apply-wp"));
+        if (!url) return;
         store.setWallpaper(url);
         soundEngine.playFlipTick();
         this.render();

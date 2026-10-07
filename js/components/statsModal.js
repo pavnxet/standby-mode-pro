@@ -107,7 +107,7 @@ export class StatsModal {
 
       return `
         <g class="chart-bar-group cursor-pointer">
-          <title>${d.dateStr}: ${d.focusMinutes}m (${d.sessions} sessions)</title>
+          <title>${escapeHtml(d.dateStr)}: ${d.focusMinutes}m (${d.sessions} sessions)</title>
           <rect x="${x}" y="8" width="28" height="${chartHeight - 30}" rx="6" fill="rgba(255,255,255,0.03)" />
           <rect x="${x}" y="${y}" width="28" height="${barHeight}" rx="6" fill="${fillColor}" class="transition-all duration-500" />
           <text x="${x + 14}" y="${chartHeight - 4}" font-size="10" font-weight="${isToday ? 'bold' : 'normal'}" fill="${isToday ? '#60a5fa' : '#9ca3af'}" text-anchor="middle" font-family="var(--font-sans)">${d.dayName}</text>
@@ -174,7 +174,7 @@ export class StatsModal {
 
       return `
         <g class="chart-bar-group cursor-pointer">
-          <title>Day ${d.day} (${d.dateStr}): ${d.minutes} mins (${d.sessions} sprints)</title>
+          <title>Day ${d.day} (${escapeHtml(d.dateStr)}): ${d.minutes} mins (${d.sessions} sprints)</title>
           <rect x="${x}" y="8" width="${barWidth}" height="${chartHeight - 26}" rx="3" fill="rgba(255,255,255,0.02)" />
           <rect x="${x}" y="${y}" width="${barWidth}" height="${barHeight}" rx="3" fill="${fillColor}" />
           ${(d.day === 1 || d.day === 5 || d.day === 10 || d.day === 15 || d.day === 20 || d.day === 25 || d.day === count) ? `
@@ -422,12 +422,12 @@ export class StatsModal {
                     </div>
                   </div>
                   <div class="flex items-center gap-2">
-                    <span class="font-mono font-bold text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20">${s.duration}m</span>
-                    <button class="btn-edit-session opacity-70 group-hover:opacity-100 hover:text-blue-400 p-1 rounded hover:bg-white/5 transition-all text-[11px]" data-id="${escapeHtml(s.id)}" data-duration="${s.duration}" title="Edit session duration">
-                      ✏️
+                    <span class="font-mono font-bold text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20">${escapeHtml(s.duration)}m</span>
+                    <button class="btn-edit-session opacity-70 group-hover:opacity-100 hover:text-blue-400 p-1 rounded hover:bg-white/5 transition-all text-[11px]" data-id="${escapeHtml(s.id)}" data-duration="${escapeHtml(s.duration)}" title="Edit session duration" aria-label="Edit session duration">
+                      <span aria-hidden="true">✏️</span>
                     </button>
-                    <button class="btn-delete-session opacity-70 group-hover:opacity-100 hover:text-red-400 p-1 rounded hover:bg-red-500/10 transition-all text-[11px]" data-id="${escapeHtml(s.id)}" title="Delete ghost/accidental session">
-                      🗑️
+                    <button class="btn-delete-session opacity-70 group-hover:opacity-100 hover:text-red-400 p-1 rounded hover:bg-red-500/10 transition-all text-[11px]" data-id="${escapeHtml(s.id)}" title="Delete ghost/accidental session" aria-label="Delete session">
+                      <span aria-hidden="true">🗑️</span>
                     </button>
                   </div>
                 </div>
@@ -648,18 +648,18 @@ export class StatsModal {
 
                 <div class="space-y-2">
                   <div>
-                    <label class="text-[10px] text-neutral-500 font-mono block mb-1">TURSO_DATABASE_URL</label>
-                    <input type="text" id="input-turso-url" placeholder="https://..." value="${turso.url || ''}" class="w-full bg-neutral-950 border border-white/10 rounded-xl p-2 text-xs text-neutral-300 font-mono" />
+                    <label for="input-turso-url" class="text-[10px] text-neutral-500 font-mono block mb-1">TURSO_DATABASE_URL</label>
+                    <input type="text" id="input-turso-url" placeholder="https://..." value="${escapeHtml(turso.url || '')}" class="w-full bg-neutral-950 border border-white/10 rounded-xl p-2 text-xs text-neutral-300 font-mono" />
                   </div>
                   <div>
-                    <label class="text-[10px] text-neutral-500 font-mono block mb-1">TURSO_AUTH_TOKEN</label>
-                    <input type="password" id="input-turso-token" placeholder="JWT Auth Token" value="${turso.token || ''}" class="w-full bg-neutral-950 border border-white/10 rounded-xl p-2 text-xs text-neutral-300 font-mono" />
+                    <label for="input-turso-token" class="text-[10px] text-neutral-500 font-mono block mb-1">TURSO_AUTH_TOKEN</label>
+                    <input type="password" id="input-turso-token" placeholder="JWT Auth Token" value="${escapeHtml(turso.token || '')}" class="w-full bg-neutral-950 border border-white/10 rounded-xl p-2 text-xs text-neutral-300 font-mono" />
                   </div>
                 </div>
 
                 <div class="flex items-center justify-between pt-2 border-t border-white/10">
-                  <div id="turso-status-feedback" class="text-[11px] font-mono ${turso.lastError ? 'text-red-400' : isConnected ? 'text-emerald-400' : 'text-neutral-400'}">
-                    ${turso.lastError ? `Error: ${turso.lastError}` : isConnected ? `Connected to Database` : 'Disconnected'}
+                  <div id="turso-status-feedback" role="status" aria-live="polite" class="text-[11px] font-mono ${turso.lastError ? 'text-red-400' : isConnected ? 'text-emerald-400' : 'text-neutral-400'}">
+                    ${turso.lastError ? `Error: ${escapeHtml(turso.lastError)}` : isConnected ? `Connected to Database` : 'Disconnected'}
                   </div>
                   <button id="btn-turso-test" class="px-3 py-1.5 text-xs font-bold rounded-xl bg-white/10 hover:bg-white/15 text-neutral-200 transition-colors">
                     Test Connection

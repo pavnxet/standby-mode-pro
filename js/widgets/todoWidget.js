@@ -24,15 +24,16 @@ export const todoWidget = {
           <div class="todo-list-box" id="todo-items-container">
             ${todos.map(t => `
               <div class="todo-item-row ${t.completed ? "completed" : ""}" data-id="${escapeHtml(t.id)}">
-                <input type="checkbox" ${t.completed ? "checked" : ""} class="rounded border-neutral-700 text-blue-600 focus:ring-0 cursor-pointer pointer-events-none" />
+                <input type="checkbox" ${t.completed ? "checked" : ""} aria-label="${escapeHtml(t.text || "Task")}" class="rounded border-neutral-700 text-blue-600 focus:ring-0 cursor-pointer pointer-events-none" />
                 <span class="text-sm font-medium text-neutral-200 flex-1">${escapeHtml(t.text)}</span>
               </div>
             `).join("")}
           </div>
 
           <form id="todo-add-form" class="mt-2 flex gap-2">
+            <label for="todo-input" class="sr-only">New task</label>
             <input type="text" id="todo-input" placeholder="New Protocol item..." class="flex-1 bg-white/5 border border-white/10 rounded-lg px-3 py-1 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-blue-500" />
-            <button type="submit" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded-lg text-xs font-semibold">+</button>
+            <button type="submit" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded-lg text-xs font-semibold" aria-label="Add task">+</button>
           </form>
         </div>
       `;

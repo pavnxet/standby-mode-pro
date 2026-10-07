@@ -4,6 +4,9 @@ import { clockEngine } from "../engines/clockEngine.js";
 import { widgetEngine } from "../engines/widgetEngine.js";
 import { soundEngine } from "../engines/soundEngine.js";
 import { wakeLockEngine } from "../engines/wakeLockEngine.js";
+// AUDIT.md S2: this file had no escaping helper, so cloud-merged space names,
+// space ids and Pomodoro durations were interpolated unescaped into innerHTML.
+import { escapeHtml } from "../core/escape.js";
 
 export class CustomizeModal {
   constructor() {
@@ -77,9 +80,12 @@ export class CustomizeModal {
             <span class="text-[11px] font-mono px-2 py-0.5 rounded-full ${isWakeLocked ? 'bg-emerald-500/20 text-emerald-400' : 'bg-white/10 text-neutral-400'}">
               ${isWakeLocked ? 'Active ⚡' : 'Off'}
             </span>
+            <label for="chk-wake-lock" class="sr-only">Keep screen awake</label>
             <label class="relative inline-flex items-center cursor-pointer">
               <input type="checkbox" id="chk-wake-lock" ${state.keepScreenAwake ? "checked" : ""} class="sr-only peer" />
-              <div class="w-9 h-5 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+              <!-- AUDIT §5.6: peer-focus:outline-none removed the focus ring with
+                   no replacement. css/a11y.css restores it via the .peer rule. -->
+              <div aria-hidden="true" class="w-9 h-5 bg-neutral-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
             </label>
           </div>
         </div>
@@ -100,15 +106,17 @@ export class CustomizeModal {
               <span id="screensaver-status-badge" class="text-[11px] font-mono px-2 py-0.5 rounded-full ${screensaverConfig.enabled ? 'bg-indigo-500/20 text-indigo-400 font-bold' : 'bg-white/10 text-neutral-400'}">
                 ${screensaverConfig.enabled ? 'Active 🌙' : 'Disabled'}
               </span>
+              <label for="chk-screensaver-enabled" class="sr-only">Enable ambient screensaver</label>
               <label class="relative inline-flex items-center cursor-pointer">
                 <input type="checkbox" id="chk-screensaver-enabled" ${screensaverConfig.enabled ? "checked" : ""} class="sr-only peer" />
-                <div class="w-9 h-5 bg-neutral-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
+                <div aria-hidden="true" class="w-9 h-5 bg-neutral-700 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-indigo-600"></div>
               </label>
             </div>
           </div>
           
           <div class="flex items-center justify-between pt-2 border-t border-white/5 text-xs">
             <span class="text-neutral-400">Idle Trigger Delay:</span>
+            <label for="select-screensaver-delay" class="sr-only">Idle trigger delay</label>
             <select id="select-screensaver-delay" class="bg-neutral-900 border border-white/10 rounded-lg px-2.5 py-1 text-xs text-neutral-200 focus:border-indigo-500 focus:outline-none">
               <option value="60" ${screensaverConfig.idleSeconds === 60 ? "selected" : ""}>1 Minute (60s)</option>
               <option value="120" ${screensaverConfig.idleSeconds === 120 ? "selected" : ""}>2 Minutes (120s)</option>
@@ -120,11 +128,11 @@ export class CustomizeModal {
 
         <!-- Space Selection -->
         <div>
-          <label class="block text-xs font-bold text-neutral-400 uppercase tracking-wider mb-2.5">Current Space</label>
+          <h3 class="block text-xs font-bold text-neutral-400 uppercase tracking-wider mb-2.5">Current Space</h3>
           <div class="grid grid-cols-4 gap-2">
             ${Object.values(state.spaces).map(s => `
-              <button class="p-2.5 rounded-xl border text-center font-bold text-xs transition-all ${s.id === state.activeSpaceId ? "bg-blue-600 border-blue-500 text-white shadow-lg" : "bg-white/5 border-white/5 text-neutral-400 hover:bg-white/10"}" data-set-space="${s.id}">
-                ${s.name}
+              <button type="button" class="p-2.5 rounded-xl border text-center font-bold text-xs transition-all ${s.id === state.activeSpaceId ? "bg-blue-600 border-blue-500 text-white shadow-lg" : "bg-white/5 border-white/5 text-neutral-400 hover:bg-white/10"}" data-set-space="${escapeHtml(s.id)}" aria-pressed="${s.id === state.activeSpaceId}">
+                ${escapeHtml(s.name)}
               </button>
             `).join("")}
           </div>
@@ -132,7 +140,7 @@ export class CustomizeModal {
 
         <!-- Layout Selector -->
         <div>
-          <label class="block text-xs font-bold text-neutral-400 uppercase tracking-wider mb-2.5">Layout Mode</label>
+          <h3 class="block text-xs font-bold text-neutral-400 uppercase tracking-wider mb-2.5">Layout Mode</h3>
           <div class="grid grid-cols-3 gap-3">
             <button class="p-3 rounded-xl border text-center font-semibold transition-all flex flex-col items-center gap-1.5 ${activeSpace.layout === "standalone" ? "bg-blue-600/30 border-blue-500 text-white" : "bg-white/5 border-white/10 text-neutral-400 hover:bg-white/10"}" data-set-layout="standalone">
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="18" x="3" y="3" rx="3"/></svg>
@@ -152,7 +160,7 @@ export class CustomizeModal {
         <!-- Clock Face Theme -->
         <div>
           <div class="flex items-center justify-between mb-2.5">
-            <label class="block text-xs font-bold text-neutral-400 uppercase tracking-wider">Clock & Pomodoro Theme</label>
+            <h3 class="block text-xs font-bold text-neutral-400 uppercase tracking-wider">Clock & Pomodoro Theme</h3>
             <span class="text-[10px] text-blue-400 font-mono">Syncs with Live Corner Clock</span>
           </div>
           <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-48 overflow-y-auto pr-1">
@@ -167,19 +175,19 @@ export class CustomizeModal {
 
         <!-- Pomodoro Configuration -->
         <div class="pt-4 border-t border-white/10">
-          <label class="block text-xs font-bold text-neutral-400 uppercase tracking-wider mb-2.5">Pomodoro Timers & Intervals</label>
+          <h3 class="block text-xs font-bold text-neutral-400 uppercase tracking-wider mb-2.5">Pomodoro Timers & Intervals</h3>
           <div class="grid grid-cols-3 gap-3 mb-3">
             <div class="p-3 bg-white/5 rounded-xl border border-white/5">
-              <label class="text-[11px] text-neutral-400 block mb-1">Focus (min)</label>
-              <input type="number" min="5" max="120" id="input-pomo-focus" value="${pomo.settings.focusDuration}" class="w-full bg-neutral-900 border border-white/10 rounded-lg p-2 text-sm text-white font-mono text-center font-bold" />
+              <label for="input-pomo-focus" class="text-[11px] text-neutral-400 block mb-1">Focus (min)</label>
+              <input type="number" min="5" max="120" id="input-pomo-focus" value="${escapeHtml(pomo.settings.focusDuration)}" class="w-full bg-neutral-900 border border-white/10 rounded-lg p-2 text-sm text-white font-mono text-center font-bold" />
             </div>
             <div class="p-3 bg-white/5 rounded-xl border border-white/5">
-              <label class="text-[11px] text-neutral-400 block mb-1">Short Break</label>
-              <input type="number" min="1" max="30" id="input-pomo-short" value="${pomo.settings.shortBreakDuration}" class="w-full bg-neutral-900 border border-white/10 rounded-lg p-2 text-sm text-white font-mono text-center font-bold" />
+              <label for="input-pomo-short" class="text-[11px] text-neutral-400 block mb-1">Short Break</label>
+              <input type="number" min="1" max="30" id="input-pomo-short" value="${escapeHtml(pomo.settings.shortBreakDuration)}" class="w-full bg-neutral-900 border border-white/10 rounded-lg p-2 text-sm text-white font-mono text-center font-bold" />
             </div>
             <div class="p-3 bg-white/5 rounded-xl border border-white/5">
-              <label class="text-[11px] text-neutral-400 block mb-1">Long Break</label>
-              <input type="number" min="5" max="60" id="input-pomo-long" value="${pomo.settings.longBreakDuration}" class="w-full bg-neutral-900 border border-white/10 rounded-lg p-2 text-sm text-white font-mono text-center font-bold" />
+              <label for="input-pomo-long" class="text-[11px] text-neutral-400 block mb-1">Long Break</label>
+              <input type="number" min="5" max="60" id="input-pomo-long" value="${escapeHtml(pomo.settings.longBreakDuration)}" class="w-full bg-neutral-900 border border-white/10 rounded-lg p-2 text-sm text-white font-mono text-center font-bold" />
             </div>
           </div>
           <div class="grid grid-cols-2 gap-3">
@@ -196,7 +204,7 @@ export class CustomizeModal {
 
         <!-- Clock Behavior & Sound Customization -->
         <div class="pt-4 border-t border-white/10">
-          <label class="block text-xs font-bold text-neutral-400 uppercase tracking-wider mb-2.5">Clock & Sound Behavior</label>
+          <h3 class="block text-xs font-bold text-neutral-400 uppercase tracking-wider mb-2.5">Clock & Sound Behavior</h3>
           <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
             <label class="flex items-center gap-2 p-2.5 bg-white/5 rounded-xl border border-white/5 cursor-pointer hover:bg-white/10 transition-colors">
               <input type="checkbox" id="chk-24h" ${state.clockConfig.is24Hour ? "checked" : ""} class="rounded" />
@@ -224,7 +232,8 @@ export class CustomizeModal {
                 <span>Test 🔊</span>
               </button>
             </div>
-            <input type="range" min="0" max="1" step="0.05" id="range-tick-volume" value="${currentTickVol}" class="w-full accent-blue-500 h-2 bg-neutral-800 rounded-lg cursor-pointer" />
+            <label for="range-tick-volume" class="sr-only">Tick sound volume</label>
+            <input type="range" min="0" max="1" step="0.05" id="range-tick-volume" value="${currentTickVol}" aria-valuetext="${tickPercent} percent" class="w-full accent-blue-500 h-2 bg-neutral-800 rounded-lg cursor-pointer" />
             <div class="flex justify-between text-[10px] text-neutral-400 mt-1.5 font-mono">
               <span>Mute (0%)</span>
               <span>Subtle (30%)</span>
@@ -237,17 +246,17 @@ export class CustomizeModal {
         <!-- Duo Mode Widgets -->
         ${activeSpace.layout === "duo" ? `
           <div class="pt-4 border-t border-white/10">
-            <label class="block text-xs font-bold text-neutral-400 uppercase tracking-wider mb-2.5">Duo Mode Widgets</label>
+            <h3 class="block text-xs font-bold text-neutral-400 uppercase tracking-wider mb-2.5">Duo Mode Widgets</h3>
             <div class="grid grid-cols-2 gap-3">
               <div>
-                <span class="text-[11px] text-neutral-400 block mb-1">Left Panel</span>
+                <label for="select-duo-w1" class="text-[11px] text-neutral-400 block mb-1">Left Panel</label>
                 <select id="select-duo-w1" class="w-full bg-neutral-900 border border-white/10 rounded-lg p-2 text-xs text-white">
                   <option value="clock" ${activeSpace.widgets[0] === "clock" ? "selected" : ""}>Main Clock</option>
                   ${widgetList.map(w => `<option value="${w.id}" ${activeSpace.widgets[0] === w.id ? "selected" : ""}>${w.name}</option>`).join("")}
                 </select>
               </div>
               <div>
-                <span class="text-[11px] text-neutral-400 block mb-1">Right Panel</span>
+                <label for="select-duo-w2" class="text-[11px] text-neutral-400 block mb-1">Right Panel</label>
                 <select id="select-duo-w2" class="w-full bg-neutral-900 border border-white/10 rounded-lg p-2 text-xs text-white">
                   ${widgetList.map(w => `<option value="${w.id}" ${activeSpace.widgets[1] === w.id ? "selected" : ""}>${w.name}</option>`).join("")}
                   <option value="clock" ${activeSpace.widgets[1] === "clock" ? "selected" : ""}>Main Clock</option>
