@@ -460,7 +460,26 @@ No Lighthouse run was performed for this milestone. The scores in §5 remain the
 M2 measurements and are **not** claimed as current. Re-running Lighthouse and
 re-checking contrast on the 19.2 KB of new CSS is outstanding.
 
-### 3A.7 Geolocation-dependent faces — **PARTIAL**
+### 3A.7 Console output after loading the app — **OBSERVED, pre-existing**
+
+Loading the page produces no errors from any M3 code. Three messages appear, all
+of which pre-date this milestone:
+
+| Message | Assessment |
+|---|---|
+| `cdn.tailwindcss.com should not be used in production` | Pre-existing. Already logged as ADR-015 / an open question: the brief requires no CDNs, and this is the largest render-blocking dependency in the app. **Still unresolved.** |
+| `WakeLock request failed: NotAllowedError` | Pre-existing and handled — `wakeLockEngine` catches it and continues. |
+| `ERR_TUNNEL_CONNECTION_FAILED` on `api.counterapi.dev` | Pre-existing **third-party analytics**. See below. |
+
+**Open item carried forward, not introduced here:** `js/app.js:353-379` still
+fires two outbound analytics requests on every page load — `api.counterapi.dev`
+with an `abacus.jasoncameron.dev` fallback — to maintain a global view count for
+the VIEWS pill. This contradicts the brief's explicit **zero tracking/analytics**
+requirement. `AUDIT.md` T10 already flagged it as technical debt. It is **not**
+fixed here because removing a user-visible feature is an owner decision, not a
+cleanup; it is reported for that decision.
+
+### 3A.8 Geolocation-dependent faces — **PARTIAL**
 
 `sunarc`, `tide` and `terminator` request the browser geolocation API. The
 permission prompt cannot be granted in this environment, so only the
