@@ -1,5 +1,7 @@
 import { store } from './state/store.js';
 import { tursoSync } from './state/tursoSync.js';
+import { registry } from './core/registry.js';
+import { installModalRuntime } from './components/modalRuntime.js';
 import { clockEngine } from './engines/clockEngine.js';
 import { widgetEngine } from './engines/widgetEngine.js';
 import { soundEngine } from './engines/soundEngine.js';
@@ -61,6 +63,32 @@ class App {
     clockEngine.register('minimal', amoledClock);
     clockEngine.register('lcars', lcarsClock);
 
+    // Central inventory (FEATURE_PLAN.md J1). Registration below stays eager so
+    // every legacy module keeps loading exactly as before; the registry exists
+    // to give one declarative view of what is available, and to accept lazy
+    // descriptors later without changing any consumer.
+    registry.registerClock('flip', flipClock);
+    registry.registerClock('neon', neonClock);
+    registry.registerClock('matrix', matrixClock);
+    registry.registerClock('solar', solarClock);
+    registry.registerClock('bigcrop', bigCropClock);
+    registry.registerClock('radial', radialClock);
+    registry.registerClock('day', dayClock);
+    registry.registerClock('segmented', segmentedClock);
+    registry.registerClock('analogdigital', analogDigitalClock);
+    registry.registerClock('minimal', amoledClock);
+    registry.registerClock('lcars', lcarsClock);
+
+    registry.registerWidget('weather', weatherWidget);
+    registry.registerWidget('calendar', calendarWidget);
+    registry.registerWidget('media', mediaWidget);
+    registry.registerWidget('timer', timerWidget);
+    registry.registerWidget('todo', todoWidget);
+    registry.registerWidget('tally', tallyWidget);
+    registry.registerWidget('quote', quoteWidget);
+    registry.registerWidget('photo', photoWidget);
+    registry.registerWidget('vibes', vibesWidget);
+
     // 2. Register All 9 Widgets
     widgetEngine.register('weather', weatherWidget);
     widgetEngine.register('calendar', calendarWidget);
@@ -85,6 +113,18 @@ class App {
     this.photoModal = new PhotoModal();
     this.nightMode = new NightModeController();
     this.screensaver = new Screensaver();
+
+    // AUDIT.md §5.2 / §5.3: installs role="dialog", aria-modal, focus trap,
+    // focus restore, Escape handling, and `inert` on the three closed modals.
+    this.modals = installModalRuntime({
+      'stats-modal': this.statsModal,
+      'customize-modal': this.customizeModal,
+      'photo-modal': this.photoModal
+    });
+
+    // Surface any non-fatal state-load problems (migration, corrupt JSON,
+    // newer schema, storage unavailable) instead of failing silently.
+    this.reportLoadWarnings();
 
     // 5. Initialize Live View Counter
     this.initViewsCounter();
@@ -147,6 +187,15 @@ class App {
 
     // 8. Render Initial Active Stage
     this.renderStage();
+  }
+
+  reportLoadWarnings() {
+    const warnings = typeof store.getLoadWarnings === 'function' ? store.getLoadWarnings() : [];
+    if (!warnings.length) return;
+    console.warn('[StandBy] Settings load notices:', warnings);
+    // The toast system is not built yet (FEATURE_PLAN I5); until it is, the
+    // console is the only channel, and this is recorded rather than swallowed.
+    window.__STANDBY_LOAD_WARNINGS__ = warnings;
   }
 
   initGlobalControls() {
