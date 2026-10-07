@@ -18,15 +18,15 @@ export const quoteWidget = {
       const q = quotes[quoteIndex];
       container.innerHTML = `
         <div class="flex flex-col justify-between w-full h-full p-2 text-center">
-          <div class="text-neutral-500 text-3xl font-serif">“</div>
+          <div class="text-neutral-500 text-3xl font-serif">â€œ</div>
           <p class="font-serif italic text-lg md:text-xl text-neutral-200 leading-relaxed px-2">
             ${q.text}
           </p>
           <div class="text-xs font-mono text-neutral-400 mt-2">
-            — ${q.author}
+            â€” ${q.author}
           </div>
           <button class="mt-2 text-xs font-medium text-blue-400 hover:text-blue-300 transition-colors" id="next-quote-btn">
-            Next Wisdom ?
+            Next Wisdom &#8594;
           </button>
         </div>
       `;
