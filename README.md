@@ -15,12 +15,14 @@ No account. No tracking. No ads. Works offline once installed.
 
 ## What it is
 
-Turn a phone, tablet, laptop, or wall display into an ambient smart clock. Eleven
-clock faces, four dashboard layouts, nine widgets, procedural ambience, and a
-Pomodoro engine that keeps your focus history across devices.
+Turn a phone, tablet, laptop, or wall display into an ambient smart clock.
+Eleven clock faces, four dashboard layouts, twelve widgets, alarms that actually
+wake you, procedural ambience, and a Pomodoro engine that keeps your focus
+history across devices.
 
 It is a **plain web app**: native ES modules, no framework, no build step, and
-zero runtime dependencies. It runs identically on GitHub Pages and Vercel.
+zero runtime dependencies. It runs identically on GitHub Pages and Vercel, and
+installs as a PWA that keeps working with no network.
 
 ---
 
@@ -49,11 +51,35 @@ Every face honours 12/24-hour format, show-seconds, and show-date.
 **Standalone** (fullscreen clock) · **Duo** (2 panels) · **Quad** (2×2 grid) ·
 **Focus** (dedicated Pomodoro workspace)
 
-### 9 widgets
+### 12 widgets
 
 **Weather** (Open-Meteo, keyless) · **Calendar** · **Media Player** ·
 **Timer & Stopwatch** · **TODO** · **Tally** · **Quotes** ·
-**Photo Frame** (IndexedDB) · **Vibes** (ambient sound selector)
+**Photo Frame** (IndexedDB) · **Vibes** (ambient sound selector) ·
+**Alarm Manager** · **Habit Tracker** · **Notes**
+
+### Alarms
+
+The single biggest thing missing from a bedside clock. The Alarm Manager
+supports multiple alarms with labels, once/daily/weekly repeat with per-weekday
+selection, snooze, a **gradual volume ramp** so you are not woken at full
+volume, and a **sunrise simulation** that brightens the screen over the ramp.
+
+Alarms resolve to an absolute target time rather than counting ticks, so a
+throttled or suspended browser still fires on schedule. Where the browser blocks
+notifications, the widget says so plainly rather than implying delivery it
+cannot guarantee.
+
+### Installable and offline
+
+A web app manifest with a maskable icon and four app shortcuts, plus a service
+worker that precaches the entire application shell. Once installed, the clock
+renders instantly and keeps working with no network — only the widgets that
+genuinely need data (weather) degrade.
+
+> **Honest limitation:** a web page cannot fire a notification after its tab is
+> closed. Alarms work fully while the app is open. This is stated in the UI
+> rather than hidden.
 
 ### Focus
 
@@ -120,15 +146,16 @@ module is loaded natively by the browser.
 ### Running the checks
 
 ```bash
-npm test          # 43 unit + audit regression tests
+npm test          # 80 unit + regression tests
 npm run validate  # syntax check + tests
+npm run icons     # regenerate the PWA icons
 ```
 
 ### Deploying
 
 **GitHub Pages** — push to the default branch. Ensure Pages is set to serve the
-repository root. All asset paths are relative, so the `/standby-mode-pro/`
-sub-path resolves correctly.
+repository root. All asset, manifest and service-worker paths are relative, so
+the `/standby-mode-pro/` sub-path resolves correctly.
 
 **Vercel** — import the repository; the zero-config default is correct. The
 optional `api/sync.js` proxy activates automatically if present.
@@ -147,6 +174,9 @@ graph TD
     APP --> REG[js/core/registry.js<br/>central inventory]
     APP --> MR[js/components/modalRuntime.js]
     APP --> SCHED[js/core/scheduler.js<br/>single rAF loop]
+        PWA[js/core/pwa.js<br/>install + SW lifecycle]
+        ALARM[js/core/alarmScheduler.js<br/>absolute-time alarms]
+        NOTE[js/core/notifications.js]
 
     subgraph Core["js/core — infrastructure"]
         SCHEMA[schema.js<br/>versioning + migration]
@@ -154,6 +184,9 @@ graph TD
         SCHED
         ESC[escape.js<br/>escaping + safe URLs]
         A11Y[a11y.js<br/>focus, inert, motion]
+        PWA
+        ALARM
+        NOTE
     end
 
     subgraph State["js/state"]
@@ -178,11 +211,14 @@ graph TD
         SOLAR --> MORE[bigcrop · radial · day<br/>segmented · analogdigital<br/>amoled · lcars]
     end
 
-    subgraph Widgets["js/widgets — 9 widgets"]
+    subgraph Widgets["js/widgets — 12 widgets"]
         W1[weather] --> W2[calendar · media]
         W2 --> W3[timer · todo · tally]
         W3 --> W4[quote · photo · vibes]
+        W4 --> W5["js/features/<br/>alarm · habit · note"]
     end
+
+    SW["sw.js<br/>service worker<br/>precached offline shell"]
 
     subgraph UI["js/components — UI"]
         MR
@@ -223,6 +259,8 @@ graph TD
 | **Single rAF scheduler** | One animation loop for the whole app, paused when the tab is hidden. |
 | **Central registry** | Adding a clock or widget is one declaration, not an edit across several files. |
 | **Backend optional** | The app is fully functional with no server at all. |
+| **Offline-first** | The whole shell is precached, because a bedside clock that needs the network to show the time is not a bedside clock. |
+| **Icons generated from source** | `scripts/generate-icons.mjs` emits the PNGs using Node's built-in `zlib`, so they are reproducible and there is no image dependency. |
 
 ---
 

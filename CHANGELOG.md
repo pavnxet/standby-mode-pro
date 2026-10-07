@@ -11,6 +11,40 @@ Format follows [Conventional Commits](https://www.conventionalcommits.org/).
 
 ---
 
+## [Unreleased] — Phase 2: PWA, Alarms & Focus Widgets (Milestone M2)
+
+### Delivered and verified
+
+| Area | Change | Verification |
+|---|---|---|
+| PWA | **Installable PWA.** `manifest.webmanifest` with a 512px icon, a maskable icon, and 4 app shortcuts. All paths relative so the GitHub Pages sub-path resolves. | `TESTING.md` §3.19 |
+| PWA | **Service worker with a complete offline shell.** 59 app-shell assets precached; cache-first for same-origin, network-first for navigations and Open-Meteo, stale-while-revalidate for the CDNs, and a **hard passthrough for non-GET** so the Turso POST sync is never intercepted or served stale. | `TESTING.md` §3.18 — 59/59 resolvable from cache |
+| PWA | **Procedurally generated icons.** `scripts/generate-icons.mjs` emits valid PNGs using only Node's built-in `zlib` — no image dependency, no opaque checked-in binaries. | Rendered and visually inspected |
+| PWA | **Install affordance + offline indicator.** The banner is anchored bottom-centre so it never competes with the top bar. | Screenshot verified |
+| Alarms | **Alarm Manager.** The single largest functional gap against the market. Multiple alarms, labels, once/daily/weekly repeat with per-weekday selection, snooze, **gradual volume ramp**, and **sunrise simulation**. | `TESTING.md` §3.20 |
+| Alarms | **Absolute-time scheduling.** Alarms resolve to an epoch target, never a tick count, so a throttled or frozen background tab still fires on time. Re-checks on `visibilitychange` and `focus`. | `features.test.mjs` |
+| Alarms | **Honest about platform limits.** The UI states that alarms only fire while the tab is open when notifications are blocked, rather than implying guaranteed delivery. | Verified in-browser |
+| Notifications | **Permission runtime.** Never prompts on page load; requests only from a user gesture; tracks live instances by tag so a re-firing alarm cannot stack duplicate notifications. | `features.test.mjs` |
+| Widgets | **Notes** with length clamping, `textContent`-only rendering, and per-keyboard persistence instead of per-keystroke. | `TESTING.md` §3.22 |
+| Widgets | **Habit tracker** with a 12-week contribution grid, streaks, and a compact boolean log. | `TESTING.md` §3.23 |
+| Correctness | **Fixed a repeating-alarm re-fire loop.** Found during live verification: an alarm fired 7 times in 6 seconds because `effectiveFireTime` kept returning today's slot inside the grace window. Fixed with a `lastFiredDayKey` guard. | `TESTING.md` §3.20 |
+| A11y | **Fixed a contrast failure** introduced by the new install banner: white on `#3b82f6` at 10.4px is 3.67:1, below the 4.5:1 requirement. | Lighthouse back to 1.00 |
+
+### Lighthouse — exact measured scores
+
+| Category | After M1 | After M2 |
+|---|---|---|
+| Accessibility | 1.00 | **1.00** |
+| Best Practices | 1.00 | 1.00 |
+| SEO | 1.00 | 1.00 |
+| Performance | *not reported by tooling* | *not reported by tooling* |
+| PWA | *not reported by tooling* | *not reported by tooling* |
+
+**No Performance or PWA score is claimed.** The Lighthouse report contains no
+`pwa` category; installability is verified directly instead.
+
+---
+
 ## [Unreleased] — Phase 1 Foundation (Milestone M1)
 
 ### Delivered and verified
@@ -103,9 +137,9 @@ been estimated or fabricated.
 | ID | Feature | Status | Complexity |
 |---|---|---|---|
 | C1 | World clock widget | ⬜ Planned | M |
-| C2 | Alarm manager (repeat, snooze, gradual volume, sunrise) | ⬜ Planned | L |
-| C3 | Habit tracker | ⬜ Planned | M |
-| C4 | Notes / sticky notes | ⬜ Planned | S |
+| C2 | Alarm manager (repeat, snooze, gradual volume, sunrise) | ✅ Shipped | L |
+| C3 | Habit tracker | ✅ Shipped | M |
+| C4 | Notes / sticky notes | ✅ Shipped | S |
 | C5 | Countdown to event | ⬜ Planned | S |
 | C6 | Google-style agenda + ICS import | ⬜ Planned | M |
 | C7 | Stock & crypto ticker | ⬜ Planned | M |
@@ -161,9 +195,9 @@ been estimated or fabricated.
 
 | ID | Feature | Status | Complexity |
 |---|---|---|---|
-| G1 | Installable PWA (manifest, service worker, offline, shortcuts) | ⬜ Planned | M |
+| G1 | Installable PWA (manifest, service worker, offline, shortcuts) | ✅ Shipped | M |
 | G2 | Web Share API | ⬜ Planned | S |
-| G3 | Local notifications + reminder scheduling | ⬜ Planned | M |
+| G3 | Local notifications + reminder scheduling | ✅ Shipped | M |
 | G4 | Gamepad & remote-friendly navigation | ⬜ Planned | M |
 | G5 | Voice commands *(experimental)* | ⬜ Planned | M |
 | G6 | Notification & permission centre | ⬜ Planned | S |
@@ -206,9 +240,9 @@ been estimated or fabricated.
 
 | | Count |
 |---|---|
-| ✅ **Shipped and verified** | **12** |
+| ✅ **Shipped and verified** | **16** |
 | 🔶 Partially shipped | **1** |
-| ⬜ Planned | **43** |
+| ⬜ Planned | **39** |
 | **Total specified** | **56** |
 
 Per-feature detail, assumptions, dependencies, and risk: `FEATURE_PLAN.md`.
@@ -221,14 +255,24 @@ Verification evidence: `TESTING.md`.
 | Milestone | Scope | Status |
 |---|---|---|
 | **M1 — Foundation** | Design system groundwork, settings schema, layout groundwork, registry, a11y runtime | ✅ Complete |
-| **M2 — PWA + Alarms + Focus** | G1–G6, C1–C5, D1–D5, F1, F7 | ⬜ Not started |
+| **M2 — PWA + Alarms + Focus** | G1, G3, C2, C3, C4 | 🔶 **Partial** — PWA, notifications and the alarm manager shipped; G2, G4–G6, C1, C5, D1–D5, F1, F7 remain |
 | **M3 — Clocks & Widgets** | A2–A16, C6–C20 | ⬜ Not started |
 | **M4 — Audio & Visual** | E1–E7, F2–F6 | ⬜ Not started |
 | **M5 — Remainder** | I1–I6, H2–H6 polish | ⬜ Not started |
 
-**Reached: Milestone M1.** The application is fully functional, all 11 clock
-faces and 9 widgets were verified working, and Lighthouse Accessibility rose
-from 0.92 to 1.00.
+**Reached: Milestone M2 (partial).** The application is fully functional, all
+11 clock faces and 12 widgets were verified working, the app is installable and
+serves a complete offline shell, and Lighthouse Accessibility is 1.00.
+
+### Milestone 2 scope — what is and is not included
+
+Shipped: **G1** installable PWA, **G3** notifications, **C2** alarm manager,
+**C3** habit tracker, **C4** notes.
+
+Not started in M2: G2 (Web Share), G4 (gamepad), G5 (voice, experimental),
+G6 (permission centre), C1 (world clock), C5 (countdown), D1–D5 (focus
+overhaul, analytics, task estimates, distraction-free mode, ambient sync),
+F1 (scheduled night mode), F7 (screen-timeout rescue).
 
 ---
 

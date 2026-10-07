@@ -27,13 +27,17 @@ assertion → required files → registry consistency → `npm test` → size bu
 
 ### 2.1 Syntax
 ```
-node --check across 44 files in js/, scripts/, tests/
+node --check across 48 files in js/, scripts/, tests/, plus sw.js
 Result: 0 failures
 ```
 
-### 2.2 Unit tests — `tests/store.test.mjs`
+### 2.2 Unit tests
 ```
-tests 22 · pass 22 · fail 0
+tests/store.test.mjs    22 tests
+tests/audit.test.mjs    29 tests   (was 21 in Milestone 1)
+tests/features.test.mjs 29 tests   (new in Milestone 2)
+─────────────────────────────────────
+Total: 80 · pass 80 · fail 0
 ```
 Covered: schema migration preserves user edits; all four built-in spaces exist
 after migration; user-created spaces survive; partial `pomoState` is backfilled
@@ -41,6 +45,13 @@ without losing set values; session history is never discarded; a newer schema is
 refused; the legacy key is read, migrated and **never deleted**; corrupt JSON
 degrades to an error; `deepMerge` semantics; `escapeHtml` / `safeUrl` block
 `javascript:` and `data:text/html`; numeral conversion.
+
+`tests/features.test.mjs` additionally covers the alarm scheduling rules:
+later-today resolution, past-slot deferral, the 90-second grace window, absolute
+(not tick-count) targeting, weekly weekday advance, snooze override, malformed
+input, DST-safe local-hour scheduling, **and the regression where a repeating
+alarm re-fired every second**, plus notification permission-state handling and
+the new `alarms` / `habits` / `note` migration fields.
 
 ### 2.3 Audit regression tests — `tests/audit.test.mjs`
 ```
@@ -67,7 +78,13 @@ Missing local imports: none
 
 ### 2.6 Size budget
 ```
-Source JS: 286 KB / 400 KB budget (js/app.bundle.js excluded)
+Source JS: 313 KB / 400 KB budget (js/app.bundle.js excluded)
+```
+
+### 2.7 Service worker precache integrity
+```
+All 59 precached assets exist.
+All asset, manifest, and service worker paths are relative.
 ```
 
 ---
@@ -90,25 +107,30 @@ Server: `http://localhost:8099` (local `node scripts/serve.mjs`).
 
 ### 3.2 Lighthouse 13.4.1 — desktop form factor, local server
 
-| Category | Score |
-|---|---|
-| **Accessibility** | **1.00** (was **0.92** before this work) |
-| **Best Practices** | **1.00** |
-| **SEO** | **1.00** |
-| Performance | **NOT REPORTED** by the available tool |
-| PWA | **NOT REPORTED** by the available tool |
+| Category | Baseline | After M1 | After M2 |
+|---|---|---|---|
+| **Accessibility** | 0.92 | **1.00** | **1.00** |
+| **Best Practices** | 1.00 | 1.00 | 1.00 |
+| **SEO** | 1.00 | 1.00 | 1.00 |
+| Performance | *not reported* | *not reported* | *not reported* |
+| PWA | *not reported* | *not reported* | *not reported* |
 
 Failing audits: **none**.
 
-The one accessibility failure found mid-work was `label` — *"Form elements do not
-have associated labels"* — on four elements. Fixed by adding `label[for]` /
-`aria-label` to `customizeModal.js` and `todoWidget.js`. Re-audited: 0 failures.
+Two accessibility failures were found and fixed during this work:
+
+1. `label` — *"Form elements do not have associated labels"* on four controls.
+   Fixed by adding `label[for]` / `aria-label` to `customizeModal.js` and
+   `todoWidget.js`.
+2. `color-contrast` — white on `--accent-color` (#3b82f6) at 10.4px is only
+   3.67:1, failing the 4.5:1 requirement for small text. Found on the Milestone 2
+   install banner. Fixed by using `#1d4ed8` and raising the size to 0.7rem.
 
 > **Honest limitation:** the Performance and PWA categories could **not** be
 > measured. The available tooling exposes only Accessibility, Best Practices and
-> SEO. **No Performance or PWA score is claimed anywhere in this repository.**
-> The PWA target in `FEATURE_PLAN.md` G1 is unimplemented, so a PWA score would
-> be misleading if it were quoted.
+> SEO; the Lighthouse report contains no `pwa` category at all. **No Performance
+> or PWA score is claimed anywhere in this repository**, and none is estimated.
+> The installability *requirements* below are verified directly instead.
 
 ### 3.3 AUDIT D1 — media widget (was completely broken) — **PASS**
 Mounted the `media` widget into a probe panel and clicked every control.
@@ -247,6 +269,104 @@ integration-tested against a live database.**
 
 ---
 
+## 3.18 Milestone 2 — service worker and offline shell — **PASS**
+
+| Check | Expected | Observed |
+|---|---|---|
+| `serviceWorker` in navigator | true | true |
+| Worker script | `./sw.js` | `http://localhost:8099/sw.js` |
+| Scope | `./` | `http://localhost:8099/` |
+| State after ready | activated | activated |
+| Controls the page after reload | true | true |
+| Cache names | `standby-shell-v2`, `standby-runtime-v2` | both present |
+| Entries precached | 59 declared | **59 / 59 resolvable from cache** |
+| Non-GET interception | none | `sw.js` returns early for non-GET |
+
+### 3.19 Manifest — **PASS**
+
+| Field | Value |
+|---|---|
+| `name` / `short_name` | present |
+| `display` | `standalone` |
+| `start_url` / `scope` | `./index.html` / `./` — **relative** |
+| Icons | 4, including a **512px** and a **maskable** variant |
+| Shortcuts | 4 (Clock, Focus, Dashboard, Photos) |
+| All icons fetchable | 200, correct MIME types |
+
+Icons are generated reproducibly by `scripts/generate-icons.mjs` using only
+Node's built-in `zlib` — no image dependency and no opaque checked-in binaries.
+
+### 3.20 Alarm Manager (C2) — **PASS**
+
+| Step | Expected | Observed |
+|---|---|---|
+| Add alarm via UI | persisted | 06:00 + 07:45 in state |
+| Next-alarm readout | shows earliest | `06:00 · in 8 h` |
+| Toggle | flips `enabled` | verified |
+| Delete | removes | verified |
+| Alarm fires when due | fires once | **fired exactly 1×** in a 7s window |
+| Ring bar | visible, `role="alert"` | present, with Snooze and Dismiss |
+| Snooze | clears bar, sets badge, blocks re-fire | cleared, badge shown, **0 re-fires in 3s** |
+| Permission denied | honest explanation | "Notifications are blocked, so alarms only fire while this tab is open." |
+
+> **Bug found and fixed during verification.** The first run fired **7 times in 6
+> seconds**: `effectiveFireTime` kept returning today's slot inside the 90-second
+> grace window, so a repeating alarm re-fired on every tick. Fixed by recording
+> `lastFiredDayKey` on the alarm and deferring once it equals today's key.
+> Regression test added to `features.test.mjs`.
+
+> **A second, subtler failure:** the fix appeared not to work because the service
+> worker was serving the **stale cached module**. Clearing the registration and
+> caches confirmed the fix. That is the service worker working correctly, and a
+> reminder that a source change needs a new SW install to reach an already-open
+> tab.
+
+### 3.21 Alarm XSS probe — **PASS**
+
+Stored an alarm labelled `<img src=x onerror="window.__PWNED__=1">Wake`:
+
+| Check | Expected | Observed |
+|---|---|---|
+| `window.__PWNED__` | undefined | **undefined** |
+| `<img>` elements created | 0 | **0** |
+| Label rendered as literal text | yes | yes |
+
+### 3.22 Note widget (C4) — **PASS**
+
+Text containing `<b>`, `&` and `"` round-tripped intact through the widget, the
+store and localStorage. `user-select: text` is set so notes are selectable even
+though the page body is not.
+
+### 3.23 Habit tracker (C3) — **PASS**
+
+Add, toggle (84-cell grid, 1 lit), `aria-pressed` and delete all verified. Log
+days are stored as plain booleans; toggling off deletes the key rather than
+storing `false`. Unlabelled inputs: **0**.
+
+### 3.24 No regression — **PASS**
+
+| Set | Result |
+|---|---|
+| 11 clock faces mount | **11/11 ok** |
+| Widgets mount | **12/12 ok** (9 existing + alarm, note, habit) |
+| 4 layouts render | home/standalone, work/duo, night/quad, home/quad — all render |
+| Registry consistency | 11 clocks, 12 widgets, registry === engines |
+| Uncaught page errors | none |
+
+### 3.25 Offline behaviour — **PARTIAL**
+
+Network-offline emulation was **not available** in the tooling, so the app was
+never loaded with the network genuinely down. What *is* verified is the
+condition that makes offline work: **all 59 precached shell assets resolve from
+the cache**, and the fetch handler is cache-first for same-origin assets. That is
+strong evidence the shell is complete, but it is **not** a verified offline load
+and is not claimed as one.
+
+### 3.26 Audio — **NOT RUN**
+### 3.27 Turso cloud sync — **NOT RUN**
+
+---
+
 ## 4. Manual Test Checklist — Per Feature
 
 Format: **Steps → Expected → Edge cases.** Mark each when verified.
@@ -344,12 +464,14 @@ Format: **Steps → Expected → Edge cases.** Mark each when verified.
 | # | Gap | Reason |
 |---|---|---|
 | 1 | **Lighthouse Performance and PWA scores are unknown.** | The available tooling reports only Accessibility, Best Practices and SEO. Not estimated. |
-| 2 | **Responsive behaviour is essentially unchanged.** | Only the viewport meta was fixed. B4 (device-aware layouts) and F6 (TV mode) are planned, not built. The one existing media query remains 768px portrait-only. |
-| 3 | **`cdn.tailwindcss.com` still loads a runtime JIT compiler.** | Replacing it is a large diff needing owner approval (`FEATURE_PLAN.md` A2). It emits a production warning and is the largest render-blocking cost. |
-| 4 | **Audio paths unverified.** | Requires a real user gesture; not exercised in this session. |
-| 5 | **Turso sync unverified end-to-end.** | Endpoint unconfigured in this environment. |
-| 6 | **`js/app.bundle.js` still present (231 KB).** | Diverged from source and CI forbids its use; deletion needs owner approval (`FEATURE_PLAN.md` A8). |
-| 7 | **56 planned features are not implemented.** | This work delivered M1 foundation only. See `CHANGELOG.md` for the exact split. |
-| 8 | **No entitlement or paywall code added.** | Deliberate — `features to be implemented/MONETIZATION_PHASE_ROADMAP.md` Phase 0 forbids it. |
-| 9 | **Outstanding owner action from `learning/summary.md:75`:** revoke the previously exposed Turso token. | Not verifiable from code. |
-| 10 | **Firewalls blocked two third-party counters** in this environment. | `api.counterapi.dev` failed; the Abacus fallback was not exercised. Both are documented rot risks. |
+| 2 | **Offline loading was not tested with the network genuinely down.** | No network-emulation capability in the available tooling. Cache completeness (59/59) is verified instead. |
+| 3 | **Alarms cannot fire once the tab is closed.** | A platform limit, not a bug. The alarm UI states this explicitly and offers an in-page fallback. |
+| 4 | **Responsive behaviour is essentially unchanged.** | B4 (device-aware layouts) and F6 (TV mode) are planned, not built. The one existing media query remains 768px portrait-only. |
+| 5 | **`cdn.tailwindcss.com` still loads a runtime JIT compiler.** | Large diff, needs owner approval (`FEATURE_PLAN.md` A2). Largest render-blocking cost. |
+| 6 | **Audio paths unverified.** | Requires a real user gesture; not exercised. The alarm ramp and sunrise paths are therefore unverified at runtime. |
+| 7 | **Turso sync unverified end-to-end.** | Endpoint unconfigured in this environment. |
+| 8 | **`js/app.bundle.js` still present (231 KB).** | Diverged from source; CI forbids its use. Deletion needs owner approval. |
+| 9 | **41 planned features remain unimplemented.** | Milestones M3–M5. See `CHANGELOG.md`. |
+| 10 | **No entitlement or paywall code added.** | Deliberate — `MONETIZATION_PHASE_ROADMAP.md` Phase 0 forbids it. |
+| 11 | **Outstanding owner action from `learning/summary.md:75`:** revoke the previously exposed Turso token. | Not verifiable from code. |
+| 12 | **Firewalls blocked two third-party counters** in this environment. | `api.counterapi.dev` failed; the Abacus fallback was not exercised. Both are documented rot risks. |
