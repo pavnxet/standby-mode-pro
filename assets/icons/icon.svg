@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="StandBy Mode Pro">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#020617"/>
+    </linearGradient>
+    <linearGradient id="face" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1f2937"/>
+      <stop offset="1" stop-color="#111827"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+
+  <!-- Split-flap body, echoing the signature Retro 3D Flip clock face. -->
+  <rect x="72" y="150" width="368" height="212" rx="28" fill="url(#face)" stroke="#334155" stroke-width="6"/>
+  <line x1="256" y1="158" x2="256" y2="354" stroke="#0b1220" stroke-width="8"/>
+
+  <!-- Hour card -->
+  <rect x="98" y="178" width="132" height="156" rx="16" fill="#0b1220"/>
+  <!-- Minute card -->
+  <rect x="282" y="178" width="132" height="156" rx="16" fill="#0b1220"/>
+
+  <text x="164" y="300" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="112" font-weight="700"
+        fill="#f8fafc" text-anchor="middle" letter-spacing="-4">10</text>
+  <text x="348" y="300" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="112" font-weight="700"
+        fill="#f8fafc" text-anchor="middle" letter-spacing="-4">38</text>
+
+  <circle cx="256" cy="256" r="9" fill="#3b82f6"/>
+  <circle cx="256" cy="414" r="10" fill="#3b82f6"/>
+</svg>
