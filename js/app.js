@@ -2,6 +2,14 @@ import { store } from './state/store.js';
 import { tursoSync } from './state/tursoSync.js';
 import { registry } from './core/registry.js';
 import { installModalRuntime } from './components/modalRuntime.js';
+import { alarmScheduler } from './core/alarmScheduler.js';
+import {
+  registerServiceWorker,
+  initInstallPromptCapture,
+  isInstalled,
+  onInstallPromptChange,
+  promptInstall
+} from './core/pwa.js';
 import { clockEngine } from './engines/clockEngine.js';
 import { widgetEngine } from './engines/widgetEngine.js';
 import { soundEngine } from './engines/soundEngine.js';
@@ -21,6 +29,11 @@ import { segmentedClock } from './clocks/segmentedClock.js';
 import { analogDigitalClock } from './clocks/analogDigitalClock.js';
 import { amoledClock } from './clocks/amoledClock.js';
 import { lcarsClock } from './clocks/lcarsClock.js';
+
+// Milestone 2 features (FEATURE_PLAN C2, C3, C4)
+import { alarmWidget } from './features/alarmWidget.js';
+import { noteWidget } from './features/noteWidget.js';
+import { habitWidget } from './features/habitWidget.js';
 
 // Widgets
 import { weatherWidget } from './widgets/weatherWidget.js';
@@ -89,6 +102,11 @@ class App {
     registry.registerWidget('photo', photoWidget);
     registry.registerWidget('vibes', vibesWidget);
 
+    // Milestone 2 widgets. Registered through the same path as the legacy nine.
+    registry.registerWidget('alarm', alarmWidget);
+    registry.registerWidget('note', noteWidget);
+    registry.registerWidget('habit', habitWidget);
+
     // 2. Register All 9 Widgets
     widgetEngine.register('weather', weatherWidget);
     widgetEngine.register('calendar', calendarWidget);
@@ -99,6 +117,9 @@ class App {
     widgetEngine.register('quote', quoteWidget);
     widgetEngine.register('photo', photoWidget);
     widgetEngine.register('vibes', vibesWidget);
+    widgetEngine.register('alarm', alarmWidget);
+    widgetEngine.register('note', noteWidget);
+    widgetEngine.register('habit', habitWidget);
 
     // 3. Initialize Visualizer & Ambient Canvas
     const canvas = document.getElementById('ambient-canvas-layer');
@@ -139,6 +160,13 @@ class App {
 
     // 6. Initialize Hardware Protection & Screen Wake Lock
     burnInProtector.start();
+
+    // 6b. Alarms. Absolute-time scheduling, so a throttled or frozen background
+    // tab still fires every overdue alarm on return.
+    alarmScheduler.start();
+
+    // 6c. PWA: service worker plus the install affordance.
+    this.initPwa();
 
     // Unlock Web Audio API on first user interaction
     const unlockAudio = () => {
@@ -187,6 +215,78 @@ class App {
 
     // 8. Render Initial Active Stage
     this.renderStage();
+  }
+
+  /**
+   * Registers the service worker and wires an install affordance plus an
+   * offline indicator. Every path is relative so this resolves identically at
+   * the GitHub Pages sub-path and at the Vercel root.
+   */
+  initPwa() {
+    initInstallPromptCapture();
+
+    registerServiceWorker({
+      onState: (state) => {
+        if (state === 'update-available') {
+          // Do not swap the app out mid-session; tell the user instead.
+          window.__STANDBY_SW_UPDATE__ = true;
+        }
+      }
+    });
+
+    // Offline indicator. The clock itself keeps working offline; only the
+    // networked widgets degrade, which is what this communicates.
+    const syncOnline = () => document.body.classList.toggle('is-offline', !navigator.onLine);
+    window.addEventListener('online', syncOnline);
+    window.addEventListener('offline', syncOnline);
+    syncOnline();
+
+    if (isInstalled()) return;
+
+    onInstallPromptChange(({ available, installed }) => {
+      if (installed || !available) return;
+      this.showInstallBanner();
+    });
+
+    // The banner also appears once, on first visit, so a user who never
+    // triggers beforeinstallprompt still learns the app is installable.
+    if (!localStorage.getItem('standby_install_dismissed')) {
+      setTimeout(() => this.showInstallBanner(), 6000);
+    }
+  }
+
+  showInstallBanner() {
+    if (document.getElementById('pwa-install-banner')) return;
+
+    const banner = document.createElement('div');
+    banner.id = 'pwa-install-banner';
+    banner.className = 'pwa-banner';
+    banner.setAttribute('role', 'region');
+    banner.setAttribute('aria-label', 'Install this app');
+
+    const text = document.createElement('span');
+    text.textContent = 'Install for offline use';
+
+    const installBtn = document.createElement('button');
+    installBtn.type = 'button';
+    installBtn.textContent = 'Install';
+    installBtn.addEventListener('click', async () => {
+      const { outcome } = await promptInstall();
+      if (outcome !== 'accepted') banner.remove();
+    });
+
+    const dismiss = document.createElement('button');
+    dismiss.type = 'button';
+    dismiss.className = 'pwa-banner__dismiss';
+    dismiss.textContent = '×';
+    dismiss.setAttribute('aria-label', 'Dismiss install prompt');
+    dismiss.addEventListener('click', () => {
+      try { localStorage.setItem('standby_install_dismissed', '1'); } catch (e) {}
+      banner.remove();
+    });
+
+    banner.append(text, installBtn, dismiss);
+    document.getElementById('app-shell').prepend(banner);
   }
 
   reportLoadWarnings() {

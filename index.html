@@ -8,6 +8,14 @@
   <title>StandBy Mode Pro - Smart Clock &amp; Desk Display</title>
   <meta name="description" content="Turn your device into an aesthetic smart display with 3D Flip Clocks, Neon, Matrix, Solar dials, Duo/Quad widgets, Spaces, and ambient Vibes." />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%233b82f6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='10'/><polyline points='12 6 12 12 16 14'/></svg>" />
+  <!-- PWA: relative href so the GitHub Pages sub-path resolves. -->
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="assets/icons/icon-192.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="StandBy" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="color-scheme" content="dark" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;700;800&family=Space+Grotesk:wght@400;500;600;700;800&family=Syne:wght@700;800;900&family=VT323&display=swap" rel="stylesheet" />
@@ -21,6 +29,7 @@
   <link rel="stylesheet" href="css/main.css" />
   <link rel="stylesheet" href="css/clocks.css" />
   <link rel="stylesheet" href="css/widgets.css" />
+  <link rel="stylesheet" href="css/widgets-m2.css" />
   <!-- Must load last: it overrides focus rings, modal visibility and motion. -->
   <link rel="stylesheet" href="css/a11y.css" />
 </head>
@@ -30,6 +39,9 @@
   <div id="app-shell">
     <header id="top-bar" class="autohide-bar">
       <div class="flex items-center gap-2.5">
+        <span id="offline-badge" role="status" aria-live="polite">
+          <span aria-hidden="true">⚠</span> Offline
+        </span>
         <div class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 backdrop-blur-md text-xs font-mono text-neutral-300">
           <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
           <span id="battery-status-text">100% PWR</span>
