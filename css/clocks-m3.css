@@ -1,0 +1,921 @@
+/* StandBy Mode Pro - Styles for Milestone 3 clock faces
+ *
+ * Loads after css/clocks.css and css/a11y.css. Kept in a separate file for the
+ * same reason as widgets-m2.css: the pre-existing stylesheets stay untouched so
+ * the diff against master remains reviewable, and a face can be reverted by
+ * deleting one file plus its entry in js/clocks/index.js.
+ *
+ * Every rule here is scoped to a M3 face's own class. Nothing in here may
+ * restyle a legacy face, which is what keeps the 11 original clocks
+ * pixel-identical after this milestone.
+ */
+
+/* --- Container sizing --------------------------------------------------
+ *
+ * Every size below is expressed in `cqi` (percent of the panel's own inline
+ * size) rather than `vw`. A face can be mounted in a 220px Duo panel or a
+ * 1000px standalone stage, and `vw` measures the VIEWPORT in both cases - which
+ * produced 118px numerals inside a 223px panel. `cqi` measures the container,
+ * so a face fills whatever it is given.
+ *
+ * Where container queries are unsupported, `cqi` resolves against the small
+ * viewport, i.e. it degrades to exactly the previous `vw` behaviour. No
+ * @supports fallback is needed for that.
+ *
+ * This is applied only to the M3 wrappers. The legacy faces are untouched, so
+ * the 11 original clocks keep their existing pixel-for-pixel rendering.
+ */
+.word-clock-wrapper,
+.binary-clock-wrapper,
+.roman-clock-wrapper,
+.analog-wrapper,
+.terminator-wrapper,
+.moon-clock-wrapper,
+.gradient-clock-wrapper,
+.tide-wrapper,
+.persian-wrapper,
+.braille-wrapper,
+.departure-wrapper,
+.dotmatrix-wrapper,
+.worldclock-wrapper,
+.sunarc-wrapper,
+.yearclock-wrapper {
+  container-type: inline-size;
+  container-name: face;
+}
+
+/* --- Analog dial primitives (shared by the four analog skins) ---------- */
+.analog-stage {
+  display: grid;
+  place-items: center;
+  /* The dial's viewBox is a fixed 280-unit square, so the element scales to the
+     panel. Without the width/height pair an SVG falls back to its intrinsic
+     size and overflows any panel narrower than that. */
+  width: min(100%, 18rem);
+  aspect-ratio: 1;
+}
+
+.analog-dial {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.dial-bezel {
+  fill: none;
+  stroke: var(--border-subtle);
+  stroke-width: 2;
+}
+
+.dial-face {
+  fill: rgba(255, 255, 255, 0.02);
+}
+
+.dial-ticks line {
+  stroke: var(--text-muted);
+}
+
+.dial-numeral {
+  fill: var(--text-secondary);
+  font-family: var(--font-sans);
+  font-weight: 600;
+}
+
+.dial-hand {
+  fill: var(--text-primary);
+}
+
+/* Second hand is the accent on a classic dial, plain on the others. */
+.dial-hand--second {
+  fill: var(--accent-color);
+}
+
+.dial-pin {
+  fill: var(--text-primary);
+}
+
+/* Shown when the clock is configured without seconds. SVGElement has no
+   `hidden` IDL attribute, so the visibility toggle is a class. */
+.dial-hand--hidden {
+  display: none;
+}
+
+/* Skin variants. Each overrides only the face and hand colours. */
+.analog-skin--sport .dial-face {
+  fill: #0d1117;
+}
+
+.analog-skin--sport .dial-hand--second {
+  fill: var(--danger-color);
+}
+
+.analog-skin--minimal .dial-bezel,
+.analog-skin--minimal .dial-ticks line {
+  display: none;
+}
+
+.analog-skin--minimal .dial-hand {
+  fill: var(--text-secondary);
+}
+
+.analog-skin--minimal .dial-hand--hour {
+  fill: var(--text-primary);
+}
+
+.analog-skin--vintage .dial-face {
+  fill: #e8dfc8;
+}
+
+.analog-skin--vintage .dial-numeral {
+  fill: #2b2115;
+}
+
+.analog-skin--vintage .dial-ticks line {
+  stroke: #5c4a32;
+}
+
+.analog-skin--vintage .dial-hand {
+  fill: #2b2115;
+}
+
+.analog-skin--vintage .dial-hand--second {
+  fill: #8a3b2b;
+}
+
+.analog-skin--vintage .dial-pin {
+  fill: #2b2115;
+}
+
+.analog-ampm,
+.analog-date {
+  margin-top: 0.5rem;
+  font-family: var(--font-mono);
+  font-size: 0.85rem;
+  letter-spacing: 0.18em;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+}
+
+/* --- Word clock (A2) --------------------------------------------------- */
+.word-clock__lead,
+.word-clock__phrase,
+.word-clock__ampm {
+  font-family: var(--font-serif);
+  font-weight: 400;
+  line-height: 1.1;
+}
+
+.word-clock {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.15em 0.35em;
+  padding: 0 clamp(0.5rem, 3cqi, 2rem);
+  text-align: center;
+}
+
+.word-clock__lead {
+  font-size: clamp(1.5rem, 5cqi, 3rem);
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.word-clock__phrase {
+  font-size: clamp(2.2rem, 9cqi, 6rem);
+  color: var(--text-primary);
+}
+
+.word-clock__ampm {
+  font-family: var(--font-sans);
+  font-size: clamp(0.9rem, 2.5cqi, 1.4rem);
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  color: var(--accent-color);
+}
+
+.word-clock__date {
+  margin-top: 0.75rem;
+  font-family: var(--font-sans);
+  font-size: clamp(0.7rem, 1.8cqi, 1rem);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+/* --- Binary clock (A3) -------------------------------------------------- */
+.binary-clock {
+  display: flex;
+  align-items: center;
+  gap: clamp(0.25rem, 1.2cqi, 0.75rem);
+}
+
+.binary-group {
+  display: flex;
+  gap: clamp(0.2rem, 0.9cqi, 0.5rem);
+}
+
+.binary-digit {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: clamp(0.12rem, 0.5cqi, 0.28rem);
+  padding: clamp(0.2rem, 0.7cqi, 0.4rem);
+  border-radius: 0.4rem;
+  background: rgba(0, 0, 0, 0.45);
+  border: 1px solid var(--border-subtle);
+}
+
+.binary-led {
+  width: clamp(0.5rem, 2.2cqi, 1.15rem);
+  height: clamp(0.5rem, 2.2cqi, 1.15rem);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.07);
+  transition: background-color 90ms linear, box-shadow 90ms linear;
+}
+
+.binary-led--on {
+  background: #f8fafc;
+  box-shadow: 0 0 8px rgba(248, 250, 252, 0.75);
+}
+
+.binary-sep {
+  width: clamp(0.18rem, 0.7cqi, 0.35rem);
+  height: clamp(0.9rem, 4cqi, 2.2rem);
+  border-radius: 0.2rem;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.binary-sep--on {
+  background: #f8fafc;
+  box-shadow: 0 0 6px rgba(248, 250, 252, 0.6);
+}
+
+.binary-ampm,
+.binary-date {
+  margin-top: 0.6rem;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  letter-spacing: 0.18em;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+}
+
+/* --- Roman numeral clock (A4) ------------------------------------------ */
+.roman-clock {
+  display: flex;
+  align-items: baseline;
+  gap: 0.08em;
+  font-family: var(--font-serif);
+  font-size: clamp(2.6rem, 10cqi, 7rem);
+  line-height: 1;
+  color: var(--text-primary);
+}
+
+.roman-divider {
+  color: var(--text-muted);
+  animation: roman-blink 2s steps(1) infinite;
+}
+
+.roman-seconds {
+  margin-left: 0.4em;
+  font-family: var(--font-mono);
+  font-size: 0.32em;
+  color: var(--text-secondary);
+}
+
+.roman-ampm,
+.roman-date {
+  margin-top: 0.5rem;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  letter-spacing: 0.18em;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+}
+
+@keyframes roman-blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0.25; }
+}
+
+/* --- Day / night terminator map (A6) ----------------------------------- */
+.terminator-map {
+  width: 100%;
+  height: auto;
+  max-height: 62%;
+  border-radius: var(--card-radius);
+}
+
+.terminator-ocean {
+  fill: #0a1424;
+}
+
+.terminator-land {
+  /* Filled, not stroked: an outline-only map reads as a scribble at this size. */
+  fill: #22344a;
+  stroke: #3d5878;
+  stroke-width: 0.4;
+  stroke-linejoin: round;
+}
+
+/* Drawn under the land so the night side tints the sea and land together. */
+.terminator-shadow {
+  fill: rgba(2, 6, 16, 0.62);
+  stroke: none;
+}
+
+.terminator-line {
+  fill: none;
+  stroke: rgba(251, 191, 36, 0.75);
+  stroke-width: 1.2;
+}
+
+.terminator-sunpoint {
+  fill: #fbbf24;
+  filter: drop-shadow(0 0 8px rgba(251, 191, 36, 0.9));
+}
+
+.terminator-readout {
+  margin-top: 0.5rem;
+  text-align: center;
+}
+
+.terminator-clock {
+  font-family: var(--font-mono);
+  font-size: clamp(1.4rem, 5cqi, 2.6rem);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.terminator-note {
+  margin: 0.25rem 0 0;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+/* --- Moon phase clock (A7) --------------------------------------------- */
+/* Stacks below the disc once the panel is too narrow to sit side by side,
+   so the moon never has to shrink into illegibility. */
+.moon-clock {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0 0.5rem;
+  text-align: center;
+}
+
+.moon-disc {
+  flex: 0 0 auto;
+  width: clamp(4.5rem, 34cqi, 8.25rem);
+  height: auto;
+}
+
+.moon-shadow {
+  fill: #0b1220;
+  stroke: var(--border-subtle);
+  stroke-width: 1;
+}
+
+.moon-meta {
+  text-align: center;
+}
+
+.moon-name {
+  font-family: var(--font-sans);
+  font-size: clamp(0.95rem, 6cqi, 1.6rem);
+  font-weight: 700;
+  line-height: 1.15;
+  color: var(--text-primary);
+}
+
+.moon-illum,
+.moon-date,
+.moon-time {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  letter-spacing: 0.12em;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+}
+
+.moon-time {
+  margin-top: 0.6rem;
+}
+
+/* --- Minimal gradient clock (A8) --------------------------------------- */
+.gradient-clock-wrapper {
+  background: radial-gradient(120% 90% at 50% 15%, #101420 0%, #05060a 65%, #05060a 100%);
+  transition: background 900ms ease;
+}
+
+.gradient-clock-time {
+  font-family: var(--font-sans);
+  font-weight: 200;
+  font-size: clamp(3rem, 13cqi, 9rem);
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+
+.gradient-clock-seconds {
+  font-family: var(--font-mono);
+  font-size: clamp(1rem, 3.5cqi, 2rem);
+  color: hsl(var(--gradient-hue, 240) 70% 72%);
+}
+
+.gradient-clock-ampm,
+.gradient-clock-date {
+  margin-top: 0.5rem;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  letter-spacing: 0.2em;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+}
+
+/* --- Tide & sun clock (A9) --------------------------------------------- */
+.tide-svg {
+  width: 100%;
+  height: auto;
+  max-height: 48%;
+}
+
+.tide-arc-bg,
+.tide-horizon {
+  fill: none;
+  stroke: var(--border-subtle);
+  stroke-width: 1.5;
+}
+
+.tide-arc {
+  fill: none;
+  stroke: var(--warning-color);
+  stroke-width: 3;
+  stroke-linecap: round;
+  opacity: 0.85;
+}
+
+.tide-sun {
+  fill: var(--warning-color);
+  filter: drop-shadow(0 0 8px rgba(245, 158, 11, 0.8));
+}
+
+.tide-moon {
+  fill: #cbd5e1;
+}
+
+.tide-info {
+  margin-top: 0.5rem;
+  width: 100%;
+  max-width: 22rem;
+}
+
+.tide-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.2rem 0;
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 0.8rem;
+}
+
+.tide-label {
+  color: var(--text-muted);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.tide-value {
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+  text-align: right;
+}
+
+.tide-note {
+  margin: 0.6rem 0 0;
+  max-width: 26rem;
+  font-size: 0.7rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+/* --- Persian numerals clock (A10) -------------------------------------- */
+.persian-wrapper {
+  transition: background 1200ms ease;
+}
+
+.persian-wrapper--night {
+  background: radial-gradient(90% 70% at 50% 100%, #131a33 0%, transparent 70%);
+}
+
+.persian-time {
+  font-family: var(--font-sans);
+  font-weight: 700;
+  font-size: clamp(3rem, 13cqi, 9rem);
+  line-height: 1.1;
+  color: var(--text-primary);
+  direction: ltr;
+}
+
+.persian-period {
+  margin-top: 0.35rem;
+  font-size: clamp(0.9rem, 2.5cqi, 1.35rem);
+  color: var(--accent-color);
+}
+
+.persian-date {
+  margin-top: 0.5rem;
+  font-family: var(--font-sans);
+  font-size: 0.8rem;
+  letter-spacing: 0.12em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+}
+
+/* --- Braille clock (A11) ----------------------------------------------- */
+.braille-cells {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.1em;
+  max-width: 100%;
+  padding: 0.4rem 0.5rem;
+  border-radius: 0.6rem;
+  background: #1a1a1f;
+  border: 1px solid var(--border-subtle);
+  /* Dots must stay sharp; smoothing them turns raised cells into grey blobs. */
+  -webkit-font-smoothing: none;
+  font-smoothing: none;
+}
+
+.braille-cell {
+  font-size: clamp(1.6rem, 6cqi, 3.4rem);
+  line-height: 1.1;
+  color: var(--text-primary);
+}
+
+.braille-digital {
+  margin-top: 0.6rem;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  letter-spacing: 0.14em;
+  color: var(--text-muted);
+}
+
+.braille-ampm,
+.braille-date {
+  margin-top: 0.4rem;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  letter-spacing: 0.16em;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+}
+
+/* Explanatory copy is hidden on small panels rather than truncated mid
+   sentence, and always remains available to assistive technology. */
+.braille-hint {
+  margin: 0.7rem 0 0;
+  max-width: 24rem;
+  font-size: 0.7rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+@container face (max-width: 22rem) {
+  .braille-hint {
+    display: none;
+  }
+}
+
+/* --- Departure board (A12) --------------------------------------------- */
+.departure-board {
+  display: flex;
+  align-items: center;
+  gap: clamp(0.12rem, 0.5cqi, 0.3rem);
+  padding: clamp(0.4rem, 1.4cqi, 0.9rem);
+  border-radius: 0.5rem;
+  background: #16161a;
+  border: 1px solid var(--border-subtle);
+}
+
+.departure-cell {
+  display: grid;
+  place-items: center;
+  width: clamp(0.8rem, 3.4cqi, 2rem);
+  height: clamp(1.1rem, 4.8cqi, 2.8rem);
+  border-radius: 0.25rem;
+  background: linear-gradient(180deg, #26262e 0%, #1a1a20 48%, #14141a 52%, #202028 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.09);
+  overflow: hidden;
+}
+
+.departure-char {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: clamp(0.7rem, 3cqi, 1.8rem);
+  color: #f2f2f8;
+}
+
+.departure-cell--colon {
+  background: none;
+  box-shadow: none;
+  width: clamp(0.3rem, 1.2cqi, 0.7rem);
+}
+
+.departure-cell--colon .departure-char {
+  animation: roman-blink 2s steps(1) infinite;
+}
+
+/* The flip itself: a short rotateX on the card face. */
+.departure-char--flipping {
+  animation: departure-flip 260ms ease-in-out;
+}
+
+@keyframes departure-flip {
+  0% { transform: rotateX(0deg); }
+  50% { transform: rotateX(-88deg); }
+  100% { transform: rotateX(0deg); }
+}
+
+.departure-date {
+  margin-top: 0.6rem;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.2em;
+  color: var(--text-secondary);
+}
+
+/* --- Dot matrix clock (A13) -------------------------------------------- */
+.dotmatrix-clock {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(0.1rem, 0.4cqi, 0.25rem);
+  /* The glyph SVGs carry no fixed width, so the face sizes itself from the
+     container and never overflows the panel it is mounted in. */
+  width: 100%;
+  max-width: 34rem;
+  padding: 0 0.25rem;
+}
+
+.dotmatrix-char {
+  display: block;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* An SVG with a viewBox but no width/height resolves against its own box,
+   which collapses to the 100x100 default. These two lines are what make the
+   face fill the row instead of rendering at 24px. */
+.dotmatrix-char > svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.dm-on {
+  fill: #f8fafc;
+}
+
+.dm-off {
+  fill: rgba(255, 255, 255, 0.045);
+}
+
+.dotmatrix-ampm,
+.dotmatrix-date {
+  margin-top: 0.5rem;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  letter-spacing: 0.18em;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+}
+
+/* --- World clock (A14) ------------------------------------------------- */
+.worldclock-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  padding: clamp(0.6rem, 2.5cqi, 1.4rem) clamp(1rem, 4cqi, 2.5rem);
+  border-radius: var(--card-radius);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  cursor: pointer;
+  user-select: none;
+}
+
+.worldclock-city {
+  font-family: var(--font-sans);
+  font-size: clamp(0.8rem, 2.4cqi, 1.15rem);
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.worldclock-time {
+  font-family: var(--font-mono);
+  font-size: clamp(2.2rem, 9cqi, 5rem);
+  font-weight: 700;
+  line-height: 1;
+  color: var(--text-primary);
+}
+
+.worldclock-offset {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.14em;
+  color: var(--accent-color);
+}
+
+.worldclock-dots {
+  display: flex;
+  gap: 0.35rem;
+  margin-top: 0.3rem;
+}
+
+.worldclock-dot {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 50%;
+  background: var(--text-muted);
+  cursor: pointer;
+}
+
+.worldclock-dot--on {
+  background: var(--accent-color);
+  box-shadow: 0 0 6px var(--accent-glow);
+}
+
+/* --- Sunrise / sunset arc (A15) ---------------------------------------- */
+.sunarc-svg {
+  width: 100%;
+  height: auto;
+  max-height: 50%;
+}
+
+.sunarc-arc-bg,
+.sunarc-horizon {
+  fill: none;
+  stroke: var(--border-subtle);
+  stroke-width: 1.5;
+}
+
+.sunarc-arc-day {
+  fill: none;
+  stroke: var(--warning-color);
+  stroke-width: 3;
+  stroke-linecap: round;
+  opacity: 0.9;
+}
+
+.sunarc-sun {
+  fill: var(--warning-color);
+  filter: drop-shadow(0 0 8px rgba(245, 158, 11, 0.85));
+}
+
+.sunarc-sun--below {
+  fill: var(--text-muted);
+  filter: none;
+}
+
+.sunarc-tick {
+  fill: var(--text-muted);
+}
+
+.sunarc-now {
+  margin-top: 0.35rem;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.sunarc-facts {
+  margin: 0.5rem 0 0;
+  width: 100%;
+  max-width: 22rem;
+  display: grid;
+  gap: 0.15rem;
+}
+
+.sunarc-fact {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.2rem 0;
+  border-bottom: 1px solid var(--border-subtle);
+  font-size: 0.8rem;
+}
+
+.sunarc-fact dt {
+  color: var(--text-muted);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.sunarc-fact dd {
+  margin: 0;
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+}
+
+.sunarc-empty {
+  padding: 0.5rem 0;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+/* --- Clock of the year (A16) ------------------------------------------- */
+.yearclock-main {
+  position: relative;
+  display: grid;
+  place-items: center;
+  /* Same reasoning as the analog dial: a viewBox alone does not scale an SVG,
+     it still lays out at its intrinsic pixel size. */
+  width: min(100%, 13.75rem);
+  aspect-ratio: 1;
+}
+
+.yearclock-ring {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.yearclock-track,
+.yearclock-progress {
+  fill: none;
+  stroke-width: 6;
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+}
+
+.yearclock-track {
+  stroke: rgba(255, 255, 255, 0.08);
+}
+
+.yearclock-progress {
+  stroke: var(--accent-color);
+  stroke-linecap: round;
+  transition: stroke-dashoffset 600ms ease;
+}
+
+.yearclock-centre {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  text-align: center;
+}
+
+.yearclock-day {
+  font-family: var(--font-sans);
+  font-weight: 800;
+  font-size: clamp(1.8rem, 22cqi, 4rem);
+  line-height: 1;
+  color: var(--text-primary);
+}
+
+.yearclock-of {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  letter-spacing: 0.16em;
+  color: var(--text-muted);
+}
+
+.yearclock-time {
+  margin-top: 0.6rem;
+  font-family: var(--font-mono);
+  font-size: clamp(0.9rem, 2.6cqi, 1.25rem);
+  color: var(--text-secondary);
+}
+
+/* --- Reduced motion ---------------------------------------------------- */
+/* The Word and Braille faces are static text, but several M3 faces animate a
+   blinking colon or a tint wash. Honour the same preference the rest of the app
+   already does. */
+@media (prefers-reduced-motion: reduce) {
+  .roman-divider,
+  .departure-cell--colon .departure-char {
+    animation: none;
+    opacity: 1;
+  }
+
+  .departure-char--flipping {
+    animation: none;
+  }
+
+  .gradient-clock-wrapper,
+  .persian-wrapper,
+  .yearclock-progress {
+    transition: none;
+  }
+}
