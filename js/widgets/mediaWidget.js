@@ -27,6 +27,9 @@ export const mediaWidget = {
     let lyricLine = 0;
     let lyricInterval = null;
 
+    // AUDIT.md D1 (HIGH): store.updateMediaState() did not exist, so every click on
+    // play/pause/next/prev threw a TypeError before any state changed. The
+    // setter has been added to store.js.
     const persist = (updates) => store.updateMediaState(updates);
 
     const render = () => {

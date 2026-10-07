@@ -1,4 +1,20 @@
-const STORAGE_KEY = "standby_mode_pro_v1";
+/* StandBy Mode Pro - Central Reactive State Manager
+ *
+ * Persistence is owned by js/core/schema.js (schema versioning + migration).
+ * Before that module existed this file had no version field at all and only
+ * shallow-merged `currentUser`, `tursoConfig`, `stats` and `pomoState`, which
+ * meant a saved payload missing any other key produced `undefined` for that key.
+ * loadState() now delegates to the migration engine, which deep-merges every
+ * top-level key.
+ */
+import {
+  SCHEMA_VERSION,
+  loadPersistedState,
+  savePersistedState,
+  deepMerge,
+  isPlainObject
+} from "../core/schema.js";
+import { applyAccessibilitySettings } from "../core/a11y.js";
 
 const defaultState = {
   activeSpaceId: "home",
@@ -150,67 +166,132 @@ const defaultState = {
 export class Store {
   constructor() {
     this.listeners = new Set();
+    /** Non-fatal load problems worth surfacing to the user. */
+    this.loadWarnings = [];
     this.state = this.loadState();
+
+    // Apply accessibility preferences from the very first paint of JS so the
+    // user never sees a flash of the wrong contrast or motion setting.
+    applyAccessibilitySettings(this.state.accessibility);
   }
 
   loadState() {
+    this.loadWarnings = [];
+
+    let storage = null;
     try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        const loadedUser = parsed.currentUser || {};
-        let finalUserId = loadedUser.userId;
-        if (!finalUserId) {
-          // Check dedicated user storage or generate unique ID
-          finalUserId = localStorage.getItem("standby_user_id") || ("usr_" + Math.random().toString(36).substring(2, 8) + Date.now().toString(36).slice(-4));
-          try { localStorage.setItem("standby_user_id", finalUserId); } catch(e) {}
-        }
-        return {
-          ...defaultState,
-          ...parsed,
-          currentUser: {
-            userId: finalUserId,
-            displayName: loadedUser.displayName || ("User " + finalUserId.slice(-4).toUpperCase()),
-            createdAt: loadedUser.createdAt || Date.now()
-          },
-          keepScreenAwake: parsed.keepScreenAwake !== undefined ? parsed.keepScreenAwake : true,
-          tursoConfig: {
-            ...defaultState.tursoConfig,
-            ...(parsed.tursoConfig || {})
-          },
-          stats: {
-            ...defaultState.stats,
-            ...(parsed.stats || {})
-          },
-          pomoState: {
-            ...defaultState.pomoState,
-            ...(parsed.pomoState || {}),
-            settings: {
-              ...defaultState.pomoState.settings,
-              ...((parsed.pomoState && parsed.pomoState.settings) || {})
-            }
-          }
-        };
-      }
+      storage = window.localStorage;
+      // Probe once: Safari private mode throws on access, not just on write.
+      storage.getItem("standby_user_id");
     } catch (e) {
-      console.warn("LocalStorage unavailable:", e);
+      this.loadWarnings.push("Browser storage is unavailable. Settings will not persist this session.");
+      storage = null;
     }
-    const defaultUserId = "usr_" + Math.random().toString(36).substring(2, 8) + Date.now().toString(36).slice(-4);
-    try { localStorage.setItem("standby_user_id", defaultUserId); } catch(e) {}
-    return {
-      ...defaultState,
-      currentUser: {
-        userId: defaultUserId,
-        displayName: "User " + defaultUserId.slice(-4).toUpperCase(),
-        createdAt: Date.now()
+
+    if (storage) {
+      const result = loadPersistedState(storage, defaultState, SCHEMA_VERSION);
+
+      if (result.error) {
+        const isTooNew = result.error.code === "SCHEMA_TOO_NEW";
+        this.loadWarnings.push(result.error.message);
+        if (isTooNew) {
+          // Never reset a newer payload. Boot with defaults and tell the user.
+          return this._withIdentity({ ...defaultState });
+        }
       }
+
+      if (result.state) {
+        if (result.migrated) {
+          this.loadWarnings.push("Settings upgraded to the latest format. Your original data was kept.");
+          // Write the migrated payload under the new key. The legacy key stays
+          // untouched on purpose so a failed write never loses the original.
+          savePersistedState(storage, result.state);
+        }
+        return this._withIdentity(result.state);
+      }
+    }
+
+    return this._withIdentity({ ...defaultState });
+  }
+
+  /** Guarantees a valid, persisted user id on every state object. */
+  _withIdentity(state) {
+    const next = state;
+    const currentUser = isPlainObject(next.currentUser) ? { ...next.currentUser } : {};
+
+    let userId = currentUser.userId;
+    if (!userId) {
+      try {
+        userId = window.localStorage.getItem("standby_user_id");
+      } catch (e) { /* storage unavailable */ }
+
+      if (!userId) {
+        userId = "usr_" + Math.random().toString(36).substring(2, 8) + Date.now().toString(36).slice(-4);
+        try { window.localStorage.setItem("standby_user_id", userId); } catch (e) {}
+      }
+    }
+
+    next.currentUser = {
+      userId,
+      displayName: currentUser.displayName || ("User " + String(userId).slice(-4).toUpperCase()),
+      createdAt: currentUser.createdAt || Date.now()
     };
+
+    next.keepScreenAwake = next.keepScreenAwake !== undefined ? next.keepScreenAwake : true;
+    next.schema = {
+      version: SCHEMA_VERSION,
+      migratedFrom: (next.schema && next.schema.migratedFrom) || SCHEMA_VERSION,
+      migratedAt: (next.schema && next.schema.migratedAt) || null
+    };
+
+    return next;
   }
 
   saveState() {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.state));
-    } catch (e) {}
+      const result = savePersistedState(window.localStorage, this.state);
+      if (!result.ok && result.error && result.error.name !== "QuotaExceededError") {
+        console.warn("State could not be saved:", result.error);
+      }
+      return result;
+    } catch (e) {
+      console.warn("LocalStorage unavailable:", e);
+      return { ok: false, error: e };
+    }
+  }
+
+  /** Returns the list of non-fatal load problems. Empty on a clean load. */
+  getLoadWarnings() {
+    return this.loadWarnings.slice();
+  }
+
+  /** Destructive reset. Used by Settings → Reset and by the Backup module. */
+  resetToDefaults() {
+    this.state = this._withIdentity({ ...defaultState });
+    this.notify("state_reset", this.state);
+    return this.state;
+  }
+
+  /**
+   * Replaces state from a validated backup payload (js/core/backup.js).
+   * Refuses unknown schema versions rather than silently discarding user data.
+   */
+  replaceState(incoming, { preserveIdentity = true } = {}) {
+    if (!isPlainObject(incoming)) {
+      throw new TypeError("replaceState expects a plain object");
+    }
+    const incomingVersion = isPlainObject(incoming.schema) ? incoming.schema.version : undefined;
+    if (incomingVersion !== undefined && incomingVersion > SCHEMA_VERSION) {
+      throw new Error(
+        `Backup uses schema v${incomingVersion}; this build supports v${SCHEMA_VERSION}.`
+      );
+    }
+    const preservedId = preserveIdentity ? this.state.currentUser.userId : null;
+    const merged = deepMerge(defaultState, incoming);
+    this.state = this._withIdentity(merged);
+    if (preservedId) this.state.currentUser.userId = preservedId;
+    this.notify("state_restored", this.state);
+    return this.state;
   }
 
   getState() {
@@ -667,6 +748,71 @@ export class Store {
   incrementTally(key, step = 1) {
     this.state.tallies[key] = (this.state.tallies[key] || 0) + step;
     this.notify("tally_updated", this.state.tallies);
+  }
+
+  // --- Media State Actions ---
+  // Added to fix AUDIT.md D1: mediaWidget.js:30 called store.updateMediaState(),
+  // which did not exist. Play/pause/next/prev threw a TypeError before any
+  // state changed, so the media widget was entirely non-functional.
+
+  /**
+   * @param {Partial<{isPlaying: boolean, currentTrackIndex: number,
+   *   progressPercent: number, volume: number, trackTitle: string,
+   *   trackArtist: string}>} updates
+   */
+  updateMediaState(updates) {
+    if (!isPlainObject(updates)) return this.state.mediaState;
+    const current = isPlainObject(this.state.mediaState) ? this.state.mediaState : {};
+    this.state.mediaState = { ...current, ...updates };
+    this.notify("media_state_updated", this.state.mediaState);
+    return this.state.mediaState;
+  }
+
+  // --- Accessibility Actions ---
+  updateAccessibility(updates) {
+    this.state.accessibility = { ...this.state.accessibility, ...updates };
+    applyAccessibilitySettings(this.state.accessibility);
+    this.notify("accessibility_updated", this.state.accessibility);
+    return this.state.accessibility;
+  }
+
+  // --- Theme Actions ---
+  setTheme(themeId, custom = null) {
+    this.state.theme = { ...this.state.theme, id: themeId, custom };
+    document.documentElement.dataset.theme = themeId;
+    this.notify("theme_changed", this.state.theme);
+    return this.state.theme;
+  }
+
+  // --- Spaces v2 Actions ---
+  /** Creates a user-defined space. Built-in ids are protected. */
+  addSpace(space) {
+    if (!isPlainObject(space) || !space.id) return null;
+    if (this.state.spaces[space.id]) return null;
+    this.state.spaces[space.id] = {
+      name: space.id,
+      icon: "grid",
+      layout: "standalone",
+      clockId: "flip",
+      widgets: ["weather"],
+      quadWidgets: ["weather", "calendar", "media", "timer"],
+      vibe: "none",
+      themeColor: "#3b82f6",
+      ...space
+    };
+    this.notify("spaces_updated", this.state.spaces);
+    return this.state.spaces[space.id];
+  }
+
+  removeSpace(spaceId) {
+    // The four canonical spaces are required by the keyboard shortcut bindings
+    // (app.js binds 1-4 to home/work/focus/night) and by the migration defaults.
+    if (["home", "work", "focus", "night"].includes(spaceId)) return false;
+    if (!this.state.spaces[spaceId]) return false;
+    delete this.state.spaces[spaceId];
+    if (this.state.activeSpaceId === spaceId) this.state.activeSpaceId = "home";
+    this.notify("spaces_updated", this.state.spaces);
+    return true;
   }
 
   resetTally(key) {
