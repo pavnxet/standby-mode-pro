@@ -123,9 +123,11 @@ jobs:
                    js/features/alarmWidget.js js/features/noteWidget.js \
                    js/features/habitWidget.js \
                    js/clocks/_shared/numeralMap.js \
+                   js/clocks/_shared/primitives.js js/clocks/_shared/solarMath.js \
+                   js/clocks/_shared/words.js js/clocks/index.js \
                    js/engines/clockEngine.js js/engines/widgetEngine.js \
                    css/main.css css/clocks.css css/widgets.css css/a11y.css \
-                   css/widgets-m2.css \
+                   css/clocks-m3.css css/widgets-m2.css \
                    assets/icons/icon.svg assets/icons/icon-192.png \
                    assets/icons/icon-512.png assets/icons/icon-maskable-512.png \
                    package.json; do
