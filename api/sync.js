@@ -18,13 +18,21 @@ export default async function handler(req, res) {
   const ownerSecret = process.env.OWNER_SECRET_KEY;
   const authHeader = req.headers['authorization'];
   
-  if (ownerSecret) {
-    if (!authHeader || authHeader !== `Bearer ${ownerSecret}`) {
-      return res.status(401).json({
-        error: 'Unauthorized: Invalid or missing Owner Secret Key.',
-        note: 'Only the site owner can sync to this Turso database.'
-      });
-    }
+  // AUDIT.md S6: the previous form only enforced this when OWNER_SECRET_KEY was
+  // configured, meaning an unset env var silently turned the proxy into an open,
+  // CORS-writable passthrough to the owner's database. Fail closed instead.
+  if (!ownerSecret) {
+    return res.status(503).json({
+      error: 'Sync proxy is not configured.',
+      note: 'OWNER_SECRET_KEY is not set on the server. Cloud sync is disabled until it is.'
+    });
+  }
+
+  if (!authHeader || authHeader !== `Bearer ${ownerSecret}`) {
+    return res.status(401).json({
+      error: 'Unauthorized: Invalid or missing Owner Secret Key.',
+      note: 'Only the site owner can sync to this Turso database.'
+    });
   }
 
   // 2. Fetch Turso Environment Variables
