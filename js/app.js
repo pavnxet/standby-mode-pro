@@ -17,18 +17,9 @@ import { visualizerEngine } from './engines/visualizerEngine.js';
 import { wakeLockEngine } from './engines/wakeLockEngine.js';
 import { burnInProtector } from './engines/burnInProtector.js';
 
-// Clocks
-import { flipClock } from './clocks/flipClock.js';
-import { neonClock } from './clocks/neonClock.js';
-import { matrixClock } from './clocks/matrixClock.js';
-import { solarClock } from './clocks/solarClock.js';
-import { bigCropClock } from './clocks/bigCropClock.js';
-import { radialClock } from './clocks/radialClock.js';
-import { dayClock } from './clocks/dayClock.js';
-import { segmentedClock } from './clocks/segmentedClock.js';
-import { analogDigitalClock } from './clocks/analogDigitalClock.js';
-import { amoledClock } from './clocks/amoledClock.js';
-import { lcarsClock } from './clocks/lcarsClock.js';
+// Clocks. One declarative index (FEATURE_PLAN.md A1) replaces the previous
+// eleven hand-written imports, so adding a face touches exactly one file.
+import { CLOCKS } from './clocks/index.js';
 
 // Milestone 2 features (FEATURE_PLAN C2, C3, C4)
 import { alarmWidget } from './features/alarmWidget.js';
@@ -63,34 +54,20 @@ class App {
   }
 
   init() {
-    // 1. Register All 11 Clock Faces
-    clockEngine.register('flip', flipClock);
-    clockEngine.register('neon', neonClock);
-    clockEngine.register('matrix', matrixClock);
-    clockEngine.register('solar', solarClock);
-    clockEngine.register('bigcrop', bigCropClock);
-    clockEngine.register('radial', radialClock);
-    clockEngine.register('day', dayClock);
-    clockEngine.register('segmented', segmentedClock);
-    clockEngine.register('analogdigital', analogDigitalClock);
-    clockEngine.register('minimal', amoledClock);
-    clockEngine.register('lcars', lcarsClock);
-
-    // Central inventory (FEATURE_PLAN.md J1). Registration below stays eager so
-    // every legacy module keeps loading exactly as before; the registry exists
-    // to give one declarative view of what is available, and to accept lazy
-    // descriptors later without changing any consumer.
-    registry.registerClock('flip', flipClock);
-    registry.registerClock('neon', neonClock);
-    registry.registerClock('matrix', matrixClock);
-    registry.registerClock('solar', solarClock);
-    registry.registerClock('bigcrop', bigCropClock);
-    registry.registerClock('radial', radialClock);
-    registry.registerClock('day', dayClock);
-    registry.registerClock('segmented', segmentedClock);
-    registry.registerClock('analogdigital', analogDigitalClock);
-    registry.registerClock('minimal', amoledClock);
-    registry.registerClock('lcars', lcarsClock);
+    // 1. Register every clock face.
+    //
+    // Two registries, one loop. Before this the two lists were written out by
+    // hand and could drift; now FEATURE_PLAN.md A1's index is the single source
+    // of truth and a face cannot land in one without the other.
+    //
+    // Registration stays eager so every legacy module keeps loading exactly as
+    // before. The central registry exists to give one declarative view of what
+    // is available and to accept lazy descriptors later without changing any
+    // consumer.
+    for (const { id, clock } of CLOCKS) {
+      clockEngine.register(id, clock);
+      registry.registerClock(id, clock);
+    }
 
     registry.registerWidget('weather', weatherWidget);
     registry.registerWidget('calendar', calendarWidget);
