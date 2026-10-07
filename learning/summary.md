@@ -93,6 +93,26 @@ Append-only running log of session execution history for this project.
   8. **Tooling:** `package.json`, `scripts/serve.mjs`, extended `.github/workflows/validate.yml` (dynamic-import resolution, relative-path assertion, registry consistency, size budget).
   9. **Memory updated:** `learning.md`, `DECISIONS.md` (ADR-003 → ADR-015), `EXECUTION_FLOW.md`, and this entry.
 - Result: Milestone M1 complete and verified. **Lighthouse Accessibility 0.92 → 1.00**; Best Practices 1.00; SEO 1.00. All 11 clock faces and 9 widgets confirmed working. **Performance and PWA scores could NOT be measured** — the available tooling reports only the three categories above; no estimate is claimed anywhere.
+
+## 2026-10-07 23:58 — Milestone 2: PWA, Alarm Manager, Habits & Notes
+- Task: Continue to the next milestone — PWA + Alarm + Focus tools.
+- Did:
+  1. **New branch** `phase-2-pwa-alarm-focus` off `phase-1-foundation`.
+  2. **G1 installable PWA.** `manifest.webmanifest` (standalone, 4 icons including 512px + maskable, 4 app shortcuts, relative `start_url`/`scope`). `sw.js` precaching all 59 shell assets: cache-first same-origin, network-first for navigations and Open-Meteo, SWR for the CDNs, **hard passthrough for non-GET** so the Turso POST sync is never cached. `js/core/pwa.js` for registration/update/install-prompt lifecycle.
+  3. **Icons generated from source.** `scripts/generate-icons.mjs` emits valid PNGs (192/512/maskable-512) using only Node's built-in `zlib` — CRC-32 + `deflateSync`, no image dependency. Took three iterations to get right; the first attempt drew a filled disc because a ring stroke needs `|distanceToCentreLine|`, not the signed distance.
+  4. **C2 Alarm Manager.** Multiple labelled alarms, once/daily/weekly repeat with per-weekday selection, snooze, **gradual volume ramp**, **sunrise simulation**. Absolute epoch scheduling, re-checked on `visibilitychange`/`focus`.
+  5. **G3 notifications.** Permission runtime that never prompts on load, requests only from a gesture, and tracks instances by tag so re-firing alarms cannot stack duplicates.
+  6. **C3 habit tracker** (12-week contribution grid, streaks, boolean log) and **C4 notes** (textContent-only, clamped, saved on blur).
+  7. **Fixed a real bug found in live verification:** a repeating alarm fired **7 times in 6 seconds** because `effectiveFireTime` kept returning today's slot inside the 90-second grace window. Added a `lastFiredDayKey` guard + regression test.
+  8. **Fixed a contrast regression** the new install banner introduced (white on `#3b82f6` at 10.4px = 3.67:1, below the 4.5:1 small-text minimum).
+  9. Tests 43 → **80** (0 failures). CI extended: `sw.js` syntax, precache-manifest integrity, relative-path checks extended to manifest + SW.
+- Result: **Milestone M2 reached (partial).** 16 features shipped, 1 partial, 39 planned. Lighthouse Accessibility **1.00**, Best Practices 1.00, SEO 1.00, zero failing audits. All 11 clocks and 12 widgets verified. Service worker activates and controls the page; **59/59 precached assets resolve from cache**. XSS probe with a hostile alarm label: no execution, 0 injected elements.
+- Open:
+  - **M2 remainder:** G2 (Web Share), G4 (gamepad), G5 (voice, experimental), G6 (permission centre), C1 (world clock), C5 (countdown), D1–D5 (focus overhaul, analytics, task estimates, distraction-free, ambient sync), F1 (scheduled night mode), F7 (screen-timeout rescue).
+  - **Offline loading itself was NOT verified** — no network-emulation capability was available. Cache completeness is verified; a real offline load is not, and is not claimed.
+  - Alarms cannot fire once the tab is closed. Platform limit, stated in the UI, not hidden.
+  - Still awaiting owner decisions: replace `cdn.tailwindcss.com`; delete the stale `js/app.bundle.js`.
+  - **Carried over:** revoke the exposed Turso token.
 - Open:
   - 43 planned features remain (M2 PWA + Alarms + Focus; M3 Clocks & Widgets; M4 Audio & Visual; M5 UX). Next: **M2 → G1 installable PWA**, then C2 Alarm Manager.
   - Owner decisions needed: replace `cdn.tailwindcss.com` with a precompiled stylesheet (ADR-015); delete the stale 231 KB `js/app.bundle.js` + `js/bundle_builder.py`.

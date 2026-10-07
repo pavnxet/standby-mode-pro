@@ -37,6 +37,25 @@
 - **`.btn-icon` at 2.5rem (40 px) is below the WCAG 2.2 SC 2.5.8 minimum.** Use 44 px, and 48 px for coarse pointers.
 - **Chrome-only APIs must be feature-detected with a visible "unavailable" state**, not a blank one: `navigator.getBattery` (Chromium, deprecated), `navigator.wakeLock` (Chromium, gesture-gated), `navigator.getGamepads`, Web Speech recognition (Chromium, may process audio server-side).
 
+## PWA & Service Workers
+- **A service worker makes your own iteration invisible.** While debugging an alarm fix, the page kept serving the *stale cached module*, and the fix looked broken. Any source change requires a new SW install to reach an already-open tab. When debugging SW-cached code, unregister and clear caches first, then conclude nothing about the fix.
+- **`caches.addAll()` is atomic — one missing asset blocks installation entirely.** A single 404 rejects the whole `install` handler and the worker never activates, which is very hard to diagnose. Add assets individually and tolerate a miss.
+- **Never let a service worker intercept non-GET.** The Turso sync is a POST; a cached response there would serve stale data. Return early for anything that is not a GET.
+- **Cache per resource class, not globally.** Cache-first for the shell (instant render, works offline); network-first for navigations (pick up deployments) and for weather (must be fresh, with a cached fallback); stale-while-revalidate for third-party CDNs. Never precache a CDN asset — its failure would block installation.
+- **Every path in a service worker must be relative.** An absolute `/foo.js` silently 404s under the GitHub Pages `/standby-mode-pro/` sub-path while working fine on localhost.
+- **You can generate valid PNGs with only Node's built-in `zlib`.** CRC-32 per chunk + `deflateSync` over scanlines is enough. This keeps icons reproducible from source instead of checking in opaque binaries.
+- **Signed-distance rendering needs the *absolute* distance for strokes.** A ring drawn with a signed distance (`d = len(p) - r`) fills the whole disc; a stroke needs `0.5 - abs(d) + halfWidth`.
+- **White on `#3b82f6` is only 3.67:1.** That is fine for large text but fails the 4.5:1 requirement for anything small. Use `#1d4ed8` (or larger text) for small accent-coloured controls.
+
+## Alarms & Scheduling
+- **Schedule against an absolute epoch, never a tick count.** The Pomodoro engine already did this correctly; alarms now do too. A throttled, frozen or suspended browser cannot make an absolute target fire late.
+- **A grace window needs a "already handled" guard.** Allowing an alarm due within the last 90 seconds to fire immediately is right for a page opened moments late — but combined with a one-second poll, it re-fires every second for the rest of that window. Store a `lastFiredDayKey` and defer once it equals today's local key. This was a live bug: 7 rings in 6 seconds.
+- **Express schedules in local wall-clock hours (`setHours`), not UTC offsets.** A DST transition then moves the alarm to the correct local time instead of drifting by an hour.
+- **Re-check on `visibilitychange` and `focus`.** Browsers throttle intervals in background tabs; without a resync the alarm fires late after the user returns.
+
+## Accessibility
+- **Contrast must be checked at the size you actually render it.** A 10px button in the new install banner measured 3.67:1 and failed WCAG AA. Small text needs 4.5:1; a colour that looks fine on a heading will fail on a button.
+
 ## Tooling & Workflow
 - **`node --test` with `node:assert` needs no test framework**, which keeps the zero-dependency constraint intact. `npm test` runs `node --test tests/*.test.mjs` — note that a bare `tests/` directory argument does not work on Windows.
 - **CI import checks must match dynamic `import()` too.** The original regex only matched `from '...'`, so a lazy-loaded module path would go completely unverified.

@@ -88,4 +88,34 @@ Meaningful technical decisions, library choices, and trade-offs for flip clock.
 - **Status:** Deferred (owner decision required)
 - **Decision:** `cdn.tailwindcss.com` remains. Replacing it with a precompiled stylesheet was scoped but **not applied**.
 - **Why:** Shipping a JIT compiler to every visitor is the largest render-blocking cost and contradicts the brief's "do not rely on CDNs" rule — but replacing it is a large diff that changes how all three stylesheets are authored, which is the owner's call.
-- **Consequence:** Documented as a gap in `TESTING.md` §5.3 and `FEATURE_PLAN.md` A2. All new tokens are written to work under either outcome.
+- **Consequence:** Documented as a gap in `TESTING.md` §5.5 and `FEATURE_PLAN.md` A2. All new tokens are written to work under either outcome.
+
+### 2026-10-07 ADR-016: Service worker caches per resource class, and never intercepts non-GET
+- **Status:** Accepted and implemented
+- **Decision:** `sw.js` applies a different strategy per resource class — cache-first for same-origin shell assets, network-first for navigations and Open-Meteo, stale-while-revalidate for the font and Tailwind CDNs, and an immediate `return` for **any non-GET request**. Precache is per-asset rather than `cache.addAll`, so one optional asset cannot block worker installation.
+- **Why:** The app's Turso sync is a POST. If the worker intercepted it, a cached response could serve stale data, which is precisely the data-integrity failure the audit flagged in `mergeCloudState`. `addAll` is atomic: a single missing asset rejects the whole `install` and the worker never activates, which would break the app in a way that is hard to diagnose.
+- **Consequence:** CI asserts every precached path exists, so the two failure modes above cannot recur silently.
+
+### 2026-10-07 ADR-017: Alarms use absolute epoch targets, and record the day they last rang
+- **Status:** Accepted and implemented
+- **Decision:** `alarmScheduler.effectiveFireTime()` resolves every alarm to an absolute epoch, never a tick count, and `markRungToday()` stores `lastFiredDayKey` so a repeating alarm defers once it has rung on the current local day.
+- **Why:** This mirrors the existing Pomodoro approach in `store.js:519` and survives a throttled, frozen or suspended tab. The `lastFiredDayKey` guard exists because a 90-second grace window plus a one-second poll otherwise re-fires every second — a bug found in live verification, where an alarm rang 7 times in 6 seconds.
+- **Consequence:** Scheduling is expressed in **local** wall-clock hours via `setHours`, so a DST transition moves the alarm to the correct local time rather than drifting by an hour. Covered by a dedicated DST test.
+
+### 2026-10-07 ADR-018: The alarm UI states platform limits instead of hiding them
+- **Status:** Accepted
+- **Decision:** Where notifications are blocked or unsupported, the Alarm Manager renders an explicit explanation that alarms only fire while the tab is open, with a link-free instruction to enable site notifications.
+- **Why:** A web page cannot fire a notification after its tab closes. Competitor research shows the cost of over-promising: Fliqlo's most-cited critical review is *"your phone stays unlocked until you exit the app… Complete waste of money"*, and AOD Flow's reviewer called a related bug *"a security hazard"*. A bedside product that implies delivery it cannot provide earns exactly this kind of review.
+- **Consequence:** The fallback is in-app audio plus an `role="alert"` ring bar, which always works while the tab is open.
+
+### 2026-10-07 ADR-019: PWA icons are generated from source, not checked in as binaries
+- **Status:** Accepted and implemented
+- **Decision:** `scripts/generate-icons.mjs` emits the PNGs using Node's built-in `zlib` (CRC-32 chunk framing + `deflateSync`).
+- **Why:** The repository has a zero-dependency policy and no image tooling, and an opaque checked-in binary cannot be reviewed. A ~200-line generator keeps the icons reproducible and diffable.
+- **Consequence:** `npm run icons` regenerates them. Rendering is done with signed-distance functions so the artwork scales cleanly to any size and needs no font.
+
+### 2026-10-07 ADR-020: Offline capability is verified by cache completeness, not claimed from a network-down load
+- **Status:** Accepted (constraint of the available tooling)
+- **Decision:** Offline support is evidenced by two direct measurements — the worker activating and controlling the page, and **all 59 precached shell assets resolving from the cache** — rather than by an offline page load, because no network-emulation capability was available.
+- **Why:** Claiming "works offline" from cache inspection alone would overstate what was tested, in a feature whose entire value proposition is reliability.
+- **Consequence:** `TESTING.md` §3.25 records this explicitly as **PARTIAL**, and no Lighthouse PWA or Performance score is quoted anywhere because the report contains no such category.
