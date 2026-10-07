@@ -46,6 +46,8 @@ export const TOP_LEVEL_KEYS = [
   "mediaState",
   "todos",
   "tallies",
+  "note",
+  "habits",
   "schema",
   "accessibility",
   "theme",
@@ -119,6 +121,8 @@ export const MIGRATIONS = [
       next.layoutPresets = Array.isArray(next.layoutPresets) ? next.layoutPresets : [];
 
       next.alarms = Array.isArray(next.alarms) ? next.alarms : [];
+      next.habits = Array.isArray(next.habits) ? next.habits : [];
+      next.note = typeof next.note === "string" ? next.note.slice(0, 2000) : "";
 
       // `spaces` was previously top-level-spread only, so a payload saved by an
       // older build could be missing individual space objects. Guarantee all

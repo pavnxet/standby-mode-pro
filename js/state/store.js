@@ -768,6 +768,141 @@ export class Store {
     return this.state.mediaState;
   }
 
+  // --- Alarm Actions (FEATURE_PLAN C2) ---
+
+  /**
+   * Creates an alarm. Times are stored as "HH:MM" local strings so a clock
+   * displayed on the wall matches what the user typed, independent of any
+   * timezone conversion.
+   */
+  addAlarm(alarm = {}) {
+    const id = alarm.id || `alarm_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+    const record = {
+      id,
+      time: "07:00",
+      label: "Alarm",
+      enabled: true,
+      // 'once' | 'daily' | 'weekly'
+      repeat: "daily",
+      // Array of 0-6 (Sun-Sat) used only when repeat === 'weekly'.
+      days: [],
+      // Gradual volume ramp, matching the "gradual volume" complaint in the
+      // Play Store reviews of the competing alarm apps.
+      gradualVolume: false,
+      gradualSeconds: 30,
+      // Sunrise simulation: fade the screen from black over the ramp window.
+      sunrise: false,
+      // In-app sound is independent of OS notification permission, and always
+      // works while the tab is open.
+      sound: true,
+      lastFiredAt: null,
+      // Local day key of the last fire. A repeating alarm defers to the next
+      // matching day when this equals today's key, which is what prevents a
+      // one-second re-fire loop.
+      lastFiredDayKey: null,
+      ...alarm
+    };
+
+    // Validate the time format rather than trusting the caller.
+    if (!/^\d{2}:\d{2}$/.test(String(record.time))) record.time = "07:00";
+    if (!["once", "daily", "weekly"].includes(record.repeat)) record.repeat = "daily";
+    if (!Array.isArray(record.days)) record.days = [];
+    record.days = record.days
+      .map(d => Number(d))
+      .filter(d => Number.isInteger(d) && d >= 0 && d <= 6);
+
+    this.state.alarms = [...(this.state.alarms || []), record];
+    this.notify("alarms_updated", this.state.alarms);
+    return record;
+  }
+
+  updateAlarm(id, updates) {
+    const list = this.state.alarms || [];
+    if (!list.some(a => a.id === id)) return null;
+    this.state.alarms = list.map(a => {
+      if (a.id !== id) return a;
+      const next = { ...a, ...updates };
+      if (!/^\d{2}:\d{2}$/.test(String(next.time))) next.time = a.time;
+      if (!["once", "daily", "weekly"].includes(next.repeat)) next.repeat = a.repeat;
+      if (!Array.isArray(next.days)) next.days = [];
+      return next;
+    });
+    this.notify("alarms_updated", this.state.alarms);
+    return this.state.alarms.find(a => a.id === id);
+  }
+
+  removeAlarm(id) {
+    const before = (this.state.alarms || []).length;
+    this.state.alarms = (this.state.alarms || []).filter(a => a.id !== id);
+    if (this.state.alarms.length === before) return false;
+    this.notify("alarms_updated", this.state.alarms);
+    return true;
+  }
+
+  toggleAlarm(id) {
+    const alarm = (this.state.alarms || []).find(a => a.id === id);
+    if (!alarm) return null;
+    return this.updateAlarm(id, { enabled: !alarm.enabled });
+  }
+
+  // --- Habit Actions (FEATURE_PLAN C3) ---
+
+  addHabit(name) {
+    const clean = String(name || "").trim().slice(0, 40);
+    if (!clean) return null;
+    const habit = {
+      id: `habit_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+      name: clean,
+      createdAt: todayKey(),
+      log: {}
+    };
+    this.state.habits = [...(this.state.habits || []), habit];
+    this.notify("habits_updated", this.state.habits);
+    return habit;
+  }
+
+  removeHabit(id) {
+    const before = (this.state.habits || []).length;
+    this.state.habits = (this.state.habits || []).filter(h => h.id !== id);
+    if (this.state.habits.length === before) return false;
+    this.notify("habits_updated", this.state.habits);
+    return true;
+  }
+
+  toggleHabit(id, day) {
+    const list = this.state.habits || [];
+    const key = day || todayKey();
+    let changed = false;
+
+    this.state.habits = list.map(h => {
+      if (h.id !== id) return h;
+      const log = { ...(h.log || {}) };
+      if (log[key]) {
+        delete log[key];
+      } else {
+        log[key] = true;
+      }
+      changed = true;
+      return { ...h, log };
+    });
+
+    if (changed) this.notify("habits_updated", this.state.habits);
+    return changed;
+  }
+
+  // --- Note Actions (FEATURE_PLAN C4) ---
+
+  /**
+   * Writes the note. Kept separate from updateNoteDebounced so a caller that
+   * needs immediacy (restore, reset) does not have to wait.
+   */
+  setNote(text) {
+    const value = String(text ?? "").slice(0, 2000);
+    this.state.note = value;
+    this.notify("note_updated", value);
+    return value;
+  }
+
   // --- Accessibility Actions ---
   updateAccessibility(updates) {
     this.state.accessibility = { ...this.state.accessibility, ...updates };
@@ -819,6 +954,15 @@ export class Store {
     this.state.tallies[key] = 0;
     this.notify("tally_updated", this.state.tallies);
   }
+}
+
+function todayKey() {
+  const d = new Date();
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
+function pad2(n) {
+  return String(n).padStart(2, "0");
 }
 
 export const store = new Store();
