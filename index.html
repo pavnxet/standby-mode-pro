@@ -2,7 +2,9 @@
 <html lang="en" class="dark">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <!-- AUDIT.md §5.13: maximum-scale=1.0 + user-scalable=no fails WCAG 2.1.1
+       (A) and SC 1.4.4 (Resize Text). Pinch-zoom is allowed again. -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>StandBy Mode Pro - Smart Clock &amp; Desk Display</title>
   <meta name="description" content="Turn your device into an aesthetic smart display with 3D Flip Clocks, Neon, Matrix, Solar dials, Duo/Quad widgets, Spaces, and ambient Vibes." />
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%233b82f6' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><circle cx='12' cy='12' r='10'/><polyline points='12 6 12 12 16 14'/></svg>" />
@@ -19,6 +21,8 @@
   <link rel="stylesheet" href="css/main.css" />
   <link rel="stylesheet" href="css/clocks.css" />
   <link rel="stylesheet" href="css/widgets.css" />
+  <!-- Must load last: it overrides focus rings, modal visibility and motion. -->
+  <link rel="stylesheet" href="css/a11y.css" />
 </head>
 <body class="bg-black text-neutral-100 select-none overflow-hidden h-screen w-screen">
   <div id="ambient-wallpaper-layer"></div>

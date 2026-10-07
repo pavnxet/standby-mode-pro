@@ -1,0 +1,241 @@
+/* StandBy Mode Pro - Accessibility Layer
+ *
+ * Fixes the runtime half of AUDIT.md §5. Every rule here is additive: nothing
+ * removes a working style unless it was actively hiding a focus indicator
+ * (customizeModal.js previously applied `peer-focus:outline-none`).
+ */
+
+/* Screen-reader-only text: visually hidden but announced. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* --- AUDIT §5.2 (HIGH IMPACT): closed modals must not be tabbable ---------
+ * The previous .modal-overlay rule used only `opacity: 0; pointer-events: none`,
+ * which leaves every descendant of all three CLOSED dialogs reachable by Tab.
+ * `inert` is applied by js/core/a11y.js, and these rules make the closed state
+ * unambiguous even in browsers that lack `inert` support.
+ */
+.modal-overlay {
+  opacity: 0;
+  pointer-events: none;
+  /* Fallback for browsers without the inert attribute. */
+  visibility: hidden;
+  transition: opacity 0.25s ease, visibility 0s linear 0.25s;
+}
+
+.modal-overlay.open {
+  opacity: 1;
+  pointer-events: auto;
+  visibility: visible;
+  transition: opacity 0.25s ease, visibility 0s linear 0s;
+}
+
+.modal-overlay[inert] {
+  visibility: hidden;
+}
+
+/* --- AUDIT §5.6: explicit focus rings everywhere ---------------------- */
+:focus {
+  outline: 2px solid var(--focus-ring-color, #60a5fa);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Never remove a focus indicator without providing a replacement. The previous
+ * `peer-focus:outline-none` toggles are deliberately overridden here. */
+.peer:focus ~ * {
+  outline: 2px solid var(--focus-ring-color, #60a5fa);
+  outline-offset: 2px;
+}
+
+/* Users can still suppress rings explicitly via Accessibility settings. */
+body.hide-focus-rings :focus:not(:focus-visible) {
+  outline: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus-ring-color, #60a5fa);
+  outline-offset: 2px;
+}
+
+/* --- AUDIT §5.13: touch target size (WCAG 2.2 SC 2.5.8) ---------------- */
+/* .btn-icon was 2.5rem (40px), below the 44px minimum. */
+.btn-icon {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+@media (pointer: coarse) {
+  .btn-icon {
+    min-width: 48px;
+    min-height: 48px;
+  }
+
+  /* Ensure controls separated by a small gap still meet the target size. */
+  .btn-primary,
+  button[data-vibe],
+  button[data-space-id] {
+    min-height: 44px;
+  }
+}
+
+/* --- AUDIT §5.12: motion preferences (previously entirely absent) -------- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* The screensaver drift and float animations are decorative and can stop
+   * entirely rather than merely shortening. */
+  .screensaver-float-content {
+    animation: none !important;
+  }
+}
+
+/* Runtime mirror of prefers-reduced-motion, set by js/core/a11y.js so the
+ * in-app Accessibility setting can force it regardless of the OS. */
+body.reduced-motion *,
+body.reduced-motion *::before,
+body.reduced-motion *::after {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+}
+
+body.reduced-motion .screensaver-float-content {
+  animation: none !important;
+}
+
+/* --- AUDIT §5.12: prefers-contrast (previously absent) ----------------- */
+@media (prefers-contrast: more) {
+  :root {
+    --text-secondary: #e5e5e9;
+    --text-muted: #b4b4bf;
+    --border-subtle: rgba(255, 255, 255, 0.35);
+  }
+
+  .glass-panel,
+  .glass-pill,
+  .modal-card {
+    border-width: 2px;
+  }
+}
+
+body.high-contrast {
+  --text-secondary: #f4f4f6;
+  --text-muted: #c9c9d1;
+  --border-subtle: rgba(255, 255, 255, 0.45);
+  --border-focus: rgba(255, 255, 255, 0.8);
+}
+
+body.high-contrast .glass-panel,
+body.high-contrast .modal-card {
+  background: #000;
+  border-width: 2px;
+}
+
+body.high-contrast .text-neutral-400,
+body.high-contrast .text-neutral-500 {
+  color: #d4d4d8;
+}
+
+/* --- Large text scale -------------------------------------------------- */
+body.large-text {
+  font-size: 118%;
+}
+
+body.large-text .clock-display-wrapper,
+body.large-text .timer-digits {
+  font-size: 1.18em;
+}
+
+/* --- AUDIT §5.12: prefers-color-scheme (previously absent) ------------- */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) {
+    color-scheme: light;
+  }
+}
+
+/* --- Reduce transparency ---------------------------------------------- */
+@media (prefers-reduced-transparency: reduce) {
+  .glass-panel,
+  .glass-pill,
+  .modal-card,
+  .modal-overlay {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+body.reduce-transparency .glass-panel,
+body.reduce-transparency .glass-pill,
+body.reduce-transparency .modal-card,
+body.reduce-transparency .modal-overlay {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: #141418;
+}
+
+/* --- Screen-reader mode ------------------------------------------------
+ * Hides purely decorative chrome that would otherwise be announced in a
+ * linear reading, without removing anything that carries information.
+ */
+body.screen-reader-mode .ambient-decor,
+body.screen-reader-mode #ambient-canvas-layer,
+body.screen-reader-mode #ambient-wallpaper-layer {
+  display: none;
+}
+
+/* --- Widget loading / empty / error states (js/core/escape.js) ---------- */
+.widget-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  height: 100%;
+  min-height: 6rem;
+  padding: 1rem;
+  text-align: center;
+  font-size: 0.8rem;
+  font-family: var(--font-mono);
+}
+
+.widget-state--muted {
+  color: var(--text-muted);
+}
+
+.widget-state--danger {
+  color: var(--danger-color);
+}
+
+.widget-state__glyph {
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.widget-state__action {
+  margin-top: 0.25rem;
+  padding: 0.4rem 0.9rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #fff;
+  background: var(--accent-color);
+  border: none;
+  border-radius: 9999px;
+  cursor: pointer;
+}
