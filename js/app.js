@@ -32,6 +32,10 @@ import { StatsModal } from './components/statsModal.js';
 import { CustomizeModal } from './components/customizeModal.js';
 import { PhotoModal } from './components/photoModal.js';
 import { NightModeController } from './components/nightModeController.js';
+import { AudioMixer } from './components/audioMixer.js';
+import { DimmingController } from './components/dimmingController.js';
+import { KioskMode } from './features/kioskMode.js';
+import { WakeLockResilience } from './engines/wakeLockResilience.js';
 import { Screensaver } from './components/screensaver.js';
 import { PomoFocusView } from './components/pomoFocusView.js';
 
@@ -79,6 +83,17 @@ class App {
     this.photoModal = new PhotoModal();
     this.nightMode = new NightModeController();
     this.screensaver = new Screensaver();
+
+    // --- Milestone 4 controllers.
+    //
+    // Each mounts into a host element created lazily by mountHost() below, so a
+    // page without those elements does not throw. The mixer in particular is
+    // created unconditionally because the store subscription above references
+    // it; it renders into a detached container when there is nowhere to show it.
+    this.audioMixer = new AudioMixer(this.mountHost('audio-mixer-host'));
+    this.dimming = new DimmingController();
+    this.kiosk = new KioskMode(this.mountHost('kiosk-host'));
+    this.wakeLock = new WakeLockResilience();
 
     // AUDIT.md §5.2 / §5.3: installs role="dialog", aria-modal, focus trap,
     // focus restore, Escape handling, and `inert` on the three closed modals.
@@ -154,12 +169,50 @@ class App {
         visualizerEngine.setMode(store.getState().vibes.visualizer);
       }
       if (event === 'vibe_changed') {
-        soundEngine.playAmbient(store.getState().vibes.activeTrack);
+        // E2: a legacy single-track change is translated into a one-layer mix,
+        // so the pre-E2 spaces (which store a bare `vibe` string) keep working
+        // unchanged while the mixer gains per-layer control.
+        this.audioMixer.applyMix();
+      }
+      if (event === 'ambience_mix_updated' || event === 'mixer_volume_updated') {
+        this.audioMixer.applyMix();
+      }
+      if (event === 'sleep_timer_updated') {
+        // The mixer owns the fade; this only needs to stop a ramp in flight
+        // when the timer was cancelled rather than fired.
+        if (!store.getState().vibes.sleepTimer.endsAtMs) soundEngine.cancelFade();
       }
     });
 
     // 8. Render Initial Active Stage
     this.renderStage();
+  }
+
+  /**
+   * Returns the element with the given id, creating it if absent.
+   *
+   * The Milestone 4 surfaces (mixer, kiosk) need a host in the DOM. Adding them
+   * as required elements to index.html would mean every existing page and every
+   * test fixture grows two empty divs; creating them on demand keeps the
+   * controllers working when they are absent.
+   *
+   * @param {string} id
+   * @returns {HTMLElement|null} null when there is no document at all.
+   */
+  mountHost(id) {
+    if (typeof document === 'undefined' || !document.body) return null;
+
+    let host = document.getElementById(id);
+    if (host) return host;
+
+    host = document.createElement('div');
+    host.id = id;
+    // Hidden by default: the mixer is reachable from the settings panel, and a
+    // permanently visible control cluster would compete with the clock.
+    host.className = 'm4-host';
+    host.hidden = true;
+    document.body.appendChild(host);
+    return host;
   }
 
   /**

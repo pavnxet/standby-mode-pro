@@ -1,0 +1,553 @@
+/* StandBy Mode Pro - Milestone 4 styles: mixer, dimming, kiosk, wake lock
+ *
+ * Four unrelated features in one file because all four are settings-panel
+ * surfaces rather than faces or widgets, and splitting them into four files
+ * would mean four stylesheet requests for what is a few kilobytes.
+ *
+ * Dimensioning rule throughout: `cqi` inside a named container, `vw` nowhere.
+ */
+
+/* Host for the Milestone 4 settings surfaces (mixer, kiosk).
+ *
+ * Hidden by default: a permanently visible control cluster would compete with
+ * the clock, which is the point of a standby display. `hidden` is the attribute
+ * rather than a class so the browser's default hiding applies without a rule
+ * that something else could override; the settings panel removes the attribute
+ * when it renders these surfaces.
+ */
+.m4-host[hidden] { display: none; }
+
+.m4-host:not([hidden]) {
+  display: block;
+  container-type: inline-size;
+  padding: 0.6rem 0.7rem;
+}
+
+/* ================================================== F2: brightness / dimming */
+
+/*
+ * Applied to :root by dimmingController, not to body.
+ *
+ * A `filter` on body creates a containing block for fixed-position descendants,
+ * which breaks the screensaver and every modal. The root element is safe.
+ *
+ * The floor question, explicitly settled: there is none. `var()` is used
+ * directly with a fallback of 1 so a browser that never runs the controller
+ * shows a normal-brightness page rather than a black one. Once the variable is
+ * set it is honoured exactly, including at 0 - see `brightnessVars()`, whose
+ * test asserts no value is silently clamped upward.
+ */
+:root {
+  --display-brightness: 1;
+  --display-dim-level: 1;
+  --display-dim-near-zero: 0;
+}
+
+html {
+  /*
+   * Not applied here. Applying a filter to <html> would establish a containing
+   * block for the fixed layers and could clip them, so the filter is applied by
+   * the `dimmed` class on a wrapper instead. Kept as a variable for the
+   * stylesheets that read it (wallpaper dimming, widget opacity).
+   */
+  --dim-overlay: calc(1 - var(--display-dim-level));
+}
+
+.dim-panel {
+  container-type: inline-size;
+  container-name: dim;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4em;
+  min-width: 0;
+}
+
+.dim-label {
+  font-size: clamp(0.7rem, 3cqi, 0.85rem);
+  font-weight: 600;
+  color: var(--text-primary, #f9fafb);
+}
+
+.dim-slider {
+  width: 100%;
+  accent-color: #60a5fa;
+  /* A 2.2rem track so the thumb is a comfortable target on a wall display. */
+  height: 2.2rem;
+}
+
+.dim-value {
+  font-size: clamp(0.72rem, 3.1cqi, 0.88rem);
+  color: #bfdbfe;
+  font-variant-numeric: tabular-nums;
+}
+
+.dim-hint {
+  margin: 0;
+  font-size: clamp(0.66rem, 2.8cqi, 0.8rem);
+  line-height: 1.45;
+  color: var(--text-muted, #9ca3af);
+}
+
+.dim-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3em;
+}
+
+.dim-preset {
+  font: inherit;
+  font-size: clamp(0.68rem, 2.9cqi, 0.8rem);
+  padding: 0.3em 0.7em;
+  border-radius: 999px;
+  border: 1px solid rgb(255 255 255 / 0.2);
+  background: rgb(255 255 255 / 0.06);
+  color: var(--text-primary, #f9fafb);
+  cursor: pointer;
+}
+
+.dim-preset[aria-pressed="true"] {
+  background: #2563eb;
+  border-color: #3b82f6;
+  /* #ffffff on #2563eb is 5.17:1. */
+  color: #ffffff;
+}
+
+.dim-preset:hover { filter: brightness(1.15); }
+.dim-preset:focus-visible { outline: 2px solid #93c5fd; outline-offset: 2px; }
+
+/*
+ * Near-zero mode.
+ *
+ * At very low brightness a dark blue on black is unreadable in a dark room -
+ * the eye adapts to the dim field and the trace colour stops resolving. The
+ * palette therefore shifts toward warm, low-blue rather than just dimming: the
+ * emissive colours are reduced and the accent moves off blue toward amber,
+ * which keeps the time legible at low output where blue would vanish first.
+ */
+:root.dim-near-zero {
+  /* Blue light is the first thing to disappear as output drops, so it is cut
+   * hardest. */
+  --accent-color: #d97706;
+  --text-primary: #f5f5f4;
+  --text-muted: #a8a29e;
+  --surface-tint: 18, 18, 20;
+}
+
+.dim-near-zero .mx-warning,
+.dim-near-zero .fx-stale,
+.dim-near-zero .mk-change--up { color: #fbbf24; }
+.dim-near-zero .mk-change--down { color: #f87171; }
+
+@media (prefers-reduced-motion: reduce) {
+  .dim-preset,
+  .mx-slider { transition: none; }
+}
+
+/* ============================================================ E2: the mixer */
+
+.mx-container {
+  container-type: inline-size;
+  container-name: mixer;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55em;
+  min-width: 0;
+}
+
+.mx-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5em;
+  font-size: clamp(0.75rem, 3.2cqi, 1rem);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted, #9ca3af);
+}
+
+.mx-stop {
+  font: inherit;
+  font-size: clamp(0.68rem, 2.9cqi, 0.8rem);
+  text-transform: none;
+  letter-spacing: 0;
+  padding: 0.25em 0.7em;
+  border-radius: 6px;
+  border: 1px solid #f87171;
+  background: transparent;
+  color: #fca5a5;
+  cursor: pointer;
+}
+
+.mx-stop:hover { background: rgb(248 113 113 / 0.14); }
+.mx-stop:focus-visible { outline: 2px solid #93c5fd; outline-offset: 2px; }
+
+.mx-state {
+  font-size: clamp(0.72rem, 3.1cqi, 0.88rem);
+  color: var(--text-primary, #f9fafb);
+}
+
+.mx-state--error { color: #fca5a5; }
+
+.mx-warning {
+  margin: 0;
+  font-size: clamp(0.68rem, 2.9cqi, 0.82rem);
+  line-height: 1.45;
+  /* Amber rather than red: this is advisory, not a failure. */
+  color: #fcd34d;
+}
+
+.mx-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3em;
+}
+
+.mx-preset {
+  font: inherit;
+  font-size: clamp(0.68rem, 2.9cqi, 0.82rem);
+  padding: 0.28em 0.7em;
+  border-radius: 999px;
+  border: 1px solid rgb(255 255 255 / 0.18);
+  background: rgb(255 255 255 / 0.06);
+  color: var(--text-primary, #f9fafb);
+  cursor: pointer;
+}
+
+.mx-preset:hover { filter: brightness(1.15); }
+.mx-preset:focus-visible { outline: 2px solid #93c5fd; outline-offset: 2px; }
+
+.mx-group {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+.mx-legend {
+  font-size: clamp(0.65rem, 2.7cqi, 0.78rem);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted, #9ca3af);
+  padding: 0;
+  margin-bottom: 0.15em;
+}
+
+.mx-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3em;
+}
+
+.mx-row {
+  display: grid;
+  /* Label, slider, value, note. The note spans the full width so a long
+   * description never competes with the controls for the same column. */
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.1em 0.5em;
+  padding: 0.25em 0.35em;
+  border-radius: 6px;
+  min-width: 0;
+}
+
+.mx-row--on { background: rgb(37 99 235 / 0.13); }
+
+.mx-label {
+  font-size: clamp(0.72rem, 3.1cqi, 0.88rem);
+  color: #d1d5db;
+  min-width: 0;
+}
+
+.mx-row--on .mx-label { color: var(--text-primary, #f9fafb); }
+
+.mx-tag {
+  font-size: 0.75em;
+  padding: 0 0.25em;
+  border-radius: 3px;
+  background: rgb(167 139 250 / 0.2);
+  border: 1px solid rgb(167 139 250 / 0.4);
+  color: #c4b5fd;
+}
+
+.mx-slider {
+  grid-column: 1 / -1;
+  width: 100%;
+  accent-color: #3b82f6;
+  height: 1.8rem;
+}
+
+.mx-slider:focus-visible { outline: 2px solid #93c5fd; outline-offset: 2px; }
+
+.mx-value {
+  font-size: clamp(0.66rem, 2.8cqi, 0.8rem);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted, #9ca3af);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.mx-row--on .mx-value { color: #93c5fd; }
+
+.mx-note {
+  grid-column: 1 / -1;
+  font-size: clamp(0.62rem, 2.6cqi, 0.74rem);
+  color: var(--text-muted, #9ca3af);
+  line-height: 1.35;
+}
+
+.mx-footer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.1em 0.5em;
+  padding-top: 0.35em;
+  border-top: 1px solid rgb(255 255 255 / 0.12);
+}
+
+.mx-sleep {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3em;
+  padding-top: 0.35em;
+  border-top: 1px solid rgb(255 255 255 / 0.12);
+}
+
+.mx-sleep-label {
+  font-size: clamp(0.65rem, 2.7cqi, 0.78rem);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted, #9ca3af);
+}
+
+.mx-sleep-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25em;
+}
+
+.mx-sleep-btn {
+  font: inherit;
+  font-size: clamp(0.65rem, 2.8cqi, 0.78rem);
+  padding: 0.25em 0.55em;
+  border-radius: 5px;
+  border: 1px solid rgb(255 255 255 / 0.18);
+  background: rgb(255 255 255 / 0.05);
+  color: var(--text-primary, #f9fafb);
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+
+.mx-sleep-btn:hover { filter: brightness(1.15); }
+.mx-sleep-btn:focus-visible { outline: 2px solid #93c5fd; outline-offset: 2px; }
+
+.mx-sleep-active {
+  margin: 0;
+  font-size: clamp(0.68rem, 2.9cqi, 0.82rem);
+  color: #fcd34d;
+}
+
+.mx-sleep-idle {
+  margin: 0;
+  font-size: clamp(0.64rem, 2.7cqi, 0.78rem);
+  color: var(--text-muted, #9ca3af);
+}
+
+.mx-btn {
+  font: inherit;
+  font-size: clamp(0.68rem, 2.9cqi, 0.8rem);
+  align-self: flex-start;
+  padding: 0.25em 0.7em;
+  border-radius: 6px;
+  border: 1px solid rgb(255 255 255 / 0.22);
+  background: rgb(255 255 255 / 0.07);
+  color: var(--text-primary, #f9fafb);
+  cursor: pointer;
+}
+
+.mx-btn:hover { filter: brightness(1.15); }
+.mx-btn:focus-visible { outline: 2px solid #93c5fd; outline-offset: 2px; }
+
+/* ============================================================== F5: kiosk */
+
+.kc-container {
+  container-type: inline-size;
+  container-name: kiosk;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45em;
+  min-width: 0;
+  position: relative;
+}
+
+.kc-header {
+  font-size: clamp(0.75rem, 3.2cqi, 1rem);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted, #9ca3af);
+}
+
+.kc-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  font-size: clamp(0.75rem, 3.2cqi, 0.92rem);
+  color: var(--text-primary, #f9fafb);
+  cursor: pointer;
+}
+
+.kc-toggle input {
+  width: 1.15em;
+  height: 1.15em;
+  accent-color: #2563eb;
+}
+
+.kc-toggle:focus-within { outline: 2px solid #93c5fd; outline-offset: 2px; }
+
+.kc-label {
+  font-size: clamp(0.7rem, 3cqi, 0.85rem);
+  font-weight: 600;
+  color: var(--text-primary, #f9fafb);
+}
+
+.kc-select {
+  font: inherit;
+  font-size: clamp(0.72rem, 3.1cqi, 0.88rem);
+  color: var(--text-primary, #f9fafb);
+  background: rgb(0 0 0 / 0.3);
+  border: 1px solid rgb(255 255 255 / 0.2);
+  border-radius: 6px;
+  padding: 0.35em;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.kc-select:focus-visible { outline: 2px solid #93c5fd; outline-offset: 1px; }
+
+/*
+ * The disclosure.
+ *
+ * Bordered and amber rather than grey hint text, because this is the one part
+ * of the feature a user must not skim past. It states what the feature is not,
+ * and the risk of skimming is that someone stops locking their phone.
+ */
+.kc-disclosure {
+  margin: 0;
+  font-size: clamp(0.66rem, 2.8cqi, 0.8rem);
+  line-height: 1.5;
+  color: #fde68a;
+  background: rgb(251 191 36 / 0.09);
+  border: 1px solid rgb(251 191 36 / 0.35);
+  border-radius: 6px;
+  padding: 0.45em 0.6em;
+}
+
+.kc-blank-overlay {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6em;
+  padding: 1em;
+  border-radius: 8px;
+  background: rgb(0 0 0 / 0.5);
+  border: 1px dashed rgb(255 255 255 / 0.25);
+  /* touch-action:none so the press-and-hold is not turned into a scroll. */
+  touch-action: none;
+  cursor: pointer;
+  user-select: none;
+}
+
+.kc-blank-text {
+  margin: 0;
+  font-size: clamp(0.7rem, 3cqi, 0.88rem);
+  color: #cbd5e1;
+}
+
+.kc-hold-track {
+  width: min(14em, 80%);
+  height: 4px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.15);
+  overflow: hidden;
+}
+
+.kc-hold-bar {
+  height: 100%;
+  width: 0;
+  border-radius: 999px;
+  background: #60a5fa;
+  /* The fill is the only feedback that the press is registering, so it must
+   * be immediate rather than eased. */
+  transition: none;
+}
+
+/* ================================================= F5: the blanked screen */
+
+/*
+ * Hiding the real elements rather than covering them with an overlay.
+ *
+ * An overlay is one element: if it fails to render, is removed by a script, or
+ * is covered by a higher z-index element, everything underneath becomes
+ * visible. Hiding means a failure shows less, not more - the safer direction
+ * for the feature whose whole purpose is not showing.
+ */
+body.kc-blanked .kc-hide-widget,
+body.kc-blanked .kc-hide-header,
+body.kc-blanked .kc-hide-controls,
+body.kc-blanked .kc-hide-quote,
+body.kc-blanked .kc-hide-status {
+  visibility: hidden;
+  /* Collapse the space too, so a blanked screen is genuinely dark rather than
+   * a grid of empty boxes with borders still visible. */
+  height: 0;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  border-color: transparent;
+}
+
+/*
+ * What remains when blanked: the clock, at very low brightness.
+ *
+ * A clock display that goes fully black on idle is indistinguishable from a
+ * crashed one at a glance, which is the complaint F5 exists next to. So the
+ * time itself stays, at reduced contrast, and everything else goes.
+ */
+body.kc-blanked { --kc-idle-dim: 0.35; }
+
+/* ========================================================= F4: wake lock */
+
+.wk-status {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1em;
+  font-size: clamp(0.68rem, 2.9cqi, 0.82rem);
+  padding: 0.35em 0.55em;
+  border-radius: 6px;
+  border-left: 3px solid;
+}
+
+.wk-label { font-weight: 600; }
+
+.wk-detail {
+  line-height: 1.4;
+  opacity: 0.9;
+  font-weight: 400;
+}
+
+/* Tone is carried by the label text as well as the colour, so the
+ * held / at-risk / lost distinction survives a greyscale screenshot and a
+ * colour-blind reader. */
+.wk-status--held { border-color: #4ade80; color: #bbf7d0; background: rgb(74 222 128 / 0.1); }
+.wk-status--at-risk { border-color: #fbbf24; color: #fde68a; background: rgb(251 191 36 / 0.1); }
+.wk-status--lost { border-color: #f87171; color: #fecaca; background: rgb(248 113 113 / 0.12); }
+.wk-status--unsupported { border-color: #a5b4fc; color: #c7d2fe; background: rgb(165 180 252 / 0.1); }
+.wk-status--off { border-color: #6b7280; color: #9ca3af; background: rgb(107 114 128 / 0.12); }
