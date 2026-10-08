@@ -22,7 +22,7 @@
 
 export const STORAGE_KEY_LEGACY = "standby_mode_pro_v1";
 export const STORAGE_KEY = "standby_mode_pro_v2";
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 /**
  * Keys that must exist on a fully-formed state object. The deep-merge in
@@ -52,7 +52,13 @@ export const TOP_LEVEL_KEYS = [
   "accessibility",
   "theme",
   "layoutPresets",
-  "alarms"
+  "alarms",
+  "countdown",
+  "goals",
+  "decks",
+  "converter",
+  "unitLocation",
+  "fxPrefs"
 ];
 
 /**
@@ -160,6 +166,53 @@ export const MIGRATIONS = [
           }
         },
         next.pomoState
+      );
+
+      return next;
+    }
+  },
+  {
+    from: 2,
+    to: 3,
+    description: "Backfill the Milestone 3 widget namespaces (countdown, goals, flashcards, converter preferences) so every new widget can read a complete shape instead of guarding against undefined.",
+    migrate(state) {
+      const next = { ...state };
+
+      // C5 Countdown. A single target, because the widget shows one event at a
+      // time and a list would compete with the clock for a small panel.
+      next.countdown = deepMerge(
+        { label: "", targetEpoch: null, createdAt: null },
+        next.countdown
+      );
+
+      // C18 Daily Goals. `done` is keyed by local date string so "today's
+      // goals" is a lookup, not a filter over unbounded history.
+      next.goals = Array.isArray(next.goals) ? next.goals : [];
+
+      // C14 Flashcards. Decks are local-only by design; no account, no sync.
+      next.decks = Array.isArray(next.decks) ? next.decks : [];
+
+      // C15/C16 Converter and calculator preferences. Stateless values, but
+      // persisting them means the widget looks the same on every mount instead
+      // of resetting to a default each time the space re-renders.
+      next.converter = deepMerge(
+        { category: "length", fromUnit: "m", toUnit: "ft" },
+        next.converter
+      );
+
+      // C9/C10/C17/C20 need a location and, for FX, a currency pair. These are
+      // stored so the widgets do not re-request geolocation on every mount, and
+      // so a user who declined geolocation once is not prompted repeatedly.
+      // `null` lat/lon means "not known yet", which each widget renders as an
+      // explicit state rather than silently defaulting.
+      next.unitLocation = deepMerge(
+        { lat: null, lon: null, name: "", resolvedAt: null },
+        next.unitLocation
+      );
+
+      next.fxPrefs = deepMerge(
+        { base: "USD", quote: "EUR" },
+        next.fxPrefs
       );
 
       return next;

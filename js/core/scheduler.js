@@ -23,7 +23,12 @@ class Scheduler {
       if (document.visibilityState === "visible") this.start();
       else this.stop();
     };
-    document.addEventListener("visibilitychange", this._handleVisibility);
+    // Guarded so importing this module does not require a DOM. Several modules
+    // import the scheduler, and an unguarded addEventListener here made every one
+    // of them untestable under `node --test`.
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", this._handleVisibility);
+    }
   }
 
   /**
@@ -62,6 +67,9 @@ class Scheduler {
 
   start() {
     if (this._running) return;
+    // No document means no rAF loop to drive: a non-browser environment (a unit
+    // test, or a future server render) must not try.
+    if (typeof document === "undefined") return;
     if (document.visibilityState === "hidden") return;
     if (this._subscribers.size === 0) return;
 
@@ -124,7 +132,9 @@ class Scheduler {
   destroy() {
     this.stop();
     this._subscribers.clear();
-    document.removeEventListener("visibilitychange", this._handleVisibility);
+    if (typeof document !== "undefined") {
+      document.removeEventListener("visibilitychange", this._handleVisibility);
+    }
   }
 }
 

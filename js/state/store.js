@@ -16,6 +16,21 @@ import {
 } from "../core/schema.js";
 import { applyAccessibilitySettings } from "../core/a11y.js";
 
+/**
+ * Local calendar-day key, "YYYY-MM-DD".
+ *
+ * Deliberately NOT `toISOString().slice(0, 10)`: that is UTC, so a goal ticked
+ * at 23:30 in IST would be filed under the following day. Goals and habit logs
+ * are user-perceived days, so they must follow the user's clock.
+ */
+function localDayKey(date = new Date()) {
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0")
+  ].join("-");
+}
+
 const defaultState = {
   activeSpaceId: "home",
   keepScreenAwake: true,
@@ -160,7 +175,16 @@ const defaultState = {
   tallies: {
     focusSessions: 4,
     water: 3
-  }
+  },
+  // Milestone 3 widget namespaces. These defaults are also backfilled by the
+  // v2 -> v3 migration, so a user upgrading from an older build gets the same
+  // shape as a fresh install.
+  countdown: { label: "", targetEpoch: null, createdAt: null },
+  goals: [],
+  decks: [],
+  converter: { category: "length", fromUnit: "m", toUnit: "ft" },
+  unitLocation: { lat: null, lon: null, name: "", resolvedAt: null },
+  fxPrefs: { base: "USD", quote: "EUR" }
 };
 
 export class Store {
@@ -768,6 +792,122 @@ export class Store {
     return this.state.mediaState;
   }
 
+  // --- Milestone 3 widget actions (FEATURE_PLAN C5, C14, C15, C18) ---
+  //
+  // Each of these writes one namespaced key and notifies with its own event, so
+  // a widget can subscribe to exactly the slice it cares about instead of
+  // re-rendering on every unrelated state change.
+
+  /** C5 Countdown. A single target; null clears it. */
+  setCountdown(label, targetEpoch) {
+    this.state.countdown = {
+      label: String(label || "").slice(0, 60),
+      targetEpoch: Number.isFinite(targetEpoch) ? targetEpoch : null,
+      createdAt: Date.now()
+    };
+    this.notify("countdown_updated", this.state.countdown);
+    return this.state.countdown;
+  }
+
+  clearCountdown() {
+    return this.setCountdown("", null);
+  }
+
+  /** C18 Daily Goals. */
+  addGoal(text) {
+    const trimmed = String(text || "").trim().slice(0, 80);
+    if (!trimmed) return null;
+    const goal = {
+      id: `goal_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+      text: trimmed,
+      done: false,
+      // Local date key, so "today" is a lookup and history is a bounded record
+      // of completed days rather than an unbounded list of every goal ever made.
+      dayKey: localDayKey()
+    };
+    this.state.goals = [...this.state.goals, goal];
+    this.notify("goals_updated", this.state.goals);
+    return goal;
+  }
+
+  toggleGoal(id) {
+    this.state.goals = this.state.goals.map(g =>
+      g.id === id ? { ...g, done: !g.done } : g
+    );
+    this.notify("goals_updated", this.state.goals);
+  }
+
+  deleteGoal(id) {
+    this.state.goals = this.state.goals.filter(g => g.id !== id);
+    this.notify("goals_updated", this.state.goals);
+  }
+
+  /** C14 Flashcards. */
+  addDeck(name) {
+    const trimmed = String(name || "").trim().slice(0, 40);
+    if (!trimmed) return null;
+    const deck = { id: `deck_${Date.now().toString(36)}`, name: trimmed, cards: [] };
+    this.state.decks = [...this.state.decks, deck];
+    this.notify("decks_updated", this.state.decks);
+    return deck;
+  }
+
+  addCard(deckId, front, back) {
+    const f = String(front || "").trim().slice(0, 200);
+    const b = String(back || "").trim().slice(0, 200);
+    if (!f || !b) return null;
+    this.state.decks = this.state.decks.map(d =>
+      d.id === deckId
+        ? {
+            ...d,
+            cards: [...d.cards, { id: `card_${Date.now().toString(36)}`, front: f, back: b, box: 0 }]
+          }
+        : d
+    );
+    this.notify("decks_updated", this.state.decks);
+    return true;
+  }
+
+  deleteDeck(deckId) {
+    this.state.decks = this.state.decks.filter(d => d.id !== deckId);
+    this.notify("decks_updated", this.state.decks);
+  }
+
+  /** C15 Converter preferences. Stateless, but persisted so the panel does not
+   *  reset to a default every time the space re-renders. */
+  setConverterPrefs(updates) {
+    if (!isPlainObject(updates)) return this.state.converter;
+    this.state.converter = { ...this.state.converter, ...updates };
+    this.notify("converter_updated", this.state.converter);
+    return this.state.converter;
+  }
+
+  /**
+   * Caches a resolved location for the location-dependent widgets (C9, C10,
+   * C17, C20) so geolocation is requested once rather than once per widget
+   * mount. A null lat/lon is a legitimate stored value meaning "not resolved",
+   * which each widget renders as an explicit state rather than silently
+   * defaulting to somewhere the user did not choose.
+   */
+  setUnitLocation(lat, lon, name = "") {
+    this.state.unitLocation = {
+      lat: Number.isFinite(lat) ? lat : null,
+      lon: Number.isFinite(lon) ? lon : null,
+      name: String(name || "").slice(0, 40),
+      resolvedAt: Number.isFinite(lat) ? Date.now() : null
+    };
+    this.notify("unit_location_updated", this.state.unitLocation);
+    return this.state.unitLocation;
+  }
+
+  /** C17 FX pair. */
+  setFxPrefs(updates) {
+    if (!isPlainObject(updates)) return this.state.fxPrefs;
+    this.state.fxPrefs = { ...this.state.fxPrefs, ...updates };
+    this.notify("fx_updated", this.state.fxPrefs);
+    return this.state.fxPrefs;
+  }
+
   // --- Alarm Actions (FEATURE_PLAN C2) ---
 
   /**
@@ -965,4 +1105,40 @@ function pad2(n) {
   return String(n).padStart(2, "0");
 }
 
-export const store = new Store();
+/** @type {Store|null} */
+let _storeInstance = null;
+
+/**
+ * The singleton Store, constructed on first access.
+ *
+ * This used to be `export const store = new Store()` at module load. That made
+ * every module importing the store untestable under `node --test`, because the
+ * constructor calls `applyAccessibilitySettings()`, which touches `document`.
+ * Two separate test files hit this and had to work around it by duplicating
+ * logic into a DOM-free module instead of testing the real thing.
+ *
+ * A Proxy keeps `store.getState()` and `store.addGoal(...)` identical at all 22
+ * import sites while deferring construction until something actually reads
+ * state. Importing a module no longer implies touching the DOM, so the widget
+ * index and any future consumer can be imported directly in a test.
+ */
+export const store = new Proxy(
+  {},
+  {
+    get(_target, prop) {
+      if (!_storeInstance) _storeInstance = new Store();
+      const value = _storeInstance[prop];
+      // Bound, so a destructured method still operates on the real instance.
+      return typeof value === "function" ? value.bind(_storeInstance) : value;
+    },
+    set(_target, prop, value) {
+      if (!_storeInstance) _storeInstance = new Store();
+      _storeInstance[prop] = value;
+      return true;
+    },
+    has(_target, prop) {
+      if (!_storeInstance) _storeInstance = new Store();
+      return prop in _storeInstance;
+    }
+  }
+);

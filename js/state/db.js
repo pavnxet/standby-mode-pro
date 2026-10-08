@@ -11,6 +11,14 @@ class PhotoDB {
   }
 
   async init() {
+    // No IndexedDB (a unit test, private browsing, an old engine). Resolve null
+    // rather than rejecting: every method below already handles a null db by
+    // returning an empty result, and a rejection here surfaces as an unhandled
+    // promise rejection that fails an unrelated test.
+    if (typeof indexedDB === "undefined") {
+      return null;
+    }
+
     return new Promise((resolve, reject) => {
       const request = indexedDB.open(DB_NAME, DB_VERSION);
 
