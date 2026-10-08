@@ -41,8 +41,11 @@ import {
   dotMatrixGrid,
   humanDuration
 } from "../js/clocks/_shared/primitives.js";
-import { dayOfYear, daysInYear } from "../js/clocks/yearClock.js";
-import { formatInZone, offsetLabel } from "../js/clocks/worldClock.js";
+// From core/, not from the face modules: those import store.js, which
+// constructs a Store at module load and touches `document`, failing under
+// node --test.
+import { dayOfYear, daysInYear } from "../js/core/clockMath.js";
+import { formatInZone, offsetLabel } from "../js/core/timezones.js";
 
 /** Mean synodic month, mirrored from solarMath.js so the tolerance below is
  *  stated in days rather than as an arbitrary phase fraction. */

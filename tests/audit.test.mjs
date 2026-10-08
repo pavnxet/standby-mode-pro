@@ -308,11 +308,23 @@ test("the alarm scheduler is started at boot", () => {
 
 // ------------------------------------------------- Milestone 2 (new widgets)
 
-test("the three Milestone 2 widgets are registered in both engines", () => {
+test("every Milestone 2 widget reaches both engines via the index", async () => {
+  // Registration moved from two hand-written lists in app.js to a single loop
+  // over js/widgets/index.js, so this now asserts the index contains them
+  // rather than that app.js names them. Same guarantee, stronger: one list
+  // cannot drift, because there is only one.
+  const { WIDGETS } = await import("../js/widgets/index.js");
+  const ids = new Set(WIDGETS.map((w) => w.id));
+
   for (const id of ["alarm", "note", "habit"]) {
-    assert.match(APP_JS, new RegExp(`registerWidget\\('${id}'`), `registry missing ${id}`);
-    assert.match(APP_JS, new RegExp(`widgetEngine\\.register\\('${id}'`), `widgetEngine missing ${id}`);
+    assert.ok(ids.has(id), `the widget index is missing "${id}"`);
   }
+
+  // And the loop that feeds both registries must still be there.
+  assert.match(APP_JS, /for\s*\(\s*const\s*\{\s*id\s*,\s*widget\s*\}\s*of\s*WIDGETS\s*\)/,
+    "app.js must register both widget registries from the same loop");
+  assert.ok(!/widgetEngine\.register\('/.test(APP_JS),
+    "app.js still registers individual widgets by name; it should iterate the index");
 });
 
 test("every new widget returns an unmount function", () => {
@@ -516,27 +528,151 @@ test("M3 stylesheets size faces from the container, not the viewport", () => {
 
 test("every service-worker precached module actually exists", async () => {
   // AUDIT: an incomplete precache means the app fails to render offline. The
-  // precache list grew by nineteen entries this milestone, so re-assert the
-  // invariant CI also checks.
+  // precache list grew by nineteen entries for the M3 clocks and sixteen more
+  // for the M3 widgets, so re-assert the invariant CI also checks.
   const sw = read("sw.js");
   const block = sw.split("const SHELL_ASSETS")[1].split("const THIRD_PARTY_HOSTS")[0];
   const paths = Array.from(block.matchAll(/"\.\/([^"]+)"/g)).map((m) => m[1]);
 
-  assert.ok(paths.length >= 60, `precache list looks too small: ${paths.length} entries`);
+  assert.ok(paths.length >= 90, `precache list looks too small: ${paths.length} entries`);
 
   const missing = paths.filter((p) => !existsSync(join(ROOT, p)));
   assert.deepEqual(missing, [], `precached but missing: ${missing.join(", ")}`);
 
-  // And nothing in js/clocks may be reachable-but-uncached, or the M3 faces
-  // would work online and fail offline.
-  const clockDir = join(ROOT, "js", "clocks");
-  const clockFiles = readdirSync(clockDir, { recursive: true })
-    .filter((f) => f.endsWith(".js"))
-    .map((f) => join("js", "clocks", f).split("\\").join("/"));
+  // Nothing in js/clocks or js/features may be reachable-but-uncached, or the
+  // M3 faces and widgets would work online and fail offline.
+  const shipped = ["js/clocks", "js/features", "js/widgets", "js/core"]
+    .flatMap((dir) => readdirSync(join(ROOT, dir), { recursive: true })
+      .filter((f) => f.endsWith(".js"))
+      .map((f) => `${dir}/${f}`.split("\\").join("/")));
 
-  const uncached = clockFiles.filter((f) => !paths.includes(f));
+  const uncached = shipped.filter((f) => !paths.includes(f));
   assert.deepEqual(uncached, [],
-    `clock modules missing from the service worker precache: ${uncached.join(", ")}`);
+    `shipped modules missing from the service worker precache: ${uncached.join(", ")}`);
+});
+
+test("the widget inventory is 12 legacy plus 7 Milestone 3 widgets", async () => {
+  const { WIDGETS, M3_WIDGETS } = await import("../js/widgets/index.js");
+
+  const ids = WIDGETS.map((w) => w.id);
+  assert.equal(new Set(ids).size, ids.length,
+    `duplicate widget ids: ${ids.filter((id, i) => ids.indexOf(id) !== i).join(", ")}`);
+
+  assert.equal(WIDGETS.filter((w) => w.milestone === "M0").length, 9, "nine original widgets");
+  assert.equal(WIDGETS.filter((w) => w.milestone === "M2").length, 3, "alarm, note, habit");
+  assert.equal(M3_WIDGETS.length, 7);
+  assert.equal(WIDGETS.length, 19);
+
+  for (const { id, widget, milestone } of WIDGETS) {
+    assert.match(id, /^[a-z][a-z0-9]*$/, `widget id "${id}" must be a lowercase slug`);
+    assert.ok(widget && typeof widget.mount === "function", `${id} has no mount()`);
+    assert.ok(widget && typeof widget.name === "string" && widget.name,
+      `${id} has no display name`);
+    assert.match(String(milestone), /^M[0-9]$/, `${id} has no valid milestone tag`);
+  }
+});
+
+test("every original widget id survives in the index", async () => {
+  // A saved Space referencing a removed widget id falls back to the weather
+  // widget, silently changing the user's layout.
+  const { WIDGETS } = await import("../js/widgets/index.js");
+  const ids = new Set(WIDGETS.map((w) => w.id));
+
+  for (const legacy of ["weather", "calendar", "media", "timer", "todo",
+                        "tally", "quote", "photo", "vibes"]) {
+    assert.ok(ids.has(legacy), `legacy widget "${legacy}" is missing from the index`);
+  }
+});
+
+test("the three Milestone 2 widgets survive in the index", async () => {
+  const { WIDGETS } = await import("../js/widgets/index.js");
+  const ids = new Set(WIDGETS.map((w) => w.id));
+  for (const id of ["alarm", "note", "habit"]) {
+    assert.ok(ids.has(id), `"${id}" is missing from the widget index`);
+  }
+});
+
+test("every Milestone 3 widget implements unmount and captures its cleanup", async () => {
+  // AUDIT D2 lesson: a captured unsubscribe is mandatory. A widget that mounts
+  // a timer or subscribes without releasing it leaks on every stage re-render.
+  const { M3_WIDGETS } = await import("../js/widgets/index.js");
+  const files = [
+    "countdownWidget.js", "airQualityWidget.js", "sunWidget.js",
+    "systemStatusWidget.js", "converterWidget.js", "calculatorWidget.js",
+    "goalsWidget.js"
+  ];
+
+  for (const name of files) {
+    const source = read("js", "features", name);
+    assert.match(source, /unmount\s*\(\)\s*\{/, `${name} must implement unmount()`);
+    assert.match(source, /disposed\s*=\s*true/,
+      `${name} must set a disposed flag so async work stops after unmount`);
+    assert.match(source, /(clearInterval|clearTimeout|removeEventListener|\.abort\(\)|unsubscribe|unwatch)/,
+      `${name} must release at least one timer, listener, request or subscription`);
+  }
+
+  assert.equal(M3_WIDGETS.length, files.length,
+    "the index and the file list must not drift apart");
+});
+
+test("every Milestone 3 widget escapes user-authored text before rendering", async () => {
+  // Deliberately narrow. An earlier version of this tried to allowlist every
+  // safe template interpolation and produced false positives on loop indices and
+  // internal helpers, which is how a real XSS guard ends up disabled.
+  //
+  // What is asserted instead: each widget imports escapeHtml, and every
+  // occurrence of a user-authored field name inside a template literal is
+  // wrapped in it. The runtime probe in TESTING.md covers the rest.
+  const { M3_WIDGETS } = await import("../js/widgets/index.js");
+
+  const FILE_FOR_ID = {
+    countdown: "countdownWidget.js", converter: "converterWidget.js",
+    calculator: "calculatorWidget.js", goals: "goalsWidget.js",
+    sun: "sunWidget.js", airquality: "airQualityWidget.js",
+    system: "systemStatusWidget.js"
+  };
+
+  for (const { id } of M3_WIDGETS) {
+    const source = read("js", "features", FILE_FOR_ID[id]);
+    assert.match(source, /import\s*\{[^}]*escapeHtml[^}]*\}\s*from/, `${id} must import escapeHtml`);
+
+    // Any interpolation that mentions a user-authored field must be escaped.
+    // Scoped to lines that contain an HTML tag, so a value being composed for
+    // storage (where there is no sink to escape into) is not a false positive.
+    const USER_FIELD = /\$\{[^}]*\b(label|text|name|title|front|back|city|query)\b[^}]*\}/g;
+    const lines = source.split("\n");
+
+    lines.forEach((line, index) => {
+      if (!/<[a-z]/.test(line)) return; // not an HTML render line
+      for (const match of line.matchAll(USER_FIELD)) {
+        assert.match(match[0], /escapeHtml\s*\(/,
+          `${id}:${index + 1}: user-authored value rendered unescaped: ${match[0]}`);
+      }
+    });
+  }
+});
+
+test("no widget module calls eval", () => {
+  // FEATURE_PLAN C16 is explicit that the calculator must not use eval().
+  // Comments are stripped first: the module's own header explains why it does
+  // not use eval, and a naive match flags that explanation.
+  const stripComments = (src) => src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+
+  for (const path of [["js", "features", "calculatorWidget.js"], ["js", "core", "calculator.js"]]) {
+    const source = stripComments(read(...path));
+    assert.ok(!/\beval\s*\(/.test(source), `${path.join("/")} must not call eval()`);
+    assert.ok(!/new\s+Function\s*\(/.test(source),
+      `${path.join("/")} must not use the Function constructor as a substitute`);
+  }
+});
+
+test("importing the widget index does not require a DOM", async () => {
+  // The lazy-store change makes this importable under node --test. Guard it,
+  // because reverting the store to eager construction would silently make every
+  // widget test impossible again rather than failing loudly.
+  assert.equal(typeof document, "undefined", "this test must run without a DOM");
+  const { WIDGETS } = await import("../js/widgets/index.js");
+  assert.ok(WIDGETS.length > 0, "the index should be importable outside a browser");
 });
 
 test("index.html links the M3 stylesheet and no path is absolute", () => {
