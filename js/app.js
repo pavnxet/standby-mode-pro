@@ -361,6 +361,11 @@ class App {
   }
 
   applyDeviceProfile() {
+    // `forced` is the reader's deliberate choice of profile, or null to detect.
+    // It must be read here rather than captured earlier: the resize handler calls
+    // this method, and a profile captured in the constructor would ignore any
+    // change the reader made in settings while the window was open.
+    const forced = store.getState().deviceProfile;
     const { profile } = profileFromEnvironment(forced);
     applyProfile(profile);
     this.deviceProfile = profile;
