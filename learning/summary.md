@@ -238,3 +238,59 @@ The "module ids are unique" step regex-scraped `app.js` for `registerClock('some
 ### Not pushed
 
 All work is local on `phase-3-widgets-final`.
+## 2026-10-08 — Milestone 4 started: E1/E2/E3 (audio) and F2/F4/F5 (display)
+
+- Task: Begin M4, Audio & Visual. Budget already lifted, so no size gate.
+- Branch: continued on `phase-3-widgets-final`. 4 commits.
+
+### Delivered (6 of 12; M4 NOT complete)
+
+| ID | Feature | Status |
+|---|---|---|
+| E1 | Procedural ambiences | ✅ 12 total (5 existing + 7 new) |
+| E2 | Multi-layer mixer | ✅ per-layer GainNodes, 6 presets |
+| E3 | Sleep timer + fade | ✅ |
+| E4 | Beat-reactive visualizers | 🔶 **partial** — analyser built+verified, not drawn |
+| E6/F1 | Scheduled day/night | 🔶 **partial** — engine exists, no authoring UI, no sunrise trigger |
+| E5, E7, F3, F6 | — | ⬜ not started |
+| F2 | Scheduled dimming + true low-brightness | ✅ |
+| F4 | Wake-lock resilience | ✅ five states |
+| F5 | Kiosk / lock-safe | ✅ |
+
+### Verified in a real browser
+
+- All 12 ambience generators **build and start**, individually and all 12 at once.
+- `AudioContext` state `running`, sampleRate 48000.
+- **25 play/stop cycles leave 0 nodes** — no GainNode accumulation.
+- Junk id skipped (`{rain, aRemovedLayer}` → `['rain']`); zero-only mix starts 0.
+- `setLayerVolume` returns `true` on a live layer, `false` on a missing one.
+- Energy bands valid and in 0..1; bass ramped 0.58 → 0.85 across six samples; raw spectrum peak 249.
+
+### Defects found and fixed
+
+1. **`activeLayers({})` reported all 12 layers active** — `clampMix(undefined)` supplied each default. The mixer uses that list to decide what to *start*, so an empty mix would have started the entire catalogue. Now only keys actually present count.
+2. **A midnight-wrapping schedule range never matched.** `from <= m && m <= to` is false for every minute between 23:00 and 06:00, so every night schedule would have silently never fired — no symptom except the feature not working.
+3. **CHANGELOG E/F tables were duplicated** by an edit that inserted new rows without removing old ones. Deduped; glyphs verified as correct codepoints rather than trusted from console output.
+
+### Environment trap, third occurrence
+
+The service worker cached `soundEngine.js` again and the browser was executing the **old** `playAmbient(type)` while the file on disk had the new `playAmbient(mix)`. Confirmed by comparing `fetch(..., {cache:'no-store'})` against `import()` of the same path. Unregistering is not sufficient on its own: `app.js` re-registers the worker during every boot, and `navigator.serviceWorker.controller` persists until a real navigation. **Reliable sequence:** load a page that does *not* boot the app (a 404 works), unregister there, then `import()` from that document — no worker controls it and nothing re-arms.
+
+### Known gap, recorded honestly
+
+**Analyser energy verified in a warm context only.** In a cold headless tab
+`getByteFrequencyData` returns all zeros because a fresh `AudioContext` renders
+nothing without a user gesture. Bands were confirmed working where audio had
+actually flowed. Not proven to be a code issue; also not proven to be purely
+environmental. `readEnergyBands` returns valid zeros in both cases, so the
+failure mode is a flat line rather than NaN.
+
+### Still open from earlier milestones
+
+- **Lighthouse never re-run** — now ~24 KB new CSS + ~45 KB new JS unaudited.
+- Screenshots not capturable; offline load unverifiable; geolocation-granted paths unexercised.
+- M3 gaps unchanged.
+
+### Not pushed
+
+All work local on `phase-3-widgets-final`, now 51 commits ahead of `origin/master`.

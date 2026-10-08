@@ -206,4 +206,32 @@ Meaningful technical decisions, library choices, and trade-offs for flip clock.
 - **Status:** Accepted and implemented
 - **Decision:** The CI size budget is raised from 400 KB to 900 KB, matching the owner's decision to lift the cap. Shipped JS is 658 KB.
 - **Why:** The 400 KB figure was set at M1 with 11 clocks and 9 widgets. After M3 added 18 clock faces and 15 widgets it could no longer make an unexpected jump visible — a guard that is always red has stopped guarding.
-- **Consequence:** 900 KB is roughly 35% headroom over the current figure. `js/app.bundle.js` (237 KB, dead, CI forbids its use) is excluded from the measurement and remains an owner decision.
+- **Consequence:** 900 KB is roughly 35% headroom over the current figure. `js/app.bundle.js` (237 KB, dead, CI forbids its use) is excluded from the measurement and remains an owner decision.### 2026-10-08 ADR-036: Ambience generators take a `dest` node and return their gain node
+- **Status:** Accepted and implemented
+- **Decision:** Every ambience factory has the signature `(dest: AudioNode) => { gainNode, stop() }`. The layer's internal gain is near 1 and the user's level is applied on `dest`. `stopAmbient()` disconnects both the source nodes and the layer's `GainNode`.
+- **Why:** E2 needs per-layer fades. A layer can only be faded independently if it has its own `GainNode`, and it can only have one if the factory was handed somewhere to connect — the previous hard-coded `gain.connect(this.masterGain)` made that impossible without rewriting every generator.
+- **Consequence:** Disconnecting the `GainNode`, not just stopping the source, is the specific requirement. A stopped-but-connected node is a leak that survives every later `playAmbient()` call. Verified: 25 play/stop cycles leave zero nodes.
+
+### 2026-10-08 ADR-037: Low-brightness mode reaches zero and never auto-brightens
+- **Status:** Accepted and implemented
+- **Decision:** `DIM_MIN` is 0. `brightnessVars()` applies the level with no upward clamp. There is no ambient-light response of any kind. Below 12% the palette shifts warm (accent moves off blue toward amber).
+- **Why:** `FEATURE_PLAN` F2 quotes the review it exists to fix — *"it doesn't like to stay low it snaps back up to some weird minimal value"* — and requires "near-zero without a UI-imposed floor". Three specific ways the bug could be reintroduced: a slider minimum, a clamp on the applied value, or ambient light re-asserting a minimum. The web has no light sensor (A12-A5), and a "smart" mode that brightens as it darkens is the opposite of the feature.
+- **Consequence:** The warm shift exists because blue is the first thing to stop resolving as output drops — at 4% a dark blue on black is invisible in a dark room even though it is technically correct. A test walks 0..1 and fails if any level renders brighter than requested.
+
+### 2026-10-08 ADR-038: Kiosk mode hides elements rather than covering them, and discloses what it is not
+- **Status:** Accepted and implemented
+- **Decision:** Blanking adds `visibility: hidden` plus zeroed height to the real elements. Reveal requires a 700 ms press-and-hold. The panel renders an explicit statement that a web page cannot lock a device. Fullscreen API and pointer-lock are not used.
+- **Why:** F5's differentiator is the security angle, and the plan makes disclosure a hard requirement: "explicit disclosure that a web page cannot lock a screen. Must not claim device-level security." A user who believes this locks their phone is worse off than one who never enabled it, because they will stop locking their phone.
+- **Consequence:** Hiding rather than overlaying is deliberate — an overlay is one element, and if it fails to render or is covered by a higher z-index, everything underneath becomes visible. Hiding means a failure shows *less*. Press-and-hold rather than click, because a click fires on a brush of the screen while someone reaches for something.
+
+### 2026-10-08 ADR-039: Wake-lock status has five states, not one boolean
+- **Status:** Accepted and implemented
+- **Decision:** `off` / `unsupported` / `held` / `at-risk` / `lost`, each with a distinct label and tone. A held lock never reports at-risk regardless of the failure count. Unsupported browsers name Firefox and Safari and suggest raising the device timeout.
+- **Why:** F4 quotes *"the clock turns off in the middle of the night"* and requires "Must never pretend to hold a lock it doesn't have." The pre-M4 engine held a boolean, so "is the screen actually going to stay on?" had no answer and three distinct states were collapsed into one.
+- **Consequence:** `wakeLockStatus()` is a pure exported function so the settings panel, the system widget and the transient warning cannot drift — three separately-written copies of "wake lock" copy is how a user ends up unsure whether the clock will survive the night.
+
+### 2026-10-08 ADR-040: Beat-reactive means energy bands, never BPM detection
+- **Status:** Accepted (analyser source); the visualiser itself is not built
+- **Decision:** `readEnergyBands()` returns bass / mid / treble / level from an `AnalyserNode` with `fftSize = 256` and `smoothingTimeConstant = 0.8`. No beat detection, no tempo inference.
+- **Why:** `FEATURE_PLAN` E4 is explicit: "our synthesised audio has no defined beat, so 'beat-reactive' must be driven by the AnalyserNode energy band, not a BPM detector." A BPM detector on a noise bed returns confident nonsense.
+- **Consequence:** The analyser is created **lazily** on first request, not wired permanently — an `AnalyserNode` costs an FFT per sample, and paying that for a display with no visualiser selected is spending CPU on nothing. Verified in-browser: bass ramped 0.58 → 0.85 across six samples. Recorded as **partial**: the energy source is built and verified, the drawing is not done, so E4 is not shipped.

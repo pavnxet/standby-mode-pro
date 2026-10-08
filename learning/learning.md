@@ -147,3 +147,42 @@
 - **Keep `innerHTML` as a string in a stand-in.** Building a DOM tree to be faithful to real parsing can hide bugs a string comparison catches — and XSS guards are exactly the place that matters.
 - **Test the CSS-coverage and CI scripts negatively.** A guard that cannot fail is not a guard. Feeding the rewritten registry check a truncated index and confirming exit 1 is what proved the rewrite actually works.
 - **Assert the *property*, not the *rendering***. "Rendered decimal count rises as magnitude falls" failed for `formatRate(150)` → `"150.00"` (trailing zeros are dropped). The property that matters is that the printed number still denotes the real rate, so the test now round-trips and checks relative error.
+## Milestone 4 — audio, display and honesty lessons
+
+- **An audio layer needs its own `GainNode` to be fadeable.** The old code did `gain.connect(this.masterGain)` inside every generator, so per-layer control was impossible without rewriting each one. Factories now take a `dest` node and return the gain they control. Internal levels near 1, user level on `dest` — keeping them low inside as well made the two multiply into something unexpectedly quiet.
+- **Stopping a source is not tearing down a layer.** The `GainNode` is a node in the graph; one left connected survives every later `playAmbient()`. 25 play/stop cycles leaving 0 nodes is the assertion that catches this.
+- **`Object.keys(mix)` vs "every known id".** `activeLayers` originally tested every catalogue id, and `clampMix(undefined)` helpfully supplied each layer's *default* — so an empty mix reported all 12 layers as active. The function that answers "what should be playing" must consider only keys actually present, because its caller uses it to decide what to start.
+- **A `clamp01`-style helper that defaults on `undefined` will invent data.** The right behaviour differs per call: for a *preference* a missing value should fall back to a default, but for a *membership* test a missing key must mean absent.
+- **A midnight-wrapping time range needs an explicit wrap case.** `from <= m && m <= to` is false for every minute between 23:00 and 06:00. Every night schedule wraps. The failure has no symptom other than the feature silently not working, so it is worth six boundary assertions.
+- **A zero-width range (`from === to`) must match nothing.** Treating it as "all day" would leave a display permanently dimmed with no visible cause.
+- **"Dim" has a floor that is the bug.** The plan quotes the review it exists to fix: a display that "snaps back up to some weird minimal value". A slider minimum, a clamp on the applied value, or ambient light re-asserting a minimum each reproduce it. All three are now structurally impossible, and a test walks the range asserting nothing renders brighter than requested.
+- **Blue is the first colour to stop resolving at low output.** At 4% brightness a dark blue on black is invisible in a dark room even though the value is technically correct. Near-zero mode shifts the accent toward amber rather than only dimming.
+- **No auto-brightening, ever.** There is no light sensor on the web, and a "smart" night mode that raises brightness as it darkens is the exact inverse of the feature.
+- **A press-and-hold, not a click, for anything that reveals private content.** A `click` handler fires when someone brushes the screen reaching for something.
+- **Hide elements to blank them; do not overlay them.** An overlay is one element — if it fails to render, is removed by a script, or is covered by a higher z-index, everything underneath is visible. Hiding makes a failure show *less*.
+- **A caveat that is the whole point must not be skimmable.** F5's disclosure ("a web page cannot lock a screen") is rendered as bordered amber text, not grey hint text, because the risk is a user who skims it and stops locking their phone.
+- **One boolean hides three states.** "Wake lock: true" cannot distinguish *held*, *retrying*, and *refused four times*. Four extra lines of pure function and a test asserting no two states share a label fixes what a boolean cannot express.
+- **`clampToTime`/`clampMix` belongs in `core/`, not in the component.** Engine and store both need the same clamp; duplicating it is how one of them drifts.
+- **Generated audio's giveaway is a period.** A single slow LFO is audibly periodic. Forest random-walks a filter centre, wind uses two detuned LFOs beating against each other, and fire/crackle rates are jittered. Evenly spaced crackles sound like a machine.
+- **A masker works because babble is unpredictable in the speech band**, not because it is loud. Modelling café as band-limited brown noise on two formant bands with a random walk is a crude approximation of the real mechanism, and closer than white noise would be.
+- **Never BPM-detect synthesised noise.** The plan says it and it is right: a tempo detector on a noise bed returns confident nonsense. `AnalyserNode` energy bands are the honest signal.
+- **Create an `AnalyserNode` lazily.** It costs an FFT per sample; wiring it permanently means paying for a visualiser nobody opened.
+- **An FFT needs one frame before it has data.** `getByteFrequencyData` returns zeros immediately after creating the analyser, and a cold `AudioContext` renders nothing without a user gesture. A zero reading is not evidence of a broken analyser — check `ctx.state` and `ctx.currentTime` before concluding.
+
+## Environment: the service-worker cache trap, again
+
+Third occurrence, and now with a reliable sequence. Confirming the trap needs two
+readings: `fetch(url, { cache: 'no-store' })` for what the server has, and
+`import(url)` for what is *executing*. They disagreed here — the old
+`playAmbient(type)` was running while the file on disk had `playAmbient(mix)`.
+
+Unregistering alone is not enough, for two independent reasons:
+
+1. `app.js` registers the worker during **every** boot, so a reload re-arms it.
+2. `navigator.serviceWorker.controller` persists until a real navigation, so a
+   just-unregistered worker still controls the current document.
+
+**What works:** load a page that does not boot the app (a 404 is ideal), unregister
+and clear caches *there*, then `import()` your modules from that document. No
+worker controls it and nothing re-arms. Always confirm
+`navigator.serviceWorker.controller === false` before trusting any measurement.
