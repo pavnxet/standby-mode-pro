@@ -22,7 +22,7 @@
 
 export const STORAGE_KEY_LEGACY = "standby_mode_pro_v1";
 export const STORAGE_KEY = "standby_mode_pro_v2";
-export const SCHEMA_VERSION = 6;
+export const SCHEMA_VERSION = 7;
 
 /**
  * Keys that must exist on a fully-formed state object. The deep-merge in
@@ -339,6 +339,30 @@ export const MIGRATIONS = [
         { level: 1, scheduled: null, mode: "time" },
         next.dimming
       );
+
+      return next;
+    }
+  },
+  {
+    from: 6,
+    to: 7,
+    description: "Backfill the C1 world clock's presentation preferences. Weather defaults OFF, because the widget is complete without it and adding a widget to a layout must not contact a third party.",
+    migrate(state) {
+      const next = { ...state };
+
+      next.worldClock = deepMerge(
+        {
+          showWeather: false,
+          pickerOpen: false,
+          error: ""
+        },
+        next.worldClock
+      );
+
+      // An existing selection is left exactly as it is: those city ids belong to
+      // C20's picker and re-deriving them here could quietly reorder someone's
+      // layout.
+      if (!Array.isArray(next.worldClockCities)) next.worldClockCities = [];
 
       return next;
     }
