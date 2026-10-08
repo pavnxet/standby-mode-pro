@@ -21,21 +21,10 @@ import { burnInProtector } from './engines/burnInProtector.js';
 // eleven hand-written imports, so adding a face touches exactly one file.
 import { CLOCKS } from './clocks/index.js';
 
-// Milestone 2 features (FEATURE_PLAN C2, C3, C4)
-import { alarmWidget } from './features/alarmWidget.js';
-import { noteWidget } from './features/noteWidget.js';
-import { habitWidget } from './features/habitWidget.js';
-
-// Widgets
-import { weatherWidget } from './widgets/weatherWidget.js';
-import { calendarWidget } from './widgets/calendarWidget.js';
-import { mediaWidget } from './widgets/mediaWidget.js';
-import { timerWidget } from './widgets/timerWidget.js';
-import { todoWidget } from './widgets/todoWidget.js';
-import { tallyWidget } from './widgets/tallyWidget.js';
-import { quoteWidget } from './widgets/quoteWidget.js';
-import { photoWidget } from './widgets/photoWidget.js';
-import { vibesWidget } from './widgets/vibesWidget.js';
+// Widgets. One declarative index (FEATURE_PLAN.md A1, applied to widgets) so
+// both registries are fed from the same list and adding a widget touches one
+// file. Covers the legacy nine, the Milestone 2 trio and the Milestone 3 seven.
+import { WIDGETS } from './widgets/index.js';
 
 // Components
 import { SpacesNav } from './components/spacesNav.js';
@@ -69,34 +58,13 @@ class App {
       registry.registerClock(id, clock);
     }
 
-    registry.registerWidget('weather', weatherWidget);
-    registry.registerWidget('calendar', calendarWidget);
-    registry.registerWidget('media', mediaWidget);
-    registry.registerWidget('timer', timerWidget);
-    registry.registerWidget('todo', todoWidget);
-    registry.registerWidget('tally', tallyWidget);
-    registry.registerWidget('quote', quoteWidget);
-    registry.registerWidget('photo', photoWidget);
-    registry.registerWidget('vibes', vibesWidget);
-
-    // Milestone 2 widgets. Registered through the same path as the legacy nine.
-    registry.registerWidget('alarm', alarmWidget);
-    registry.registerWidget('note', noteWidget);
-    registry.registerWidget('habit', habitWidget);
-
-    // 2. Register All 9 Widgets
-    widgetEngine.register('weather', weatherWidget);
-    widgetEngine.register('calendar', calendarWidget);
-    widgetEngine.register('media', mediaWidget);
-    widgetEngine.register('timer', timerWidget);
-    widgetEngine.register('todo', todoWidget);
-    widgetEngine.register('tally', tallyWidget);
-    widgetEngine.register('quote', quoteWidget);
-    widgetEngine.register('photo', photoWidget);
-    widgetEngine.register('vibes', vibesWidget);
-    widgetEngine.register('alarm', alarmWidget);
-    widgetEngine.register('note', noteWidget);
-    widgetEngine.register('habit', habitWidget);
+    // 2. Widgets reach BOTH registries from one list, for the same reason the
+    //    clocks do (FEATURE_PLAN.md A1): a widget landing in one registry and
+    //    not the other would render but never appear in the picker.
+    for (const { id, widget } of WIDGETS) {
+      widgetEngine.register(id, widget);
+      registry.registerWidget(id, widget);
+    }
 
     // 3. Initialize Visualizer & Ambient Canvas
     const canvas = document.getElementById('ambient-canvas-layer');
