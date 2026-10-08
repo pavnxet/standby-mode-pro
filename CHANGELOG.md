@@ -11,7 +11,108 @@ Format follows [Conventional Commits](https://www.conventionalcommits.org/).
 
 ---
 
-## [Unreleased] — Phase 3: Clocks & Widgets (Milestone M3, complete)
+## [3.0.0] - 2026-10-09
+
+**Milestones M3, M4 and M5 complete.** 65 of 69 plan features shipped; the four
+remaining are listed as gaps rather than counted as done.
+
+This release closes the third-party tracking violation recorded as AUDIT T10, and
+replaces the Tailwind CDN. Both were found by running Lighthouse, which had not
+been run since Milestone 2 — the gap in measurement was costing more than the
+code it was measuring.
+
+### Removed
+
+| | Why |
+|---|---|
+| **Third-party analytics** | `initViewsCounter` incremented a counter at `api.counterapi.dev` and `abacus.jasoncameron.dev` on **every page load** — no identifier, no consent, no opt-out. Live in every build up to M4. Now a localStorage count of visits on this device, and the pill is relabelled from "VIEWS / Global All-Time Visitors" to "VISITS / on this device", because a number counting one device must not claim to count all of them. |
+| **`cdn.tailwindcss.com`** | 124 KB of third-party JavaScript, 885 ms attributed as render-blocking, executed before the app did, and a contradiction of the no-CDN rule (ADR-015). Replaced with 28.5 KB of same-origin CSS, precached by the service worker. Cascade position unchanged. |
+
+### Added
+
+**M4 - Audio & Display:** E4 visualiser drawing (bars/pulse/flow, driven by the
+analyser bands, never a beat detector), E5 live canvas backgrounds (no WebGL,
+particle count set by measured frame time), E6/F1 solar schedule + authoring UI,
+E7 five screensaver styles, F3 four burn-in modes, F6/B4 device profiles, F7
+timeout rescue.
+
+**M5 - UX:** H2 theme engine (dark/light/AMOLED), H3 import/export, I1 settings
+search, I2/I3 command palette, I4 undo/redo, I5 toasts, B1/B2/B3/B6 layout grid
+with drag-reorder, spans, presets and picker gallery, G2/G4/G6 platform shims,
+C13 breathing guide, **H6 i18n (English + Hindi)**, **I6 onboarding tour**,
+**J3 compute worker**, **G5 voice commands**.
+
+**C1 - World Clock:** planned, listed as C20's dependency, and never built. Found
+by a test that now derives its expected feature set from `FEATURE_PLAN.md` instead
+of hardcoding it.
+
+### Fixed
+
+- **Five networked widgets rendered nothing until their fetch resolved** — a blank
+  panel for the length of the request. Three were only broken when *configured*:
+  air quality, news and prayer took an early branch when a location or feed URL
+  was set. The happy path was the broken one.
+- **The weather widget rendered Delhi's weather labelled "Local Forecast".** Its
+  fallback location was hardcoded to 28.6139, 77.2090 and presented as the
+  reader's own. There is no default location any more.
+- **`airQualityWidget` claimed "labelled, not silently substituted"** in a comment
+  while rendering no location at all. The place is now named in the source and
+  rendered in the header.
+- **`app.js` crashed on `forced is not defined`** and booted to a blank page —
+  `node --check` passed, and 589 tests passed, because none of them construct
+  `App`. Worth recording: a failure in the constructor is invisible to a suite
+  that imports modules directly.
+- **`nightSchedule.js` was unreachable** — a complete, tested module nothing
+  imported, so the schedule store actions existed with no way to author a
+  schedule. Found by `scripts/find-orphans.mjs`.
+- **The worker read a field name the store does not write** — it expected
+  `{startedAt, durationMinutes}` while the store records `{timestamp, duration}`,
+  so every session was dropped and the stats view would have read "no focus data
+  yet". Only findable by making the module reachable.
+- **12 widgets were mislabelled M3** because that was the pass they were built in,
+  while the plan assigns those features to M2. Tags now follow the plan.
+- **The theme picker had markup and no stylesheet**, and `.alarm-toggle` was an
+  `aria-pressed` toggle with no visual state — telling a screen reader the
+  opposite of what the display showed.
+
+### Changed
+
+- **Schema v7** with a migration chain. Legacy `standby_mode_pro_v1` is read and
+  never deleted.
+- **`js/app.bundle.js` deleted** — 231 KB of dead code, excluded from CI and
+  forbidden by it, that nothing loaded.
+
+### Measured
+
+Lighthouse 12.8.2, mobile, simulated throttling.
+
+| | before | after |
+|---|---|---|
+| performance | 51 | **58** |
+| accessibility | 100 | **100** |
+| best-practices | 96 | **100** |
+| seo | 100 | **100** |
+
+FCP 7.5s to 2.7s, speed index 7.5s to 2.7s, TBT 310ms to 160ms, third-party
+requests 7 to 3. Test suite wall clock 61s to 1.9s.
+
+**Not resolved:** cumulative layout shift 0.001 to 0.354, attributed to
+`<main id="main-stage">` with no sub-item cause. Left open rather than papered
+over.
+
+### Known gaps
+
+- **CI size budget is red.** Source JS is 963 KB against the 900 KB budget the
+  owner set. Not carried by Milestone 6; it needs either a raise or ~63 KB of
+  cuts. Raised rather than silently moved.
+- **CLS 0.354** as above.
+- **`remaining-features.mjs` lists 24 features by name that are actually
+  shipped** — the plan guessed several filenames wrong. The four genuinely
+  unimplemented ones were H6, I6, J3 and G5, and all four are now shipped.
+
+---
+
+## [Unreleased] - Phase 3: Clocks & Widgets (Milestone M3, complete)
 
 **Status: complete — clocks (A2–A16) and all 15 widgets (C5–C20).**
 
