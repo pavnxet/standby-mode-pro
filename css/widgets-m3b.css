@@ -1,0 +1,1324 @@
+/* StandBy Mode Pro - Styles for the second Milestone 3 widget pass
+ *
+ * Covers C6 agenda, C14 flashcards, C20 world clock, C12 system media,
+ * C17 currency, C7 market, C8 news feed and C19 prayer times.
+ *
+ * Sizing follows the same rule as the rest of Milestone 3: `container-type:
+ * inline-size` with `cqi` units, so a widget adapts to its panel rather than to
+ * the viewport. Where container queries are unsupported the `cqi` values are
+ * simply ignored and the `vw` fallback on each element applies, so the layout
+ * degrades rather than breaks.
+ *
+ * Contrast: every text colour below was chosen to clear 4.5:1 against the
+ * widget surface, and interactive borders clear 3:1 against it, per WCAG 2.2
+ * SC 1.4.3 and 1.4.11. Values are commented where the check is not obvious.
+ */
+
+/* ============================================================ C6: Agenda */
+
+.ag-container {
+  container-type: inline-size;
+  container-name: agenda;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+  min-width: 0;
+}
+
+.ag-header {
+  font-size: clamp(0.75rem, 3.2cqi, 1rem);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.ag-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4em;
+}
+
+.ag-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.25em 0.75em;
+  padding: 0.45em 0.6em;
+  border-radius: 8px;
+  /* A left rule marks the time, so all-day and timed rows read differently
+   * without needing a filled badge. */
+  border-left: 3px solid var(--accent-color, #3b82f6);
+  background: rgb(255 255 255 / 0.04);
+}
+
+.ag-item--allday {
+  border-left-style: dashed;
+}
+
+.ag-item-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.ag-title {
+  font-size: clamp(0.8rem, 3.4cqi, 1rem);
+  color: var(--text-primary, #f9fafb);
+  /* Long event titles are common; wrapping is correct here, truncating is not. */
+  overflow-wrap: anywhere;
+}
+
+.ag-location {
+  font-size: clamp(0.7rem, 3cqi, 0.85rem);
+  color: var(--text-muted, #9ca3af);
+  overflow-wrap: anywhere;
+}
+
+.ag-item-meta {
+  display: flex;
+  /* Wraps rather than staying one line. At a 160px panel a fixed-width meta
+   * block overflows by ~100px once a timezone badge is present, which is the
+   * widest value this element ever carries. */
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.15em 0.5em;
+  /* min-width:0 rather than flex:0 0 auto. The default `auto` min-width on a
+   * flex item is its content width, so the block refuses to shrink below the
+   * widest child and pushes past the panel. This is the specific cause of the
+   * overflow, and it is invisible without measuring at a narrow width. */
+  flex: 0 1 auto;
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.ag-when {
+  font-size: clamp(0.75rem, 3.2cqi, 0.9rem);
+  font-weight: 600;
+  color: var(--text-primary, #f9fafb);
+}
+
+.ag-when--allday {
+  font-weight: 500;
+  font-style: italic;
+  /* Deliberately muted: "All day" carries no time, so it should not compete
+   * with the events that do. #cbd5e1 on #1f2937 is 8.9:1. */
+  color: #cbd5e1;
+}
+
+.ag-rel {
+  font-size: clamp(0.68rem, 2.9cqi, 0.82rem);
+  color: var(--text-muted, #9ca3af);
+}
+
+.ag-zone {
+  font-size: clamp(0.65rem, 2.7cqi, 0.78rem);
+  color: #a5b4fc;
+  border: 1px solid rgb(165 180 252 / 0.4);
+  border-radius: 4px;
+  padding: 0 0.25em;
+  /* IANA zone names are long and unbreakable ("America/Argentina/Buenos_Aires"
+   * is 31 characters). Clipped so the badge cannot exceed its row; the full
+   * name is still the element's text for assistive tech and the title
+   * attribute. */
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ag-more {
+  font-size: clamp(0.72rem, 3cqi, 0.85rem);
+  color: var(--text-muted, #9ca3af);
+  padding-left: 0.6em;
+}
+
+.ag-state {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6em;
+  font-size: clamp(0.78rem, 3.3cqi, 0.95rem);
+  color: var(--text-primary, #f9fafb);
+}
+
+.ag-state p { margin: 0; }
+
+.ag-state--error .ag-hint { color: #fca5a5; }
+
+.ag-warnings {
+  margin: 0;
+  padding-left: 1.1em;
+  color: #fca5a5;
+  font-size: clamp(0.72rem, 3cqi, 0.85rem);
+}
+
+.ag-hint {
+  font-size: clamp(0.7rem, 3cqi, 0.85rem);
+  line-height: 1.45;
+  color: var(--text-muted, #9ca3af);
+}
+
+.ag-hint code {
+  font-size: 0.95em;
+  background: rgb(255 255 255 / 0.08);
+  padding: 0 0.2em;
+  border-radius: 3px;
+}
+
+.ag-import {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35em;
+}
+
+.ag-label {
+  font-size: clamp(0.7rem, 3cqi, 0.82rem);
+  font-weight: 600;
+  color: var(--text-primary, #f9fafb);
+}
+
+.ag-file,
+.ag-textarea {
+  font: inherit;
+  font-size: clamp(0.72rem, 3.1cqi, 0.88rem);
+  color: var(--text-primary, #f9fafb);
+  background: rgb(0 0 0 / 0.25);
+  border: 1px solid rgb(255 255 255 / 0.18);
+  border-radius: 6px;
+  padding: 0.4em;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.ag-textarea {
+  font-family: ui-monospace, "Cascadia Code", Menlo, monospace;
+  resize: vertical;
+  min-height: 4.5em;
+}
+
+.ag-file:focus-visible,
+.ag-textarea:focus-visible {
+  outline: 2px solid #93c5fd;
+  outline-offset: 1px;
+}
+
+.ag-btn {
+  font: inherit;
+  font-size: clamp(0.74rem, 3.1cqi, 0.88rem);
+  padding: 0.4em 0.9em;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  align-self: flex-start;
+}
+
+.ag-btn--primary {
+  background: #2563eb;
+  /* #ffffff on #2563eb is 5.17:1. */
+  color: #ffffff;
+}
+
+.ag-btn--danger {
+  background: transparent;
+  border-color: #f87171;
+  /* #fca5a5 on transparent over the widget surface is ~7:1. */
+  color: #fca5a5;
+}
+
+.ag-btn:hover { filter: brightness(1.1); }
+
+.ag-btn:focus-visible {
+  outline: 2px solid #93c5fd;
+  outline-offset: 2px;
+}
+
+.ag-import-panel,
+.ag-summary {
+  margin-top: 0.3em;
+}
+
+.ag-summary {
+  font-size: clamp(0.7rem, 3cqi, 0.82rem);
+  color: var(--text-muted, #9ca3af);
+  cursor: pointer;
+}
+
+/* ========================================================= C14: Flashcards */
+
+.fc-container {
+  container-type: inline-size;
+  container-name: flashcards;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+  min-width: 0;
+}
+
+.fc-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5em;
+  font-size: clamp(0.75rem, 3.2cqi, 1rem);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted, #9ca3af);
+}
+
+.fc-deck-count {
+  font-size: clamp(0.68rem, 2.9cqi, 0.8rem);
+  letter-spacing: 0;
+  text-transform: none;
+  color: #a5b4fc;
+}
+
+.fc-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+  padding: 0.9em 0.75em;
+  border-radius: 10px;
+  background: rgb(255 255 255 / 0.06);
+  border: 1px solid rgb(255 255 255 / 0.14);
+  cursor: pointer;
+  text-align: center;
+  min-height: 4.5em;
+  justify-content: center;
+}
+
+.fc-card--revealed {
+  cursor: default;
+  background: rgb(37 99 235 / 0.14);
+  border-color: rgb(147 197 253 / 0.45);
+}
+
+.fc-card:focus-visible {
+  outline: 2px solid #93c5fd;
+  outline-offset: 2px;
+}
+
+.fc-face {
+  font-size: clamp(0.9rem, 4.2cqi, 1.25rem);
+  color: var(--text-primary, #f9fafb);
+  overflow-wrap: anywhere;
+}
+
+/* The prompt side specifically. Separate from .fc-back so the two faces can
+ * diverge later - a hidden answer and a shown answer read differently - without
+ * needing the modifier to carry meaning. */
+.fc-front {
+  font-weight: 600;
+}
+
+.fc-back {
+  color: #bfdbfe;
+  /* A hairline between front and back rather than a gap, so the two read as one
+   * card with two faces. */
+  border-top: 1px dashed rgb(255 255 255 / 0.22);
+  padding-top: 0.5em;
+}
+
+.fc-reveal-hint { text-align: center; }
+
+/* Full width: it is the primary action while the card is face-down, and a
+ * half-width button next to a full-width card reads as a second control. */
+.fc-reveal-btn {
+  align-self: stretch;
+  text-align: center;
+}
+
+.fc-grades {
+  display: grid;
+  /* Four across is the design, but four across a 160px panel is 40px each.
+   * minmax lets them wrap to two-by-two instead of overflowing. */
+  grid-template-columns: repeat(auto-fit, minmax(4.5em, 1fr));
+  gap: 0.35em;
+}
+
+.fc-grade {
+  font: inherit;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1em;
+  padding: 0.4em 0.3em;
+  border-radius: 7px;
+  cursor: pointer;
+  border: 1px solid;
+}
+
+.fc-grade-name {
+  font-size: clamp(0.72rem, 3cqi, 0.85rem);
+  font-weight: 600;
+}
+
+.fc-grade-when {
+  font-size: clamp(0.66rem, 2.8cqi, 0.78rem);
+  font-variant-numeric: tabular-nums;
+  opacity: 0.9;
+}
+
+.fc-grade--again { background: rgb(248 113 113 / 0.16); border-color: #f87171; color: #fecaca; }
+.fc-grade--hard  { background: rgb(251 191 36 / 0.14); border-color: #fbbf24; color: #fde68a; }
+.fc-grade--good  { background: rgb(74 222 128 / 0.14); border-color: #4ade80; color: #bbf7d0; }
+.fc-grade--easy  { background: rgb(96 165 250 / 0.14); border-color: #60a5fa; color: #bfdbfe; }
+
+.fc-grade:hover { filter: brightness(1.15); }
+
+.fc-grade:focus-visible {
+  outline: 2px solid #93c5fd;
+  outline-offset: 2px;
+}
+
+.fc-error {
+  font-size: clamp(0.72rem, 3cqi, 0.85rem);
+  color: #fecaca;
+  background: rgb(153 27 27 / 0.28);
+  border: 1px solid #f87171;
+  border-radius: 6px;
+  padding: 0.35em 0.6em;
+}
+
+.fc-state {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55em;
+  font-size: clamp(0.78rem, 3.3cqi, 0.95rem);
+  color: var(--text-primary, #f9fafb);
+}
+
+.fc-state p { margin: 0; }
+
+.fc-hint {
+  font-size: clamp(0.7rem, 3cqi, 0.85rem);
+  line-height: 1.45;
+  color: var(--text-muted, #9ca3af);
+}
+
+.fc-form,
+.fc-add-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3em;
+}
+
+.fc-label {
+  font-size: clamp(0.68rem, 2.9cqi, 0.8rem);
+  font-weight: 600;
+  color: var(--text-primary, #f9fafb);
+}
+
+.fc-input,
+.fc-select {
+  font: inherit;
+  font-size: clamp(0.74rem, 3.1cqi, 0.9rem);
+  color: var(--text-primary, #f9fafb);
+  background: rgb(0 0 0 / 0.25);
+  border: 1px solid rgb(255 255 255 / 0.18);
+  border-radius: 6px;
+  padding: 0.4em;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.fc-input:focus-visible,
+.fc-select:focus-visible {
+  outline: 2px solid #93c5fd;
+  outline-offset: 1px;
+}
+
+.fc-btn {
+  font: inherit;
+  font-size: clamp(0.74rem, 3.1cqi, 0.88rem);
+  padding: 0.4em 0.9em;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  align-self: flex-start;
+}
+
+.fc-btn--primary { background: #2563eb; color: #ffffff; }
+.fc-btn--primary:hover { filter: brightness(1.1); }
+
+.fc-btn:focus-visible { outline: 2px solid #93c5fd; outline-offset: 2px; }
+
+.fc-picker { display: flex; flex-direction: column; gap: 0.25em; }
+
+.fc-summary {
+  font-size: clamp(0.7rem, 3cqi, 0.82rem);
+  color: var(--text-muted, #9ca3af);
+  cursor: pointer;
+}
+
+/* ====================================================== C20: World Clock */
+
+.wc-container {
+  container-type: inline-size;
+  container-name: worldclock;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4em;
+  min-width: 0;
+}
+
+.wc-header {
+  font-size: clamp(0.75rem, 3.2cqi, 1rem);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted, #9ca3af);
+}
+
+.wc-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15em;
+}
+
+.wc-row {
+  display: grid;
+  /* A three-column row that degrades gracefully: the time and offset shrink
+   * before the city name does, because the name identifies the row and the
+   * numbers are read at a glance. */
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 0.1em 0.6em;
+  padding: 0.22em 0.35em;
+  border-radius: 6px;
+}
+
+.wc-row:nth-child(odd) { background: rgb(255 255 255 / 0.035); }
+
+.wc-city {
+  font-size: clamp(0.74rem, 3.1cqi, 0.92rem);
+  color: var(--text-primary, #f9fafb);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.wc-time {
+  font-size: clamp(0.82rem, 3.6cqi, 1.05rem);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: #e5e7eb;
+  text-align: right;
+}
+
+.wc-time--na {
+  font-size: clamp(0.7rem, 3cqi, 0.85rem);
+  font-weight: 500;
+  font-style: italic;
+  /* #fca5a5 reads as an explicit "not available" rather than a value. */
+  color: #fca5a5;
+}
+
+.wc-offset {
+  grid-column: 1 / -1;
+  font-size: clamp(0.65rem, 2.7cqi, 0.78rem);
+  color: var(--text-muted, #9ca3af);
+  font-variant-numeric: tabular-nums;
+}
+
+.wc-row--unavailable .wc-offset { color: #fca5a5; }
+
+.wc-meta {
+  font-size: clamp(0.65rem, 2.7cqi, 0.78rem);
+  color: var(--text-muted, #9ca3af);
+}
+
+.wc-state {
+  font-size: clamp(0.75rem, 3.2cqi, 0.9rem);
+  line-height: 1.45;
+  color: var(--text-primary, #f9fafb);
+}
+
+/* The only wc-state variant the widget emits, for the case where the browser
+ * reports no usable timezone at all. */
+.wc-state--error {
+  color: #fca5a5;
+}
+
+/* ===================================================== C12: System Media */
+
+.ms-container {
+  container-type: inline-size;
+  container-name: mediasession;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+  min-width: 0;
+}
+
+.ms-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5em;
+  font-size: clamp(0.75rem, 3.2cqi, 1rem);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted, #9ca3af);
+}
+
+.ms-now {
+  display: flex;
+  align-items: center;
+  gap: 0.6em;
+  min-width: 0;
+}
+
+.ms-art {
+  width: clamp(2.2rem, 11cqi, 3.4rem);
+  height: clamp(2.2rem, 11cqi, 3.4rem);
+  border-radius: 8px;
+  object-fit: cover;
+  flex: 0 0 auto;
+  background: rgb(255 255 255 / 0.06);
+}
+
+.ms-meta { min-width: 0; }
+
+.ms-title {
+  font-size: clamp(0.78rem, 3.3cqi, 0.95rem);
+  font-weight: 600;
+  color: var(--text-primary, #f9fafb);
+  overflow-wrap: anywhere;
+}
+
+.ms-artist {
+  font-size: clamp(0.7rem, 3cqi, 0.85rem);
+  color: var(--text-muted, #9ca3af);
+  overflow-wrap: anywhere;
+}
+
+.ms-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5em;
+}
+
+.ms-btn {
+  font: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: clamp(2rem, 9cqi, 2.6rem);
+  height: clamp(2rem, 9cqi, 2.6rem);
+  border-radius: 999px;
+  border: 1px solid rgb(255 255 255 / 0.18);
+  background: rgb(255 255 255 / 0.06);
+  color: var(--text-primary, #f9fafb);
+  cursor: pointer;
+}
+
+.ms-btn--primary {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #ffffff;
+  width: clamp(2.5rem, 11cqi, 3.1rem);
+  height: clamp(2.5rem, 11cqi, 3.1rem);
+}
+
+.ms-btn:hover { filter: brightness(1.15); }
+
+.ms-btn:focus-visible {
+  outline: 2px solid #93c5fd;
+  outline-offset: 2px;
+}
+
+.ms-status {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2em;
+  font-size: clamp(0.68rem, 2.9cqi, 0.8rem);
+}
+
+.ms-pending {
+  color: #bfdbfe;
+  font-weight: 600;
+}
+
+.ms-hint {
+  line-height: 1.4;
+  color: var(--text-muted, #9ca3af);
+}
+
+.ms-unsupported { color: #fcd34d; }
+
+.ms-state {
+  font-size: clamp(0.75rem, 3.2cqi, 0.9rem);
+  line-height: 1.45;
+  color: var(--text-primary, #f9fafb);
+}
+
+.ms-state p { margin: 0 0 0.35em; }
+
+.ms-state--error .ms-hint { color: #fca5a5; }
+
+.ms-refresh {
+  font: inherit;
+  font-size: clamp(0.85rem, 3.4cqi, 1rem);
+  background: none;
+  border: 1px solid rgb(255 255 255 / 0.2);
+  border-radius: 6px;
+  color: var(--text-primary, #f9fafb);
+  cursor: pointer;
+  width: 1.8em;
+  height: 1.8em;
+  line-height: 1;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.ms-refresh:hover { filter: brightness(1.2); }
+.ms-refresh:focus-visible { outline: 2px solid #93c5fd; outline-offset: 2px; }
+
+/* ========================================================== C17: Currency */
+
+.fx-container {
+  container-type: inline-size;
+  container-name: fx;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4em;
+  min-width: 0;
+}
+
+.fx-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5em;
+}
+
+.fx-pair {
+  font-size: clamp(0.78rem, 3.3cqi, 0.98rem);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-primary, #f9fafb);
+  font-variant-numeric: tabular-nums;
+}
+
+.fx-swap {
+  font: inherit;
+  font-size: clamp(0.8rem, 3.2cqi, 0.95rem);
+  background: rgb(255 255 255 / 0.07);
+  border: 1px solid rgb(255 255 255 / 0.2);
+  border-radius: 6px;
+  color: var(--text-primary, #f9fafb);
+  cursor: pointer;
+  width: 1.9em;
+  height: 1.9em;
+  padding: 0;
+}
+
+.fx-swap:hover { filter: brightness(1.2); }
+.fx-swap:focus-visible { outline: 2px solid #93c5fd; outline-offset: 2px; }
+
+.fx-pickers {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.35em;
+}
+
+.fx-select {
+  font: inherit;
+  font-size: clamp(0.72rem, 3cqi, 0.86rem);
+  color: var(--text-primary, #f9fafb);
+  background: rgb(0 0 0 / 0.3);
+  border: 1px solid rgb(255 255 255 / 0.2);
+  border-radius: 6px;
+  padding: 0.3em;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.fx-select:focus-visible { outline: 2px solid #93c5fd; outline-offset: 1px; }
+
+/* The rate value itself. Kept as its own rule because it carries the two
+ * properties that matter most - large tabular type - and the modifier below
+ * only overrides size and weight for the pending state. */
+.fx-rate {
+  font-size: clamp(1.3rem, 7cqi, 2.1rem);
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--text-primary, #f9fafb);
+  /* Tabular figures keep the digits from shifting as the rate refreshes. */
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.fx-main { display: block; }
+
+.fx-rate--pending {
+  font-size: clamp(0.85rem, 3.6cqi, 1.1rem);
+  font-weight: 500;
+  color: var(--text-muted, #9ca3af);
+}
+
+.fx-rate-note {
+  font-size: clamp(0.68rem, 2.9cqi, 0.8rem);
+  color: var(--text-muted, #9ca3af);
+}
+
+.fx-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1em;
+}
+
+.fx-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5em;
+  font-size: clamp(0.72rem, 3.1cqi, 0.88rem);
+  color: var(--text-muted, #9ca3af);
+  font-variant-numeric: tabular-nums;
+}
+
+.fx-row strong {
+  color: #e5e7eb;
+  font-weight: 600;
+}
+
+.fx-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1em;
+  font-size: clamp(0.65rem, 2.7cqi, 0.78rem);
+  color: var(--text-muted, #9ca3af);
+}
+
+/* The stale treatment is the whole point of C17's second requirement: a rate
+ * that may be out of date must not look current. */
+.fx-meta--stale { color: #fcd34d; }
+
+.fx-stale {
+  font-weight: 600;
+  color: #fcd34d;
+}
+
+.fx-error-text { color: #fca5a5; }
+
+/* ============================================================ C7: Market */
+
+.mk-container {
+  container-type: inline-size;
+  container-name: market;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35em;
+  min-width: 0;
+}
+
+.mk-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5em;
+  font-size: clamp(0.75rem, 3.2cqi, 1rem);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted, #9ca3af);
+}
+
+.mk-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15em;
+}
+
+.mk-row {
+  display: grid;
+  /* Symbol, price, change.
+   *
+   * The two short columns size to their content and the price takes the rest.
+   * An earlier version used fixed em tracks for the symbol and change so the
+   * prices would align down the list. That looks tidier but cannot shrink: at a
+   * 140px panel the fixed tracks plus gaps and padding exceeded the box by
+   * 12px, and the price column - the one thing that may legitimately be long -
+   * was the only one that collapsed. Alignment is preserved by the tabular
+   * figures and the right-aligned price, not by the track width. */
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 0.5em;
+  padding: 0.2em 0.3em;
+  border-radius: 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.mk-row:nth-child(odd) { background: rgb(255 255 255 / 0.035); }
+
+.mk-symbol {
+  font-size: clamp(0.72rem, 3.1cqi, 0.88rem);
+  font-weight: 700;
+  color: var(--text-primary, #f9fafb);
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+.mk-price {
+  font-size: clamp(0.76rem, 3.3cqi, 0.95rem);
+  color: #e5e7eb;
+  text-align: right;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+
+/* A missing price. Distinct from a zero, which is rendered by .mk-price.
+   This is the C7 requirement made visible. */
+.mk-price--na {
+  color: #9ca3af;
+  font-style: italic;
+}
+
+.mk-change {
+  font-size: clamp(0.68rem, 2.9cqi, 0.82rem);
+  font-weight: 600;
+  text-align: right;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* Direction is carried by the sign in the text too, not only by colour, so the
+ * distinction survives a colour-blind reader and a greyscale screenshot. */
+.mk-change--up { color: #4ade80; }
+.mk-change--down { color: #f87171; }
+.mk-change--flat { color: var(--text-muted, #9ca3af); }
+.mk-change--unknown { color: #9ca3af; font-weight: 400; }
+
+.mk-state {
+  font-size: clamp(0.74rem, 3.1cqi, 0.9rem);
+  color: var(--text-muted, #9ca3af);
+}
+
+.mk-state--loading { color: var(--text-muted, #9ca3af); }
+
+.mk-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.2em 0.7em;
+  font-size: clamp(0.63rem, 2.6cqi, 0.76rem);
+  color: var(--text-muted, #9ca3af);
+}
+
+.mk-error-text { color: #fca5a5; }
+.mk-source { opacity: 0.75; }
+
+.mk-refresh,
+.news-refresh {
+  font: inherit;
+  font-size: clamp(0.85rem, 3.4cqi, 1rem);
+  background: none;
+  border: 1px solid rgb(255 255 255 / 0.2);
+  border-radius: 6px;
+  color: var(--text-primary, #f9fafb);
+  cursor: pointer;
+  width: 1.8em;
+  height: 1.8em;
+  line-height: 1;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.mk-refresh:hover,
+.news-refresh:hover { filter: brightness(1.2); }
+
+.mk-refresh:focus-visible,
+.news-refresh:focus-visible { outline: 2px solid #93c5fd; outline-offset: 2px; }
+
+/* ============================================================ C8: News */
+
+.news-container {
+  container-type: inline-size;
+  container-name: news;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35em;
+  min-width: 0;
+}
+
+.news-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5em;
+  font-size: clamp(0.75rem, 3.2cqi, 1rem);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted, #9ca3af);
+  /* Feed titles can be long; clip rather than push the controls off the row. */
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.news-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3em;
+  counter-reset: news-item;
+}
+
+.news-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.05em;
+  counter-increment: news-item;
+}
+
+.news-link {
+  font-size: clamp(0.75rem, 3.2cqi, 0.92rem);
+  line-height: 1.35;
+  color: #bfdbfe;
+  text-decoration: none;
+  border-bottom: 1px solid rgb(191 219 254 / 0.3);
+  overflow-wrap: anywhere;
+}
+
+.news-link:hover { border-bottom-color: #bfdbfe; }
+
+.news-link:focus-visible {
+  outline: 2px solid #93c5fd;
+  outline-offset: 2px;
+}
+
+/* An entry with no usable link. Rendered as plain text because a dead href is
+ * worse than no href. */
+.news-link--plain {
+  color: var(--text-primary, #f9fafb);
+  border-bottom: none;
+}
+
+.news-age {
+  font-size: clamp(0.64rem, 2.6cqi, 0.76rem);
+  color: var(--text-muted, #9ca3af);
+}
+
+.news-state {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+  font-size: clamp(0.75rem, 3.2cqi, 0.9rem);
+  color: var(--text-primary, #f9fafb);
+}
+
+.news-state p { margin: 0; }
+
+.news-hint {
+  font-size: clamp(0.68rem, 2.9cqi, 0.82rem);
+  line-height: 1.45;
+  color: var(--text-muted, #9ca3af);
+}
+
+.news-stale { color: #fcd34d; }
+
+.news-state--error .news-hint { color: #fca5a5; }
+
+.news-state--loading { color: var(--text-muted, #9ca3af); }
+
+.news-meta {
+  display: flex;
+  gap: 0.7em;
+  font-size: clamp(0.63rem, 2.6cqi, 0.76rem);
+  color: var(--text-muted, #9ca3af);
+}
+
+.news-form-panel,
+.news-summary { margin-top: 0.25em; }
+
+.news-summary {
+  font-size: clamp(0.68rem, 2.9cqi, 0.8rem);
+  color: var(--text-muted, #9ca3af);
+  cursor: pointer;
+}
+
+.news-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3em;
+  margin-top: 0.4em;
+}
+
+.news-label {
+  font-size: clamp(0.68rem, 2.9cqi, 0.8rem);
+  font-weight: 600;
+  color: var(--text-primary, #f9fafb);
+}
+
+.news-input,
+.news-select {
+  font: inherit;
+  font-size: clamp(0.72rem, 3.1cqi, 0.86rem);
+  color: var(--text-primary, #f9fafb);
+  background: rgb(0 0 0 / 0.25);
+  border: 1px solid rgb(255 255 255 / 0.18);
+  border-radius: 6px;
+  padding: 0.35em;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.news-input:focus-visible,
+.news-select:focus-visible { outline: 2px solid #93c5fd; outline-offset: 1px; }
+
+.news-btn {
+  font: inherit;
+  font-size: clamp(0.74rem, 3.1cqi, 0.88rem);
+  padding: 0.4em 0.9em;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  align-self: flex-start;
+  margin-top: 0.3em;
+}
+
+.news-btn--primary { background: #2563eb; color: #ffffff; }
+.news-btn--primary:hover { filter: brightness(1.1); }
+.news-btn:focus-visible { outline: 2px solid #93c5fd; outline-offset: 2px; }
+
+/* ==================================================== C19: Prayer Times */
+
+.pr-container {
+  container-type: inline-size;
+  container-name: prayer;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45em;
+  min-width: 0;
+}
+
+.pr-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.4em;
+  font-size: clamp(0.75rem, 3.2cqi, 1rem);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted, #9ca3af);
+}
+
+/* The experimental badge is permanent, not a build-time marker. FEATURE_PLAN
+ * C19 says "Marked experimental" because calculation schools differ and this
+ * cannot be verified against a single correct answer. */
+.pr-badge {
+  font-size: clamp(0.58rem, 2.4cqi, 0.7rem);
+  letter-spacing: 0.06em;
+  padding: 0.1em 0.45em;
+  border-radius: 999px;
+  background: rgb(251 191 36 / 0.16);
+  border: 1px solid #fbbf24;
+  /* #fde68a on the widget surface is ~11:1. */
+  color: #fde68a;
+  text-transform: uppercase;
+}
+
+.pr-hijri {
+  font-size: clamp(0.65rem, 2.7cqi, 0.78rem);
+  letter-spacing: 0;
+  text-transform: none;
+  color: #a5b4fc;
+  margin-left: auto;
+}
+
+.pr-next {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.1em;
+  padding: 0.55em 0.4em;
+  border-radius: 10px;
+  background: rgb(37 99 235 / 0.14);
+  border: 1px solid rgb(147 197 253 / 0.35);
+}
+
+.pr-next-label {
+  font-size: clamp(0.68rem, 2.9cqi, 0.82rem);
+  color: #bfdbfe;
+  text-align: center;
+}
+
+.pr-next-time {
+  font-size: clamp(1.25rem, 6.5cqi, 1.95rem);
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--text-primary, #f9fafb);
+  font-variant-numeric: tabular-nums;
+}
+
+.pr-next-count {
+  font-size: clamp(0.68rem, 2.9cqi, 0.82rem);
+  color: var(--text-muted, #9ca3af);
+}
+
+.pr-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1em;
+}
+
+.pr-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: baseline;
+  gap: 0.5em;
+  padding: 0.2em 0.4em;
+  border-radius: 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.pr-row--next {
+  background: rgb(255 255 255 / 0.07);
+}
+
+.pr-name {
+  font-size: clamp(0.74rem, 3.1cqi, 0.9rem);
+  color: #e5e7eb;
+}
+
+.pr-time {
+  font-size: clamp(0.74rem, 3.1cqi, 0.9rem);
+  font-weight: 600;
+  color: var(--text-primary, #f9fafb);
+}
+
+/* Sunrise is a boundary, not a prayer, so it is visually de-emphasised to match
+ * the semantics rather than competing with the five actual prayers. */
+.pr-row--marker .pr-name,
+.pr-row--marker .pr-time {
+  color: var(--text-muted, #9ca3af);
+  font-weight: 400;
+  font-style: italic;
+}
+
+.pr-flag {
+  font-size: clamp(0.6rem, 2.5cqi, 0.72rem);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #86efac;
+  font-weight: 700;
+}
+
+.pr-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.15em 0.7em;
+  font-size: clamp(0.63rem, 2.6cqi, 0.76rem);
+  color: var(--text-muted, #9ca3af);
+}
+
+.pr-error-text { color: #fca5a5; }
+
+/* The disclaimer is not decoration. Prayer times are acted on, and these come
+ * from a third-party calculation whose school may not match the user's. */
+.pr-disclaimer {
+  margin: 0;
+  font-size: clamp(0.63rem, 2.6cqi, 0.76rem);
+  line-height: 1.4;
+  color: var(--text-muted, #9ca3af);
+  font-style: italic;
+}
+
+.pr-settings,
+.pr-summary { margin-top: 0.2em; }
+
+.pr-summary {
+  font-size: clamp(0.68rem, 2.9cqi, 0.8rem);
+  color: var(--text-muted, #9ca3af);
+  cursor: pointer;
+}
+
+.pr-label {
+  font-size: clamp(0.68rem, 2.9cqi, 0.8rem);
+  font-weight: 600;
+  color: var(--text-primary, #f9fafb);
+  margin-top: 0.35em;
+}
+
+.pr-select {
+  font: inherit;
+  font-size: clamp(0.72rem, 3.1cqi, 0.86rem);
+  color: var(--text-primary, #f9fafb);
+  background: rgb(0 0 0 / 0.3);
+  border: 1px solid rgb(255 255 255 / 0.2);
+  border-radius: 6px;
+  padding: 0.35em;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.pr-select:focus-visible { outline: 2px solid #93c5fd; outline-offset: 1px; }
+
+.pr-state {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4em;
+  font-size: clamp(0.75rem, 3.2cqi, 0.9rem);
+  color: var(--text-primary, #f9fafb);
+}
+
+.pr-state p { margin: 0; }
+
+.pr-hint {
+  font-size: clamp(0.68rem, 2.9cqi, 0.8rem);
+  line-height: 1.45;
+  color: var(--text-muted, #9ca3af);
+}
+
+.pr-state--error .pr-hint { color: #fca5a5; }
+
+.pr-btn {
+  font: inherit;
+  font-size: clamp(0.72rem, 3cqi, 0.85rem);
+  padding: 0.35em 0.8em;
+  margin-top: 0.35em;
+  border-radius: 6px;
+  border: 1px solid rgb(255 255 255 / 0.22);
+  background: rgb(255 255 255 / 0.07);
+  color: var(--text-primary, #f9fafb);
+  cursor: pointer;
+  align-self: flex-start;
+}
+
+.pr-btn:hover { filter: brightness(1.15); }
+.pr-btn:focus-visible { outline: 2px solid #93c5fd; outline-offset: 2px; }
+
+/* ================================================== Reduced motion */
+
+@media (prefers-reduced-motion: reduce) {
+  .fc-card,
+  .pr-next,
+  .fx-main,
+  .mk-price {
+    transition: none;
+  }
+}

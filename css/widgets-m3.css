@@ -293,6 +293,16 @@
   color: var(--text-muted);
 }
 
+/* The label half of the header row. Rendered with no rule, so it inherited
+ * whatever the legacy widget CSS sets for a bare <span>. */
+.goals-title {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
 .goals-bar {
   height: 0.3rem;
   border-radius: 999px;
@@ -479,7 +489,8 @@
 /* An unavailable value is styled distinctly so it cannot be read as a
    measurement. This is the whole point of C11's graceful degradation. */
 .sysw-na,
-.aqi-state--error {
+.aqi-state--error,
+.aqi-state--loading {
   color: var(--text-muted);
   font-style: italic;
 }
@@ -527,6 +538,30 @@
 }
 
 /* --- Sun times (C10) ---------------------------------------------------- */
+
+/*
+ * The polar-day / polar-night state and the title row were rendered with no
+ * rule at all. Found by scripts/check-css-coverage.mjs, which compares the
+ * class names each widget template emits against the stylesheets the page
+ * loads. Unstyled here means the elements fall back to inherited legacy
+ * `vw`-sized widget CSS and size with the viewport instead of the container.
+ */
+.sunw-header {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.sunw-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.4rem;
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+}
 
 .sunw-now {
   display: flex;
