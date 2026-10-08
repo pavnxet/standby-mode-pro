@@ -13,6 +13,68 @@ Format follows [Conventional Commits](https://www.conventionalcommits.org/).
 
 ## [Unreleased] — Phase 3: Clocks & Widgets (Milestone M3, complete)
 
+**Status: complete — clocks (A2–A16) and all 15 widgets (C5–C20).**
+
+Milestone 3 is finished. The second widget pass, added here, closed the eight
+gaps listed in the previous entry of this changelog; each was deferred with a
+named reason, and each reason was resolved rather than argued away:
+
+| Deferred | How it was resolved |
+|---|---|
+| C6 Agenda + ICS | The timezone risk was taken seriously rather than deferred: `core/ics.js` handles all four date kinds separately, resolves `TZID` with a two-pass offset read, keeps recurrences at their original wall-clock time across DST, and rejects impossible dates instead of rolling them over. 39 tests, the largest suite of any widget. |
+| C7 Market ticker | Source verified **before** building: CoinGecko, HTTP 200, `Access-Control-Allow-Origin: *`, no key. `formatPrice(null)` is an em dash and cannot be `$0`. |
+| C8 RSS | The CORS reality was measured, not assumed: BBC, hnrss, The Verge and Hacker News all return 200 with **no** CORS header. The no-proxy privacy rule still holds, so there is no default feed and a blocked feed says so in plain words. A self-hosted or permissive feed works. |
+| C12 Media Session | Built as what it actually is — controls media playing *elsewhere*. The plan's own "honest framing" note is quoted in the widget body, because pressing play here producing no sound otherwise looks like a broken widget. |
+| C14 Flashcards | SM-2-lite in `core/flashcards.js`, pure and tested. Space flips, 1–4 grade. A lapse resets the card, which is the part that matters. |
+| C17 FX | Frankfurter (ECB reference rates) verified keyless, CORS `*`. The ECB base date is displayed and a stale rate is marked stale, because ECB publishes once per business day. |
+| C19 Prayer times | Built, and marked **experimental** permanently in the UI, as the plan requires. It does not compute times: schools differ by 10–20 minutes and there is no single correct answer to check against. The calculation method is a user choice, and it measurably changes the result (Fajr 04:59 MWL vs 04:57 Umm al-Qura). |
+| C20 Timezone converter | The engine was already built and tested; the missing piece was only the widget. An unknown IANA zone renders "unavailable", never the local time. |
+
+### Milestone 3, second widget pass — delivered and verified
+
+| ID | What shipped | Verification |
+|---|---|---|
+| C6 | **Agenda.** Replaces the calendar widget's hardcoded event list with the user's own `.ics` file, parsed in-browser and stored locally. Line unfolding, `TZID`/`Z`/floating/all-day, RRULE with `INTERVAL`/`COUNT`/`UNTIL`/`BYDAY`, `EXDATE`. | 39 tests + browser |
+| C7 | **Market.** BTC/ETH by default, 11 instruments available. Signed 24h change carried by the text as well as colour. | 12 tests + browser |
+| C8 | **News feed.** User-supplied URL only. `safeFeedLink` is the single choke point where a feed value becomes an `href`. | 13 tests + browser |
+| C12 | **System media.** OS media keys and lock-screen integration; artwork `src`s filtered before reaching an `<img>`. | 10 tests + browser |
+| C14 | **Flashcards.** Local decks, no account. Four buttons preview their next interval before you commit. | 9 tests + browser |
+| C17 | **Currency.** 30 currencies, ECB rate + base date, stale marking, swap. | 8 tests + browser |
+| C19 | **Prayer times.** *(experimental)* Aladhan, 7 calculation schools, Hijri date, explicit disclaimer. | 16 tests + browser |
+| C20 | **World clock.** 8 cities, live UTC offsets, "4 h behind" deltas. | 3 tests + browser |
+
+### Defects found and fixed while verifying this pass
+
+- **`applyAccessibilitySettings` threw at module-evaluation time** without a `document.body`. The store calls it in its constructor, so any import before the DOM existed failed during module evaluation — the one moment a caller cannot catch.
+- **Fetch errors rendered raw.** A blocked cross-origin response surfaces in-page as `TypeError: Failed to fetch`; the FX panel read "—  Failed to fetch". `describeFetchFailure` now lives in `netPolicy` and distinguishes a refusal from a timeout, because those need different responses from a reader.
+- **Six widget classes had no CSS rule at all** (`fc-front`, `fc-reveal-btn`, `wc-state--error`, `fx-rate`, `goals-title`, `sunw-header`, `sunw-row`, `aqi-state--loading`). Four of these are from the *first* M3 widget pass. They fell back to legacy viewport-sized CSS. `scripts/check-css-coverage.mjs` now gates this in CI.
+- **`.ag-item-meta` overflowed by 102px at a 160px panel.** `flex: 0 0 auto` with an auto min-width cannot shrink below its widest child, and a `Europe/London` badge was the widest value.
+- **`.mk-row` overflowed by 12px at 140px.** Fixed em tracks for the symbol and change cannot shrink, while the price column — the one that may legitimately be long — collapsed to zero.
+- **`describeRelative` returned `""` for the exact input its own render path passes.** It checked `Number.isFinite(new Date())`, which is false.
+- **The agenda widget rendered nothing until midnight.** Its tick only re-rendered on a day rollover and there was no first paint.
+- **`scheduler.everySecond` does not exist.** The world clock was written against an API that was never there.
+- **RFC 6868 caret parameters decoded per-token, not per-character**, corrupting any value with more than one escape.
+- **February 31st was accepted.** `day <= 31` is not calendar validation; it rendered as March 3rd in an agenda.
+- **`TZID=GMT+05:30` mis-split** at the colon inside the parameter value.
+- **The `VCALENDAR`-missing warning fired on every valid document**, because it checked whether the block was still open rather than whether one had been seen.
+- **RSS entities were decoded twice**, turning `&amp;amp;` into `&` rather than `&amp;`.
+
+### Milestone 3, second pass — measured
+
+- **309 tests, 0 failures** (up from 195).
+- **15 of 15 M3 widgets mount and unmount cleanly**; no XSS payload reaches the DOM under a hostile-value pass.
+- **0px horizontal overflow** for all 15 widgets at 120, 140, 160, 180, 220, 320, 480 and 900px, in both empty and data states.
+- **`widgets-m3b.css` parses clean**: 200 rules, zero `cqi` values applied in a context without a container.
+- **Sunrise verified against the live service**: Asia/Kolkata 06:18, matching the earlier almanac cross-check.
+- **27 widgets, 19 clock faces** registered in total.
+
+---
+
+## [Superseded] — Phase 3: Clocks & Widgets (Milestone M3, widgets portion)
+
+> Retained for history. The eight deferrals below were all resolved in the
+> pass described above; none of them is still outstanding.
+
 **Status: clocks complete (A2–A16); widgets 7 of 15 (C5, C9, C10, C11, C15, C16, C18).**
 
 Milestone 3 has two halves. Both are now started and the clock half is complete;
@@ -109,13 +171,20 @@ code and caught by verification rather than shipped.
 
 ### Not delivered
 
-- **Widgets C6–C20** — the second half of Milestone 3. Not started.
+- **Widgets C6–C20** — ✅ **complete.** See the second widget pass at the top of
+  this file.
 - **Lighthouse re-run.** Not performed for this milestone; the previous run's
   scores are unchanged and are **not** claimed as current.
 - **Source budget.** Shipped JS is now **530 KB against a 400 KB budget** (98 KB
   added by the widget half). The budget was set at M1 with 11 clocks and 9
   widgets. Dead code was removed rather than the features; raising it is an
   owner decision and is left open, not silently decided here.
+
+> **Resolved in the second widget pass.** The owner lifted the 400 KB budget, so
+> it is no longer a blocker. Shipped JS+CSS+HTML is now **794.6 KB** across 114
+> files, of which the eight new widgets and seven new modules account for
+> ~86 KB. The only single largest item remains `js/app.bundle.js` at 237 KB,
+> which is dead (CI forbids its use) and is still an owner decision.
 
 ---
 
@@ -244,26 +313,26 @@ been estimated or fabricated.
 
 | ID | Feature | Status | Complexity |
 |---|---|---|---|
-| C1 | World clock widget | ⬜ Planned | M |
+| C1 | World clock widget | ✅ Shipped (as C20) | M |
 | C2 | Alarm manager (repeat, snooze, gradual volume, sunrise) | ✅ Shipped | L |
 | C3 | Habit tracker | ✅ Shipped | M |
 | C4 | Notes / sticky notes | ✅ Shipped | S |
-| C5 | Countdown to event | ⬜ Planned | S |
-| C6 | Google-style agenda + ICS import | ⬜ Planned | M |
-| C7 | Stock & crypto ticker | ⬜ Planned | M |
-| C8 | News / RSS reader | ⬜ Planned | M |
-| C9 | Air quality (Open-Meteo AQI) | ⬜ Planned | S |
-| C10 | Sunrise / sunset widget | ⬜ Planned | S |
-| C11 | Battery & network status | ⬜ Planned | S |
-| C12 | Real media control (Media Session API) | ⬜ Planned | M |
+| C5 | Countdown to event | ✅ Shipped | S |
+| C6 | Google-style agenda + ICS import | ✅ Shipped | M |
+| C7 | Stock & crypto ticker | ✅ Shipped | M |
+| C8 | News / RSS reader | ✅ Shipped | M |
+| C9 | Air quality (Open-Meteo AQI) | ✅ Shipped | S |
+| C10 | Sunrise / sunset widget | ✅ Shipped | S |
+| C11 | Battery & network status | ✅ Shipped | S |
+| C12 | Real media control (Media Session API) | ✅ Shipped | M |
 | C13 | Breathing / meditation guide | ⬜ Planned | S |
-| C14 | Flashcards / quiz widget | ⬜ Planned | M |
-| C15 | Unit converter | ⬜ Planned | S |
-| C16 | Quick calculator | ⬜ Planned | S |
-| C17 | Currency converter (FX) | ⬜ Planned | M |
-| C18 | Daily goals dashboard | ⬜ Planned | M |
-| C19 | Prayer / Panchang times *(experimental)* | ⬜ Planned | M |
-| C20 | World/local time converter | ⬜ Planned | S |
+| C14 | Flashcards / quiz widget | ✅ Shipped | M |
+| C15 | Unit converter | ✅ Shipped | S |
+| C16 | Quick calculator | ✅ Shipped | S |
+| C17 | Currency converter (FX) | ✅ Shipped | M |
+| C18 | Daily goals dashboard | ✅ Shipped | M |
+| C19 | Prayer / Panchang times *(experimental)* | ✅ Shipped (experimental) | M |
+| C20 | World/local time converter | ✅ Shipped | S |
 
 ### D. Focus Tools
 

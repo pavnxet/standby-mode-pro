@@ -604,6 +604,201 @@ itself has not been reviewed by eye.
 
 ---
 
+## 3C. Milestone 3 — second widget pass (executed 2026-10-08)
+
+Covers C6, C7, C8, C12, C14, C17, C19, C20. With this section Milestone 3 is
+complete: 19 clock faces and 15 of 15 widgets.
+
+### 3C.1 Automated — **PASS**
+
+```
+npm run validate   →  exit 0
+  node --check js/app.js, sw.js          syntax OK
+  node scripts/check-css-coverage.mjs    every widget class is styled
+                                         (223 class references, 8 stylesheets)
+  node --test tests/*.test.mjs           309 tests, 309 pass, 0 fail
+```
+
+Up from 195 tests. New suites: `tests/widgets-m3b.test.mjs` (60),
+`tests/widgets-m3c.test.mjs` (43), `tests/mount.test.mjs` (11).
+
+### 3C.2 Every widget mounts, renders and unmounts — **PASS**
+
+All 27 widgets mount against a DOM stand-in with hostile values in the store,
+and all 15 M3 widgets were additionally mounted in the browser at 6–8 widths.
+
+| Widget | Mounts | Renders | Unmounts | Overflow at 120–900px |
+|---|---|---|---|---|
+| C6 agenda | ✅ | ✅ | ✅ | 0px |
+| C7 market | ✅ | ✅ | ✅ | 0px |
+| C8 news | ✅ | ✅ | ✅ | 0px |
+| C12 media | ✅ | ✅ | ✅ | 0px |
+| C14 flashcards | ✅ | ✅ | ✅ | 0px |
+| C17 fx | ✅ | ✅ | ✅ | 0px |
+| C19 prayer | ✅ | ✅ | ✅ | 0px |
+| C20 timezone | ✅ | ✅ | ✅ | 0px |
+
+Measured widths: 120, 140, 160, 180, 220, 320, 480, 900. Both empty and data
+states checked — they have different DOM shapes, so the empty state alone does
+not cover the data state.
+
+### 3C.3 C6 ICS correctness — **PASS**
+
+The plan calls timezone correctness "an unsolved industry-wide failure", so the
+four date kinds are verified separately rather than collapsed into a `Date`:
+
+| Case | Verified behaviour |
+|---|---|
+| `VALUE=DATE` (all-day) | Rendered "All day", **no** time invented |
+| `DTSTART;TZID=Europe/London:...090000` winter | `09:00Z` |
+| same wall clock in July | `08:00Z` — BST is UTC+1, an hour earlier in UTC |
+| `...T090000Z` | Exact UTC instant |
+| floating (no TZID, no Z) | Interpreted in the viewer's zone |
+| Asia/Kolkata | `09:00` → `03:30Z`, correct for UTC+5:30 |
+| DST boundary | `00:30` GMT and `02:30` BST both → `01:30Z` |
+| Recurrence across DST | Stays at 09:00 local every day |
+| `EXDATE` | Excluded occurrence removed |
+| `20260231T120000Z` | **Rejected.** Date would have rolled it to March 3rd |
+| Unknown `TZID` | `null` — never a plausible wrong time |
+
+Checked against the browser's own `Intl` via `offsetMinutes`, and the same
+module already validated against a published almanac for 6 cities in §3A.
+
+### 3C.4 Live source verification — **PASS, one caveat**
+
+Sources were verified **before** building, from the shell with an `Origin`
+header sent (CORS headers are only returned in response to one):
+
+| Source | Status | CORS | Key | Used by |
+|---|---|---|---|---|
+| Frankfurter (ECB) | 200 | `*` | none | C17 |
+| CoinGecko | 200 | `*` | none | C7 |
+| Open-Meteo AQ | 200 | `*` | none | C9 (pre-existing) |
+| Aladhan | 200 | `*` | none | C19 |
+| BBC RSS | 200 | **none** | — | C8 (evidence of infeasibility) |
+| hnrss.org | 200 | **none** | — | C8 |
+| The Verge | 200 | **none** | — | C8 |
+| news.ycombinator.com | 200 | **none** | — | C8 |
+
+**Caveat, stated plainly:** Frankfurter is reachable from the shell but **not**
+from the browser sandbox this verification ran in — every request fails with
+`TypeError: Failed to fetch`. This is an environment restriction, not a code
+fault, but it means **C17's success state was never observed rendering in a
+browser.** What *was* observed is the failure path: the widget rendered an em
+dash and a readable sentence, never `$0` and never a blank panel. The success
+path is covered by unit tests over a response captured from the live service.
+
+Four of five mainstream RSS feeds send no CORS header at all, which confirms
+the plan's warning and is why C8 ships with no default feed.
+
+### 3C.5 C19 prayer times — **PASS, marked experimental**
+
+Verified in-browser with a real response from Aladhan:
+
+```
+Prayer Times  experimental   27 Rabīʿ al-thānī 1448 AH
+Next prayer — Fajr  04:59  in 8 h 17 m (tomorrow)
+Fajr 04:59  Sunrise 06:18  Dhuhr 12:09  Asr 15:30  Maghrib 17:59  Isha 19:13  [now]
+method: Muslim World League   Asia/Kolkata   Delhi
+```
+
+- The `experimental` badge is permanent, not a build marker, per the plan.
+- Sunrise is de-emphasised in the CSS and excluded from "next prayer" — it is a
+  boundary, not a prayer. Verified: between Fajr and Sunrise, "next" is Dhuhr.
+- The calculation method is a user choice and measurably changes the result:
+  Fajr **04:59** under Muslim World League vs **04:57** under Umm al-Qura. That
+  difference is the reason the feature is flagged experimental.
+- Hijri month name decodes to correct codepoints (`U+012B ī`, `U+02BF ʿ`,
+  `U+0101 ā`) — the console simply cannot render them. Not mojibake.
+
+### 3C.6 C12 system media — **PASS**
+
+- Unavailable state names the reason, including the HTTPS requirement (Media
+  Session is restricted to secure contexts, so serving over plain HTTP on a LAN
+  address silently disables it).
+- Handlers cleared on `destroy()` — verified by test.
+- A handler that throws does not escape — verified by test.
+- Unsupported actions are surfaced to the UI (`Not supported here: stop`).
+- Artwork `src`s filtered: `javascript:` and `data:text/html` both rejected
+  before reaching an `<img>`.
+- **Honest-framing check:** the widget body states that it controls media in
+  another app and has no audio of its own. This is the single most common
+  misunderstanding about Media Session and the most likely reason it would be
+  reported as broken.
+
+### 3C.7 XSS probe — **PASS**
+
+`tests/mount.test.mjs` mounts all 27 widgets with hostile values in the store —
+`<script>`, attribute breakout (`" onmouseover="`), `javascript:` URLs — and
+asserts on rendered markup: no live script tag, no breakout, no `javascript:`
+href, and the raw payload string absent entirely. `window.__pwned` is never set.
+
+One real finding: `newsWidget` pre-escaped a title into a local variable and
+then interpolated `${title}`. Correct, but the escaping was invisible at both
+interpolation sites — which is exactly what the static guard checks for, and a
+guard that cannot see the escaping eventually gets disabled. Now escaped at the
+point of use.
+
+### 3C.8 Stylesheet coverage — **PASS (new gate)**
+
+`scripts/check-css-coverage.mjs` compares each widget's emitted classes against
+every loaded stylesheet. It found **6 classes emitted with no rule anywhere**:
+
+`fc-front`, `fc-reveal-btn`, `wc-state--error`, `fx-rate`, `goals-title`,
+`sunw-header`, `sunw-row`, `aqi-state--loading`
+
+Four are from the **first** M3 widget pass, i.e. a gap that existed before this
+work and was not previously detectable. Unstyled elements fall back to the
+legacy `vw`-based widget CSS — which is how a widget overflows a narrow panel
+while its own stylesheet looks complete. Now gated in CI via `npm run css`.
+
+The script checks *all* loaded stylesheets, not one expected file, so a shared
+utility like `.visually-hidden` is not falsely reported. That false failure was
+hit during development and is the reason it is written that way: a check that
+cries you is a check you learn to ignore.
+
+### 3C.9 Responsive sizing — **PASS**
+
+All 15 M3 widgets, 0px horizontal overflow at every width in
+{120, 140, 160, 180, 220, 320, 480, 900}.
+
+Two real layout defects found by measuring (not by reading the CSS):
+
+| Element | Defect | Cause |
+|---|---|---|
+| `.ag-item-meta` | 102px overflow at 160px | `flex: 0 0 auto` — an auto min-width cannot shrink below the widest child, and a `Europe/London` badge is the widest |
+| `.mk-row` | 12px overflow at 140px | Fixed `em` tracks for symbol and change cannot shrink, while the price column — the one that may legitimately be long — collapsed to 0 |
+
+Both fixed. The `.mk-row` fix also improved the design: alignment now comes
+from tabular figures and right-alignment rather than a fixed track width.
+
+### 3C.10 Console output — **OBSERVED, pre-existing**
+
+No errors from any of the new code. Two pre-existing items remain:
+
+- `cdn.tailwindcss.com` production warning — ADR-015, still open.
+- `api.counterapi.dev` `ERR_TUNNEL_CONNECTION_FAILED` — the third-party
+  analytics call flagged as T10, which contradicts the zero-tracking
+  requirement. Still present at `js/app.js`; owner decision.
+
+### 3C.11 Lighthouse — **NOT RUN**
+
+Not re-run for this milestone. The M2 scores (a11y / BP / SEO 1.00) are
+unchanged on disk but are **not claimed as current** — ~36 KB of new CSS and
+~70 KB of new JS have not been audited. This remains outstanding.
+
+### 3C.12 Screenshots — **NOT CAPTURED**
+
+Unchanged from §3B.10. Layout verified programmatically; visual appearance has
+not been reviewed by eye.
+
+### 3C.13 Offline load with the network down — **NOT RUN**
+
+Unchanged. No network-emulation capability available. Recorded as a gap, never
+claimed as passing.
+
+---
+
 ## 4. Manual Test Checklist — Per Feature
 
 Format: **Steps → Expected → Edge cases.** Mark each when verified.

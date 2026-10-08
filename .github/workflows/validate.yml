@@ -207,20 +207,35 @@ jobs:
           print(f'{len(engines)} clocks and {len(engine_widgets)} widgets registered consistently.')
           PY
 
+      # New. A widget template that emits a class no stylesheet defines renders
+      # unstyled, which in this app means it silently falls back to the legacy
+      # viewport-sized widget CSS. Found six such classes by hand, four of them
+      # from a previous milestone, so the check is now a gate rather than a habit.
+      - name: Widget stylesheet coverage
+        shell: bash
+        run: |
+          set -euo pipefail
+          node scripts/check-css-coverage.mjs
+
       - name: Unit and audit regression tests
         shell: bash
         run: |
           set -euo pipefail
           npm test
 
-      # New. The repository shipped a 231 KB app.bundle.js that has already
-      # diverged from source; CI forbids its use. This guard makes sure first-load
+      # The repository shipped a 231 KB app.bundle.js that has already diverged
+      # from source; CI forbids its use. This guard makes sure first-load
       # JavaScript does not silently grow (FEATURE_PLAN.md J4).
+      #
+      # The budget was raised from 400 KB to 900 KB by the owner once Milestone 3
+      # landed 15 widgets and 19 clock faces. It is a growth alarm, not a target:
+      # the point is to make an unexpected jump visible, and the previous 400 KB
+      # threshold could no longer do that.
       - name: Bundle size budget
         shell: bash
         run: |
           set -euo pipefail
-          BUDGET_KB=400
+          BUDGET_KB=900
           # Everything reachable as a static import from the entry point, plus
           # the modules index.html loads. The legacy bundle is excluded on purpose.
           TOTAL_KB=$(find js -type f -name '*.js' ! -name 'app.bundle.js' -exec cat {} + | wc -c | awk '{printf "%d", $1/1024}')
