@@ -5,16 +5,7 @@
  * year as a hero number.
  */
 
-/** Day-of-year, 1-based, using local time. */
-export function dayOfYear(date) {
-  const start = new Date(date.getFullYear(), 0, 0);
-  const diff = date - start;
-  return Math.floor(diff / 86400000);
-}
-
-export function daysInYear(year) {
-  return (year % 4 === 0 && year % 100 !== 0) || year % 400 === 0 ? 366 : 365;
-}
+import { dayOfYear, daysInYear } from "../core/clockMath.js";
 
 export const yearClock = {
   name: "Clock of the Year",

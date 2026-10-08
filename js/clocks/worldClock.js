@@ -8,40 +8,12 @@
  * every target browser already has it, and a bundled copy would be ~100 KB.
  */
 
-const DEFAULT_CITIES = [
-  { id: "local", label: "Local", tz: null },
-  { id: "nyc", label: "New York", tz: "America/New_York" },
-  { id: "london", label: "London", tz: "Europe/London" },
-  { id: "dubai", label: "Dubai", tz: "Asia/Dubai" },
-  { id: "india", label: "India", tz: "Asia/Kolkata" },
-  { id: "tokyo", label: "Tokyo", tz: "Asia/Tokyo" },
-  { id: "sydney", label: "Sydney", tz: "Australia/Sydney" },
-  { id: "la", label: "Los Angeles", tz: "America/Los_Angeles" }
-];
-
-/** Formats a time in a named timezone, degrading to null if unsupported. */
-export function formatInZone(date, timeZone, options = {}) {
-  try {
-    return new Intl.DateTimeFormat(undefined, { timeZone, hour12: false, ...options }).format(date);
-  } catch (e) {
-    // An unknown zone must render as "unavailable", never as a wrong time.
-    return null;
-  }
-}
-
-/** Short UTC offset label for a zone at a given instant, e.g. "UTC+5:30". */
-export function offsetLabel(date, timeZone) {
-  try {
-    const parts = new Intl.DateTimeFormat("en-US", {
-      timeZone,
-      timeZoneName: "shortOffset"
-    }).formatToParts(date);
-    const tz = parts.find(p => p.type === "timeZoneName");
-    return tz ? tz.value : null;
-  } catch (e) {
-    return null;
-  }
-}
+import {
+  DEFAULT_CITIES,
+  formatInZone,
+  offsetLabel,
+  localZone
+} from "../core/timezones.js";
 
 export const worldClock = {
   name: "World Clock",
@@ -53,13 +25,8 @@ export const worldClock = {
     let index = 0;
     let disposed = false;
     let intervalId = null;
-    const localZone = (() => {
-      try {
-        return Intl.DateTimeFormat().resolvedOptions().timeZone;
-      } catch (e) {
-        return null;
-      }
-    })();
+    // The machine's own zone, used for the "Local" entry in the carousel.
+    const homeZone = localZone();
 
     container.innerHTML = `
       <div class="clock-display-wrapper worldclock-wrapper">
@@ -85,7 +52,7 @@ export const worldClock = {
     const render = (now, forceCity = false) => {
       if (disposed) return;
       const city = cities[index];
-      const zone = city.tz || localZone;
+      const zone = city.tz || homeZone;
 
       const formatted = zone
         ? formatInZone(now, zone, { hour: "2-digit", minute: "2-digit" })
