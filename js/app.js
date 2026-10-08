@@ -36,6 +36,11 @@ import { AudioMixer } from './components/audioMixer.js';
 import { DimmingController } from './components/dimmingController.js';
 import { KioskMode } from './features/kioskMode.js';
 import { WakeLockResilience } from './engines/wakeLockResilience.js';
+// Milestone 4, second pass.
+import { BeatVisualiser } from './engines/beatVisualiser.js';
+import { LiveBackgrounds } from './features/liveBackgrounds.js';
+import { ScreenTimeoutRescue } from './core/screenTimeoutRescue.js';
+import { profileFromEnvironment, applyProfile } from './core/deviceProfile.js';
 import { Screensaver } from './components/screensaver.js';
 import { PomoFocusView } from './components/pomoFocusView.js';
 
@@ -94,6 +99,33 @@ class App {
     this.dimming = new DimmingController();
     this.kiosk = new KioskMode(this.mountHost('kiosk-host'));
     this.wakeLock = new WakeLockResilience();
+
+    // E4: the analyser energy source was built last pass; this draws it.
+    // Attached to the same canvas the existing visualiser uses only if that
+    // visualiser is not already drawing, so the two never fight over the same
+    // pixels.
+    this.beatVisualiser = null;
+    const visualizerCanvas = document.getElementById('ambient-canvas-layer');
+    if (visualizerCanvas && !store.getState().vibes.visualizer) {
+      this.beatVisualiser = new BeatVisualiser(visualizerCanvas, {
+        mode: store.getState().vibes.visualizer || 'bars'
+      });
+      this.beatVisualiser.start();
+    }
+
+    // E5: live canvas background, on its own layer behind everything.
+    this.liveBackground = new LiveBackgrounds(
+      document.getElementById('live-background-layer')
+    );
+    this.liveBackground.start();
+
+    // F7: make tab-throttling failures visible instead of silent.
+    this.timeoutRescue = new ScreenTimeoutRescue();
+
+    // B4/F6: type scale and tap targets follow the device.
+    this.applyDeviceProfile = this.applyDeviceProfile.bind(this);
+    this.applyDeviceProfile();
+    window.addEventListener('resize', this.applyDeviceProfile, { passive: true });
 
     // AUDIT.md §5.2 / §5.3: installs role="dialog", aria-modal, focus trap,
     // focus restore, Escape handling, and `inert` on the three closed modals.
@@ -167,6 +199,15 @@ class App {
       }
       if (event === 'visualizer_changed') {
         visualizerEngine.setMode(store.getState().vibes.visualizer);
+        // E4: hand the mode to the beat visualiser too, so the choice reaches
+        // whichever renderer owns the canvas.
+        if (this.beatVisualiser) this.beatVisualiser.setMode(store.getState().vibes.visualizer);
+      }
+      if (event === 'live_background_updated') {
+        this.liveBackground?.setStyle(store.getState().liveBackground);
+      }
+      if (event === 'device_profile_updated') {
+        this.applyDeviceProfile();
       }
       if (event === 'vibe_changed') {
         // E2: a legacy single-track change is translated into a one-layer mix,
@@ -186,6 +227,18 @@ class App {
 
     // 8. Render Initial Active Stage
     this.renderStage();
+  }
+
+  /**
+   * B4/F6 - re-derives the device profile and applies it.
+   *
+   * Bound in the constructor so it can be removed from `resize` by identity.
+   */
+  applyDeviceProfile() {
+    const forced = store.getState().deviceProfile;
+    const { profile } = profileFromEnvironment(forced);
+    applyProfile(profile);
+    this.deviceProfile = profile;
   }
 
   /**

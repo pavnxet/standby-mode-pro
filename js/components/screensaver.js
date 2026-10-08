@@ -1,5 +1,6 @@
 /* StandBy Mode Pro - Idle Screensaver Engine */
 import { store } from "../state/store.js";
+import { renderScreensaverStyle, activeScreensaverStyle } from "../features/screensaverStyles.js";
 
 export class Screensaver {
   constructor() {
@@ -64,6 +65,11 @@ export class Screensaver {
     this.isActive = true;
     if (this.layer) {
       this.layer.classList.add("active");
+      // E7. The style id drives the CSS; the markup comes from
+      // screensaverStyles.js. The Pomodoro suppression above is untouched -
+      // it is the part the plan says is already correct, and five styles each
+      // owning their own idle logic is how it would quietly break.
+      this.layer.dataset.style = activeScreensaverStyle();
       this.renderScreensaverContent();
       this.startClock();
     }
@@ -94,6 +100,11 @@ export class Screensaver {
     const dateEl = document.getElementById("screensaver-date-text");
     if (!timeEl) return;
 
+    // E7: only the `clock` and `kenburns` styles show a live time element. The
+    // quote, world and solar styles either render their own time or do not need
+    // one, so this returns rather than writing into an element that is not there.
+    if (timeEl.hidden) return;
+
     const now = new Date();
     const clockConfig = store.getState().clockConfig || {};
     const is24h = clockConfig.timeFormat === "24h";
@@ -111,7 +122,7 @@ export class Screensaver {
     const hoursStr = is24h ? String(hours).padStart(2, "0") : String(hours);
     timeEl.textContent = `${hoursStr}:${minutes}:${seconds}${period}`;
 
-    if (dateEl) {
+    if (dateEl && !dateEl.hidden) {
       const options = { weekday: "short", month: "short", day: "numeric" };
       dateEl.textContent = now.toLocaleDateString(undefined, options);
     }
@@ -120,16 +131,13 @@ export class Screensaver {
   renderScreensaverContent() {
     if (!this.layer) return;
 
-    this.layer.innerHTML = `
-      <div class="screensaver-float-content text-center">
-        <div id="screensaver-time-text" class="font-sans font-extralight text-7xl md:text-9xl text-white/40 tracking-tighter">--:--:--</div>
-        <div id="screensaver-date-text" class="text-xs md:text-sm font-mono text-white/30 tracking-wider mt-1 uppercase"></div>
-        <div class="text-[11px] font-mono text-white/20 tracking-widest mt-4 flex items-center justify-center gap-1.5">
-          <span class="w-1.5 h-1.5 rounded-full bg-emerald-500/40 animate-ping"></span>
-          TAP ANYWHERE TO WAKE
-        </div>
-      </div>
-    `;
+    // E7: delegates to the styles module rather than hardcoding one layout.
+    // A style that is not reachable falls back to `clock` inside that module,
+    // so this always produces something renderable.
+    this.layer.innerHTML = renderScreensaverStyle(
+      activeScreensaverStyle(),
+      new Date()
+    );
     this.updateClockDisplay();
   }
 

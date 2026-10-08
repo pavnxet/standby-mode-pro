@@ -39,11 +39,15 @@
   <!-- Must load last: it overrides focus rings, modal visibility and motion. -->
   <!-- Milestone 4: mixer, dimming, kiosk, wake lock.
     <link rel="stylesheet" href="css/m4.css" />
+  <!-- E7 screensaver styles. Loaded after m4.css so its rules win on conflict. -->
+  <link rel="stylesheet" href="css/screensaver.css" />
   <!-- Must load last: it overrides focus rings, modal visibility and motion. -->
   <link rel="stylesheet" href="css/a11y.css" />
 </head>
 <body class="bg-black text-neutral-100 select-none overflow-hidden h-screen w-screen">
   <div id="ambient-wallpaper-layer"></div>
+  <!-- E5 live canvas background. Behind the visualiser so the two never overlap. -->
+  <canvas id="live-background-layer"></canvas>
   <canvas id="ambient-canvas-layer"></canvas>
   <div id="app-shell">
     <header id="top-bar" class="autohide-bar">

@@ -17,6 +17,190 @@
  */
 .m4-host[hidden] { display: none; }
 
+/* ============================================ E5: live background canvas */
+
+/*
+ * Positioned like the existing wallpaper layer so it sits behind the clock and
+ * behind the visualiser canvas, which is drawn on top of it.
+ *
+ * `pointer-events: none` because it covers the entire viewport: without it the
+ * canvas swallows every click and the clock becomes unusable.
+ */
+#live-background-layer {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: none;
+}
+
+/* ============================================ E6/F1: schedule panel */
+
+.ns-panel {
+  container-type: inline-size;
+  container-name: schedule;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4em;
+  min-width: 0;
+}
+
+.ns-title {
+  margin: 0;
+  font-size: clamp(0.75rem, 3.2cqi, 0.95rem);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted, #9ca3af);
+}
+
+.ns-modes { display: flex; flex-wrap: wrap; gap: 0.6em; }
+
+.ns-radio {
+  display: flex;
+  align-items: center;
+  gap: 0.35em;
+  font-size: clamp(0.72rem, 3.1cqi, 0.88rem);
+  color: var(--text-primary, #f9fafb);
+  cursor: pointer;
+}
+
+.ns-radio input { accent-color: #2563eb; width: 1em; height: 1em; }
+.ns-radio:focus-within { outline: 2px solid #93c5fd; outline-offset: 2px; }
+
+.ns-label {
+  font-size: clamp(0.7rem, 3cqi, 0.85rem);
+  font-weight: 600;
+  color: var(--text-primary, #f9fafb);
+}
+
+.ns-select,
+.ns-input {
+  font: inherit;
+  font-size: clamp(0.72rem, 3.1cqi, 0.88rem);
+  color: var(--text-primary, #f9fafb);
+  background: rgb(0 0 0 / 0.3);
+  border: 1px solid rgb(255 255 255 / 0.2);
+  border-radius: 6px;
+  padding: 0.32em;
+  box-sizing: border-box;
+}
+
+.ns-select { width: 100%; }
+.ns-input { width: 7.5em; }
+.ns-select:focus-visible, .ns-input:focus-visible { outline: 2px solid #93c5fd; outline-offset: 1px; }
+
+.ns-ranges { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.3em; }
+
+.ns-range {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35em;
+}
+
+.ns-sep { color: var(--text-muted, #9ca3af); }
+
+.ns-check {
+  display: flex;
+  align-items: center;
+  gap: 0.3em;
+  font-size: clamp(0.68rem, 2.9cqi, 0.82rem);
+  color: var(--text-muted, #9ca3af);
+  cursor: pointer;
+}
+
+.ns-check input { accent-color: #2563eb; }
+
+.ns-remove {
+  font: inherit;
+  width: 1.7em;
+  height: 1.7em;
+  line-height: 1;
+  border-radius: 5px;
+  border: 1px solid rgb(248 113 113 / 0.5);
+  background: transparent;
+  color: #fca5a5;
+  cursor: pointer;
+}
+
+.ns-remove:hover { background: rgb(248 113 113 / 0.15); }
+.ns-remove:focus-visible { outline: 2px solid #93c5fd; outline-offset: 2px; }
+
+.ns-empty {
+  font-size: clamp(0.7rem, 3cqi, 0.85rem);
+  color: var(--text-muted, #9ca3af);
+}
+
+.ns-btn {
+  font: inherit;
+  font-size: clamp(0.7rem, 3cqi, 0.85rem);
+  align-self: flex-start;
+  padding: 0.3em 0.75em;
+  border-radius: 6px;
+  border: 1px solid rgb(255 255 255 / 0.22);
+  background: rgb(255 255 255 / 0.07);
+  color: var(--text-primary, #f9fafb);
+  cursor: pointer;
+}
+
+.ns-btn:hover { filter: brightness(1.15); }
+.ns-btn:focus-visible { outline: 2px solid #93c5fd; outline-offset: 2px; }
+
+.ns-summary {
+  margin: 0;
+  font-size: clamp(0.68rem, 2.9cqi, 0.82rem);
+  line-height: 1.45;
+  color: var(--text-muted, #9ca3af);
+}
+
+.ns-hint { margin: 0; font-size: clamp(0.66rem, 2.8cqi, 0.8rem); color: var(--text-muted, #9ca3af); line-height: 1.45; }
+
+.ns-warning {
+  margin: 0;
+  font-size: clamp(0.68rem, 2.9cqi, 0.82rem);
+  color: #fcd34d;
+}
+
+/* ======================================== B4/F6: device profile application */
+
+/*
+ * Type scale and tap targets are applied as custom properties by
+ * deviceProfile.js, so this rule only has to consume them.
+ *
+ * `--device-type-scale` multiplies the root size, which is what makes the
+ * 10-foot UI work: a 2.6x scale turns a 60px clock into a 156px one, readable
+ * from a sofa, without a separate stylesheet or a media query.
+ */
+html {
+  font-size: calc(100% * var(--device-type-scale, 1));
+}
+
+:where(button, select, input[type="checkbox"], input[type="range"], a[role="button"]) {
+  /* Never below the device's target size. `min-height` rather than `height`
+   * so a long label can still wrap rather than being clipped. */
+  min-height: var(--device-tap-target, 32px);
+  min-width: var(--device-tap-target, 32px);
+}
+
+/* On a TV the chrome cannot come back - there is no pointer to bring it with -
+ * so it is out of the layout entirely rather than merely hidden. */
+html.is-tv .autohide-bar,
+html.is-wall .autohide-bar {
+  opacity: 0.12;
+  transition: opacity 400ms ease;
+}
+
+html.is-tv .autohide-bar:focus-within,
+html.is-tv .autohide-bar:hover { opacity: 1; }
+
+@media (prefers-reduced-motion: reduce) {
+  html.is-tv .autohide-bar,
+  html.is-wall .autohide-bar { transition: none; }
+}
+.m4-host[hidden] { display: none; }
+
 .m4-host:not([hidden]) {
   display: block;
   container-type: inline-size;

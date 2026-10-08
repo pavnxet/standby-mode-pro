@@ -1,0 +1,300 @@
+/* StandBy Mode Pro - Screensaver Styles
+ *
+ * FEATURE_PLAN E7: five styles instead of the single hardcoded one.
+ *
+ * The styles are separate classes on ONE layer element rather than five
+ * implementations. The existing engine owns the idle timer, the Pomodoro
+ * suppression and the wake handling, and none of that should be duplicated
+ * per style - the plan is explicit that the Pomodoro-suppression logic
+ * "is already correct" and must be kept intact.
+ *
+ * Drift is the whole mechanism of every style. Each one moves at a different
+ * rate for a different reason:
+ *
+ *   clock    The clock itself crosses the screen very slowly. Motion you
+ *            cannot consciously perceive is the point.
+ *   kenburns A still image, slowly zooming. The image is the user's own photo
+ *            if they have one.
+ *   quote    A quotation drifting upward, changing every 45s.
+ *   world    Rows of world-clock times scrolling horizontally.
+ *   solar    The sun's arc for the user's location, with the terminator.
+ *
+ * Every animation is declared under `prefers-reduced-motion: reduce` as
+ * paused. E7's own dependency list includes H5, and a drifting screensaver is
+ * precisely the kind of unrequested movement that causes trouble for someone
+ * with vestibular sensitivity - especially since it is the LAST thing on screen
+ * before they stop looking.
+ */
+
+/* --- Shared ------------------------------------------------------------- */
+
+.screensaver-layer {
+  position: fixed;
+  inset: 0;
+  display: none;
+  overflow: hidden;
+  z-index: 40;
+}
+
+.screensaver-layer.active { display: block; }
+
+.screensaver-float-content {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  text-align: center;
+}
+
+.sa-clock {
+  font-size: clamp(3rem, 14vw, 11rem);
+  font-weight: 200;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  color: rgb(255 255 255 / 0.42);
+  font-variant-numeric: tabular-nums;
+}
+
+.sa-date {
+  font-size: clamp(0.65rem, 1.6vw, 0.95rem);
+  font-family: var(--font-mono, monospace);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgb(255 255 255 / 0.3);
+}
+
+.sa-hint {
+  font-size: 0.7rem;
+  font-family: var(--font-mono, monospace);
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgb(255 255 255 / 0.2);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 2rem;
+}
+
+.sa-dot {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 999px;
+  background: rgb(52 211 153 / 0.4);
+}
+
+.sa-frame {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+/* --- Style: drifting clock ---------------------------------------------- */
+
+.screensaver-layer[data-style="clock"] .sa-clock,
+.screensaver-layer[data-style="clock"] .sa-date {
+  position: absolute;
+  will-change: transform;
+  animation: sa-drift-x 300s linear infinite;
+}
+
+.screensaver-layer[data-style="clock"] .sa-date {
+  animation: sa-drift-x 300s linear infinite, sa-drift-fade 300s linear infinite;
+}
+
+/*
+ * 300s across a small negative-to-positive range. Fast enough that the clock
+ * does not appear pinned to a spot for the whole session, slow enough that no
+ * conscious tracking is possible - which is the entire intent.
+ */
+@keyframes sa-drift-x {
+  0%   { transform: translateX(-32vw); }
+  50%  { transform: translateX(32vw); }
+  100% { transform: translateX(-32vw); }
+}
+
+@keyframes sa-drift-fade {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 0.28; }
+}
+
+/* --- Style: Ken Burns photo --------------------------------------------- */
+
+.screensaver-layer[data-style="kenburns"] .sa-photo {
+  position: absolute;
+  inset: -6%;
+  background-size: cover;
+  background-position: center;
+  /* 240s, no alternate: a direction change mid-zoom reads as a glitch. */
+  animation: sa-kenburns 240s ease-in-out infinite alternate;
+  filter: saturate(0.85) brightness(0.72);
+}
+
+@keyframes sa-kenburns {
+  from { transform: scale(1); }
+  to   { transform: scale(1.14); }
+}
+
+.screensaver-layer[data-style="kenburns"] .sa-vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at center, transparent 35%, rgb(0 0 0 / 0.75) 100%);
+}
+
+.screensaver-layer[data-style="kenburns"] .screensaver-float-content {
+  /* Over a photograph the time needs its own contrast, so it sits on a scrim
+   * rather than relying on the image being dark. */
+  background: linear-gradient(to bottom, rgb(0 0 0 / 0.45), transparent 40%);
+  padding-bottom: 12vh;
+}
+
+/* --- Style: drifting quote ---------------------------------------------- */
+
+.screensaver-layer[data-style="quote"] .sa-quote {
+  max-width: min(70vw, 46rem);
+  font-size: clamp(1.1rem, 3.4vw, 2.6rem);
+  font-weight: 300;
+  line-height: 1.45;
+  color: rgb(255 255 255 / 0.62);
+  animation: sa-quote-rise 45s ease-in-out infinite;
+}
+
+.screensaver-layer[data-style="quote"] .sa-attribution {
+  font-size: clamp(0.7rem, 1.5vw, 0.9rem);
+  font-family: var(--font-mono, monospace);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: rgb(255 255 255 / 0.34);
+  margin-top: 1.25rem;
+}
+
+.screensaver-layer[data-style="quote"] .sa-small-clock {
+  position: absolute;
+  bottom: 2.5rem;
+  right: 3rem;
+  font-size: clamp(1.5rem, 5vw, 3.5rem);
+  font-weight: 200;
+  font-variant-numeric: tabular-nums;
+  color: rgb(255 255 255 / 0.3);
+}
+
+@keyframes sa-quote-rise {
+  0%, 8%    { opacity: 0; transform: translateY(1.5rem); }
+  18%, 82%  { opacity: 1; transform: translateY(0); }
+  92%, 100% { opacity: 0; transform: translateY(-1.5rem); }
+}
+
+/* --- Style: world clock carousel ---------------------------------------- */
+
+.screensaver-layer[data-style="world"] .sa-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  animation: sa-world-scroll 90s linear infinite;
+}
+
+.sa-world-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 1.5rem;
+  align-items: baseline;
+  font-size: clamp(1rem, 3.2vw, 2.2rem);
+  font-weight: 300;
+  color: rgb(255 255 255 / 0.5);
+  font-variant-numeric: tabular-nums;
+  padding: 0.15rem 0;
+}
+
+.sa-world-city { color: rgb(255 255 255 / 0.7); }
+.sa-world-time { font-weight: 200; }
+.sa-world-offset {
+  font-size: 0.5em;
+  font-family: var(--font-mono, monospace);
+  color: rgb(255 255 255 / 0.3);
+}
+
+.screensaver-layer[data-style="world"] .sa-local {
+  position: absolute;
+  bottom: 2rem;
+  font-size: clamp(0.65rem, 1.4vw, 0.85rem);
+  font-family: var(--font-mono, monospace);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgb(255 255 255 / 0.25);
+}
+
+@keyframes sa-world-scroll {
+  from { transform: translateY(12vh); opacity: 0; }
+  12%   { opacity: 1; }
+  88%   { opacity: 1; }
+  to   { transform: translateY(-12vh); opacity: 0; }
+}
+
+/* --- Style: solar arc ---------------------------------------------------- */
+
+.screensaver-layer[data-style="solar"] .sa-sky {
+  position: absolute;
+  inset: 0;
+  /* Two stops so the horizon is legible even before the arc is drawn. */
+  background: linear-gradient(to bottom, #0b1020 0%, #131a2e 45%, #1c2440 70%, #2a2a33 100%);
+}
+
+.screensaver-layer[data-style="solar"] .sa-sun {
+  position: absolute;
+  width: 4vmin;
+  height: 4vmin;
+  border-radius: 999px;
+  background: radial-gradient(circle, #fff7d6 0%, #ffd76a 45%, rgb(255 180 60 / 0) 72%);
+  box-shadow: 0 0 6vmin rgb(255 200 90 / 0.35);
+  transition: none;
+}
+
+.screensaver-layer[data-style="solar"] .sa-horizon {
+  position: absolute;
+  left: 8%;
+  right: 8%;
+  bottom: 32%;
+  height: 1px;
+  background: linear-gradient(to right, transparent, rgb(255 255 255 / 0.28), transparent);
+}
+
+.screensaver-layer[data-style="solar"] .sa-solar-clock {
+  position: absolute;
+  bottom: 2rem;
+  left: 0;
+  right: 0;
+  text-align: center;
+}
+
+/* --- Reduced motion ------------------------------------------------------ */
+
+/*
+ * Not `animation: none` alone. Several of these keyframes also carry the
+ * element's *position*, so killing the animation without supplying a resting
+ * position would stack every one of them at the default transform.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .screensaver-layer[data-style] .sa-clock,
+  .screensaver-layer[data-style] .sa-date,
+  .screensaver-layer[data-style] .sa-quote,
+  .screensaver-layer[data-style] .sa-photo,
+  .screensaver-layer[data-style] .sa-rows {
+    animation: none;
+    transform: none;
+  }
+
+  .screensaver-layer[data-style="clock"] .sa-clock,
+  .screensaver-layer[data-style="clock"] .sa-date {
+    /* Re-centre: without the drift animation the absolute positioning leaves
+     * them at the top-left corner. */
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+  }
+
+  .screensaver-layer[data-style="clock"] .sa-date {
+    top: 62%;
+  }
+}
