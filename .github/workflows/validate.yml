@@ -167,45 +167,86 @@ jobs:
           print(f'All {len(paths)} precached assets exist.')
           PY
 
-      - name: Check registered module ids are unique
+      - name: Check the declarative indexes are complete and unique
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          import re
-          from pathlib import Path
+          node - <<'JS'
+          // FEATURE_PLAN A1 moved registration into one declarative index per
+          // kind. This step was rewritten to match.
+          //
+          // It previously regex-scraped js/app.js for
+          //     registerClock('some-id', ...)
+          // which found ZERO matches once registration became a loop over the
+          // index - so the guard had been checking nothing at all. A regex that
+          // silently matches nothing is worse than no check, because it looks
+          // like coverage.
+          //
+          // The indexes are the source of truth, so they are what is verified.
+          // (npm test separately imports both indexes and asserts that every
+          // entry reaches both registries, which is the property this used to
+          // check by proxy.)
+          import { readFileSync } from 'node:fs';
 
-          app = Path('js/app.js').read_text(encoding='utf-8')
+          function idsFrom(file) {
+            const source = readFileSync(file, 'utf8');
+            // Entry lines look like:  { id: "flip", clock: flipClock, ... },
+            const ids = [...source.matchAll(/\{\s*id:\s*"([^"]+)"/g)].map((m) => m[1]);
+            const dupes = ids.filter((v, i) => ids.indexOf(v) !== i);
+            if (dupes.length) {
+              throw new Error(`Duplicate ids in ${file}: ${[...new Set(dupes)].sort().join(', ')}`);
+            }
+            return ids;
+          }
 
-          def collect(pattern, label):
-              found = re.findall(pattern, app)
-              dupes = {v for v in found if found.count(v) > 1}
-              if dupes:
-                  raise SystemExit(f'Duplicate {label} ids: {sorted(dupes)}')
-              return found
+          const clocks = idsFrom('js/clocks/index.js');
+          const widgets = idsFrom('js/widgets/index.js');
 
-          # registry.registerClock('x', y) and clockEngine.register('x', y)
-          clocks = collect(r"registerClock\('([^']+)'", 'clock')
-          engines = collect(r"clockEngine\.register\('([^']+)'", 'clockEngine')
-          widgets = collect(r"registerWidget\('([^']+)'", 'widget')
-          engine_widgets = collect(r"widgetEngine\.register\('([^']+)'", 'widgetEngine')
+          // Minimums, not exact counts: a minimum catches a registration that
+          // silently stopped happening, while an exact count would fail on
+          // every legitimate addition and train people to bump it blindly.
+          const MIN_CLOCKS = 29;   // 11 legacy + 18 Milestone 3 faces
+          const MIN_WIDGETS = 27;  // 9 legacy + 3 Milestone 2 + 15 Milestone 3
 
-          for label, ids, minimum in (
-              ('clockEngine', engines, 11),
-              ('widgetEngine', engine_widgets, 9),
-          ):
-              if len(ids) < minimum:
-                  raise SystemExit(f'{label} registered {len(ids)} modules, expected >= {minimum}')
+          const problems = [];
+          if (clocks.length < MIN_CLOCKS) {
+            problems.push(`clocks index has ${clocks.length}, expected >= ${MIN_CLOCKS}`);
+          }
+          if (widgets.length < MIN_WIDGETS) {
+            problems.push(`widgets index has ${widgets.length}, expected >= ${MIN_WIDGETS}`);
+          }
 
-          if set(clocks) != set(engines):
-              raise SystemExit(
-                  f'registry clocks {sorted(set(clocks) ^ set(engines))} differ from clockEngine')
-          if set(widgets) != set(engine_widgets):
-              raise SystemExit(
-                  f'registry widgets {sorted(set(widgets) ^ set(engine_widgets))} differ from widgetEngine')
+          // Every index id must be a valid slug, because it becomes a DOM id,
+          // a CSS hook and a storage key.
+          for (const [label, ids] of [['clock', clocks], ['widget', widgets]]) {
+            for (const id of ids) {
+              if (!/^[a-z][a-z0-9-]*$/.test(id)) {
+                problems.push(`${label} id "${id}" is not a lowercase slug`);
+              }
+            }
+          }
 
-          print(f'{len(engines)} clocks and {len(engine_widgets)} widgets registered consistently.')
-          PY
+          // app.js must still drive registration from the index. If someone
+          // reintroduces a hand-written list, the two diverge silently.
+          const app = readFileSync('js/app.js', 'utf8');
+          for (const needle of [
+            "from './clocks/index.js'",
+            "from './widgets/index.js'",
+          ]) {
+            if (!app.includes(needle)) problems.push(`app.js no longer imports ${needle}`);
+          }
+
+          if (problems.length) {
+            console.error('Index check failed:');
+            for (const p of problems) console.error('  - ' + p);
+            process.exit(1);
+          }
+
+          console.log(
+            `${clocks.length} clocks and ${widgets.length} widgets in the indexes; ` +
+            'ids unique, slug-valid, and app.js registers from them.'
+          );
+          JS
 
       # New. A widget template that emits a class no stylesheet defines renders
       # unstyled, which in this app means it silently falls back to the legacy
