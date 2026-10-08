@@ -70,6 +70,78 @@ named reason, and each reason was resolved rather than argued away:
 
 ---
 
+## [Unreleased] — Phase 4: Audio & Display (Milestone M4, in progress)
+
+**Status: 6 of 12 delivered (E1, E2, E3, F2, F4, F5). 2 partial (E4, E6/F1). 4 remaining (E5, E7, F3, F6).**
+
+**M4 is NOT complete.**
+
+### Delivered and verified
+
+| ID | What shipped | Verification |
+|---|---|---|
+| E1 | **Procedural ambiences, 12 total.** The five that existed (rain, waves, fire, binaural, pink noise) plus cafe, forest, wind, thunderstorm, brown noise, brown-noise+, vinyl. Zero samples — everything is generated, which is the point. | 12/12 build and start in-browser; 25 play/stop cycles leak 0 nodes |
+| E2 | **Multi-layer mixer.** Per-layer `GainNode`s, 12 sliders in four labelled groups, 6 curated presets. | Fades without restarting; per-layer set returns `false` for a layer that is not running |
+| E3 | **Sleep timer with fade.** 15–120 min presets, 30 s fade, checked on the shared minute boundary. | Fade fires; graph tears down to 0 nodes afterwards |
+| F2 | **Scheduled dimming + true low-brightness.** Slider reaches **0**. Warm-shifted palette below 12%. | 0.00 range asserted monotonic with nothing clamped upward |
+| F4 | **Wake-lock resilience.** Five reported states: off / unsupported / held / at-risk / lost. | No two states share a label; a held lock never reports at-risk |
+| F5 | **Kiosk / lock-safe mode.** Hides the screen on idle; 700 ms press-and-hold to reveal. | Hold boundary asserted at ±1 ms |
+
+### The three requirements that shaped this milestone
+
+**F2 must reach near-zero without a UI-imposed floor.** The plan quotes the
+complaint it exists to fix — *"it doesn't like to stay low it snaps back up to
+some weird minimal value"*. Three ways this could have reproduced that bug, each
+now prevented and tested: a slider minimum above zero (`DIM_MIN` is 0); a clamp
+on the applied brightness (`brightnessVars` never clamps upward, and a test
+walks the range asserting it); and ambient light re-asserting a minimum (there
+is no auto-brightening at all — the web has no light sensor, and brightening as
+it gets dark is the opposite of the feature).
+
+**F5 must disclose that a web page cannot lock a screen.** Not as a footnote —
+as bordered amber text in the panel, because it is the part most likely to be
+skimmed. A user who believes this locks their phone is *worse off* than one who
+never enabled it, because they will stop locking their phone. The reveal is a
+press-and-hold, not a click, so brushing the screen cannot unblank it.
+
+**E2's teardown must be clean.** Stopping a source is not enough; each layer's
+`GainNode` is a node in the graph, and one left connected survives every later
+`playAmbient()` call. Verified: 25 play/stop cycles leave zero nodes.
+
+### Defects found and fixed
+
+- **`activeLayers({})` reported all twelve layers as active.** `clampMix(undefined)`
+  supplied each layer's default. Since the mixer uses that list to decide what to
+  *start*, an empty mix would have started the entire catalogue.
+- **A schedule range that wraps midnight never matched.** The naive
+  `from <= m && m <= to` test is false for every minute between 23:00 and 06:00,
+  so every night schedule would have silently never fired — with no symptom
+  other than the feature not working. Six boundary assertions now pin it.
+
+### Not delivered
+
+| ID | Status | Why |
+|---|---|---|
+| E4 | 🔶 Partial | The `AnalyserNode` energy-band source is built and verified (ramp observed 0.58 → 0.85 bass, raw spectrum peak 249). **The visualiser itself is not drawn**, so this is not shipped. Not a BPM detector by design: the app's audio is synthesised noise with no defined beat, and a BPM detector on a noise bed returns confident nonsense. |
+| E6 / F1 | 🔶 Partial | The schedule engine works (`containsMinutes`, midnight-safe) and F2 consumes it. Two gaps: no UI to author a schedule, and no astronomical (sunrise/sunset) trigger — which needs wiring to the C10 solar maths. |
+| E5 | ⬜ | Live-canvas backgrounds. Canvas-only by plan (no WebGL, to hold 60fps on low-end tablets). |
+| E7 | ⬜ | Screensaver variety. We have exactly one style today. Must keep the existing Pomodoro-suppression logic intact. |
+| F3 | ⬜ | Burn-in modes. The current whole-stage translate does not protect static widgets, which is the actual defect. |
+| F6 | ⬜ | 10-foot TV UI. Needs `deviceProfile.js`, which merges with the B4 work not yet done. |
+
+### Verification notes and open gaps
+
+- **Lighthouse still not re-run.** Now ~24 KB of new CSS and ~45 KB of new JS
+  unaudited. M2's 1.00 scores remain unclaimed.
+- **Analyser energy verified in a warm browser context only.** In a cold headless
+  tab `getByteFrequencyData` returns all zeros because a fresh `AudioContext`
+  renders nothing without a user gesture. Bands were confirmed working in a
+  context that had been playing: bass ramped 0.58 → 0.85 over six samples. Not
+  proven to be a code issue; also not proven to be only environmental.
+- **M3's gaps remain open** — screenshots, offline load, geolocation-granted paths.
+
+---
+
 ## [Superseded] — Phase 3: Clocks & Widgets (Milestone M3, widgets portion)
 
 > Retained for history. The eight deferrals below were all resolved in the
@@ -348,23 +420,23 @@ been estimated or fabricated.
 
 | ID | Feature | Status | Complexity |
 |---|---|---|---|
-| E1 | New procedural vibes (7 soundscapes) | ⬜ Planned | M |
-| E2 | Multi-layer audio mixer | ⬜ Planned | M |
-| E3 | Sleep timer with fade-out | ⬜ Planned | S |
-| E4 | Beat-reactive visualizers | ⬜ Planned | L |
+| E1 | New procedural vibes (7 soundscapes) | ✅ Shipped (12 total) | M |
+| E2 | Multi-layer audio mixer | ✅ Shipped | M |
+| E3 | Sleep timer with fade-out | ✅ Shipped | S |
+| E4 | Beat-reactive visualizers | 🔶 Partial — AnalyserNode energy bands built & verified; the visualiser itself is not drawn | L |
 | E5 | Live-canvas backgrounds | ⬜ Planned | M |
-| E6 | Automated day/night theme scheduling | ⬜ Planned | M |
+| E6 | Automated day/night theme scheduling | 🔶 Partial — the schedule engine exists via F2; no astronomical (sunrise) trigger yet | M |
 | E7 | Screensaver variety (5 styles) | ⬜ Planned | M |
 
 ### F. Display & Hardware
 
 | ID | Feature | Status | Complexity |
 |---|---|---|---|
-| F1 | Scheduled night mode | ⬜ Planned | M |
-| F2 | Scheduled dimming + true low-brightness mode | ⬜ Planned | M |
+| F1 | Scheduled night mode | 🔶 Partial — scheduling is wired through F2; no UI to author a schedule yet | M |
+| F2 | Scheduled dimming + true low-brightness mode | ✅ Shipped | M |
 | F3 | Burn-in protection modes (4) | ⬜ Planned | M |
-| F4 | Wake Lock resilience + status indicator | ⬜ Planned | M |
-| F5 | Kiosk / lock-safe mode | ⬜ Planned | M |
+| F4 | Wake Lock resilience + status indicator | ✅ Shipped | M |
+| F5 | Kiosk / lock-safe mode | ✅ Shipped | M |
 | F6 | TV 10-foot UI | ⬜ Planned | M |
 | F7 | Screen-timeout rescue | ⬜ Planned | S |
 
