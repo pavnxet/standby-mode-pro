@@ -1,0 +1,684 @@
+/* StandBy Mode Pro - Styles for Milestone 3 widgets
+ *
+ * Loads after css/widgets-m2.css and css/a11y.css. Kept in a separate file for
+ * the same reason as clocks-m3.css: the pre-existing stylesheets stay untouched
+ * so the diff against master remains reviewable, and a widget can be reverted
+ * by deleting one file plus its entry in js/app.js.
+ *
+ * Every rule is scoped to an M3 widget's own class. Nothing here may restyle a
+ * legacy widget, which is what keeps the twelve original widgets pixel-identical
+ * after this milestone.
+ *
+ * Sizing uses cqi where a widget's content can overflow its panel. M3 widgets
+ * establish `container-type: inline-size` below; cqi degrades to viewport units
+ * where container queries are unsupported.
+ */
+
+/* --- Container setup ----------------------------------------------------
+ * A widget is mounted into panels from ~180px to a full-screen stage. Sizing it
+ * from the viewport renders a 118px headline inside a 223px panel.
+ */
+.cd-container,
+.conv-container,
+.calc-container,
+.goals-container,
+.sysw-container,
+.sunw-container,
+.aqi-container {
+  container-type: inline-size;
+  padding: 0.75rem 0.85rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  font-size: 0.85rem;
+}
+
+/* --- Countdown (C5) ----------------------------------------------------- */
+
+.cd-header,
+.conv-header,
+.goals-header,
+.sysw-header,
+.aqi-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.cd-target {
+  font-size: clamp(0.75rem, 5cqi, 0.95rem);
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cd-main {
+  display: flex;
+  align-items: baseline;
+  gap: 0.3rem;
+}
+
+.cd-value {
+  font-family: var(--font-mono);
+  font-size: clamp(2rem, 20cqi, 3.4rem);
+  font-weight: 700;
+  line-height: 1;
+  color: var(--accent-color);
+}
+
+.cd-unit {
+  font-family: var(--font-sans);
+  font-size: clamp(0.75rem, 5cqi, 1rem);
+  color: var(--text-secondary);
+}
+
+.cd-detail,
+.cd-when {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.cd-actions {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: auto;
+}
+
+.cd-btn {
+  padding: 0.35rem 0.7rem;
+  min-height: 2.25rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-surface-hover);
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.cd-btn:hover {
+  color: var(--text-primary);
+}
+
+.cd-btn--danger:hover {
+  color: var(--danger-color);
+}
+
+.cd-setup {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.cd-label {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.cd-input {
+  padding: 0.45rem 0.6rem;
+  min-height: 2.25rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border-subtle);
+  background: rgba(0, 0, 0, 0.3);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.85rem;
+}
+
+.cd-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.cd-preset {
+  padding: 0.25rem 0.5rem;
+  min-height: 2rem;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+
+.cd-preset:hover {
+  color: var(--text-primary);
+  border-color: var(--border-focus);
+}
+
+.cd-start {
+  padding: 0.5rem;
+  min-height: 2.5rem;
+  border-radius: 0.5rem;
+  border: none;
+  background: var(--accent-color);
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* --- Converter (C15) ---------------------------------------------------- */
+
+.conv-controls {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.3rem;
+}
+
+.conv-select {
+  min-width: 0;
+  padding: 0.35rem 0.3rem;
+  min-height: 2.25rem;
+  border-radius: 0.4rem;
+  border: 1px solid var(--border-subtle);
+  background: rgba(0, 0, 0, 0.3);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.75rem;
+}
+
+.conv-input {
+  padding: 0.45rem 0.6rem;
+  min-height: 2.25rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border-subtle);
+  background: rgba(0, 0, 0, 0.3);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 1rem;
+}
+
+.conv-result {
+  font-family: var(--font-mono);
+  font-size: clamp(1.3rem, 14cqi, 2.2rem);
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--accent-color);
+  overflow-wrap: anywhere;
+}
+
+.conv-error {
+  color: var(--danger-color);
+  font-size: 0.8rem;
+}
+
+/* --- Calculator (C16) --------------------------------------------------- */
+
+.calc-container {
+  justify-content: flex-start;
+}
+
+.calc-display {
+  text-align: right;
+  padding: 0.4rem 0.2rem;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.calc-expr {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  min-height: 1.1em;
+  overflow-wrap: anywhere;
+}
+
+.calc-result {
+  font-family: var(--font-mono);
+  font-size: clamp(1.4rem, 16cqi, 2.4rem);
+  font-weight: 700;
+  line-height: 1.15;
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+
+.calc-pad {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.3rem;
+  flex: 1;
+  /* Fill the panel height without letting a 4-row pad grow without bound. */
+  grid-auto-rows: minmax(2.25rem, 1fr);
+}
+
+.calc-key {
+  min-height: 2.25rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border-subtle);
+  background: var(--bg-surface-hover);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.calc-key--action {
+  background: rgba(59, 130, 246, 0.18);
+  color: #bfdbfe;
+}
+
+.calc-key:hover {
+  border-color: var(--border-focus);
+}
+
+.calc-hint {
+  margin: 0;
+  font-size: 0.65rem;
+  color: var(--text-muted);
+}
+
+/* --- Goals (C18) -------------------------------------------------------- */
+
+.goals-progress {
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.goals-bar {
+  height: 0.3rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.goals-bar-fill {
+  height: 100%;
+  background: var(--success-color);
+  transition: width 260ms ease;
+}
+
+.goals-feature {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  min-width: 0;
+  padding: 0.6rem 0.7rem;
+  min-height: 2.75rem;
+  text-align: left;
+  border-radius: 0.6rem;
+  border: 1px solid var(--border-focus);
+  background: rgba(59, 130, 246, 0.12);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: clamp(0.85rem, 6cqi, 1.05rem);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.goals-feature-text {
+  /* `flex: 1 1 auto` plus `min-width: 0` is what actually lets a flex item
+     shrink below its content width. `min-width: 0` alone was not enough: a long
+     unbroken goal string pushed the card 4px past a 160px panel. */
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.goals-feature-check {
+  flex: 0 0 auto;
+  width: 1.1rem;
+  height: 1.1rem;
+  border-radius: 50%;
+  border: 2px solid var(--accent-color);
+}
+
+.goals-feature:hover .goals-feature-check {
+  background: var(--accent-color);
+}
+
+.goals-empty {
+  padding: 0.7rem 0;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+.goals-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  overflow-y: auto;
+}
+
+.goals-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.goals-item--done .goals-item-text {
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
+
+.goals-item-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.goals-check {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* A visible checkbox sized to the 44px touch target via padding. */
+.goals-check input[type="checkbox"] {
+  width: 1.15rem;
+  height: 1.15rem;
+  accent-color: var(--success-color);
+  cursor: pointer;
+}
+
+.goals-delete {
+  min-width: 1.75rem;
+  min-height: 1.75rem;
+  border-radius: 0.35rem;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.goals-delete:hover {
+  color: var(--danger-color);
+}
+
+.goals-add {
+  display: flex;
+  gap: 0.35rem;
+  margin-top: auto;
+}
+
+.goals-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0.4rem 0.6rem;
+  min-height: 2.25rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--border-subtle);
+  background: rgba(0, 0, 0, 0.3);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.8rem;
+}
+
+.goals-add-btn {
+  padding: 0.4rem 0.8rem;
+  min-height: 2.25rem;
+  border-radius: 0.5rem;
+  border: none;
+  background: var(--accent-color);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* --- System status (C11) ------------------------------------------------ */
+
+.sysw-container,
+.sunw-container {
+  gap: 0.3rem;
+}
+
+.sysw-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.78rem;
+  padding: 0.15rem 0;
+}
+
+.sysw-row dt {
+  color: var(--text-muted);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-size: 0.7rem;
+}
+
+.sysw-row dd {
+  margin: 0;
+  font-family: var(--font-mono);
+  color: var(--text-primary);
+  text-align: right;
+}
+
+/* An unavailable value is styled distinctly so it cannot be read as a
+   measurement. This is the whole point of C11's graceful degradation. */
+.sysw-na,
+.aqi-state--error {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.sysw-badge {
+  margin-left: 0.35rem;
+  padding: 0.05rem 0.35rem;
+  border-radius: 999px;
+  background: rgba(16, 185, 129, 0.2);
+  color: var(--success-color);
+  font-size: 0.6rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sysw-sub {
+  margin-left: 0.35rem;
+  color: var(--text-muted);
+  font-size: 0.7rem;
+}
+
+.sysw-meter {
+  height: 0.28rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.sysw-meter-fill {
+  height: 100%;
+  background: var(--success-color);
+  transition: width 400ms ease;
+}
+
+.sysw-meter-fill--low {
+  background: var(--danger-color);
+}
+
+.sysw-note,
+.aqi-stale {
+  margin: 0.3rem 0 0;
+  font-size: 0.65rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+/* --- Sun times (C10) ---------------------------------------------------- */
+
+.sunw-now {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.sunw-alt {
+  font-family: var(--font-mono);
+  font-size: clamp(0.9rem, 7cqi, 1.3rem);
+  color: var(--warning-color);
+}
+
+.sunw-next {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  text-align: right;
+}
+
+.sunw-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.1rem 0.6rem;
+}
+
+/* Below ~240px the two columns cannot hold a label and a time without
+   overflowing, so the grid collapses to one. Measured: at 180px the two-column
+   form overflowed by 3px.
+   The container is anonymous here - `@container face` would not match, because
+   the widget containers declare `container-type` but no `container-name`. */
+@container (max-width: 15rem) {
+  .sunw-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.sunw-cell {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.4rem;
+  padding: 0.15rem 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.sunw-cell dt {
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.sunw-cell dd {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--text-primary);
+  text-align: right;
+}
+
+.sunw-empty,
+.sunw-polar {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 0.5rem 0;
+}
+
+/* --- Air quality (C9) --------------------------------------------------- */
+
+.aqi-main {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+
+.aqi-value {
+  font-family: var(--font-mono);
+  font-size: clamp(1.8rem, 18cqi, 3rem);
+  font-weight: 700;
+  line-height: 1;
+}
+
+.aqi-band {
+  font-size: clamp(0.75rem, 6cqi, 0.95rem);
+  font-weight: 600;
+}
+
+.aqi-parts {
+  display: flex;
+  gap: 0.9rem;
+}
+
+.aqi-part {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+}
+
+.aqi-part strong {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.aqi-meta {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  font-size: 0.65rem;
+  color: var(--text-muted);
+}
+
+.aqi-state {
+  padding: 0.7rem 0;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  text-align: center;
+}
+
+/* AQI band tones. Contrast-checked against the panel background so the
+   large numeral is never below 4.5:1. */
+.aqi-tone--good        { color: #34d399; }
+.aqi-tone--fair        { color: #a3e635; }
+.aqi-tone--moderate    { color: #fbbf24; }
+.aqi-tone--poor        { color: #fb923c; }
+.aqi-tone--very-poor   { color: #f87171; }
+.aqi-tone--extreme     { color: #e879a6; }
+.aqi-tone--unknown     { color: var(--text-muted); }
+
+/* --- Screen-reader-only helper ------------------------------------------ */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* --- Reduced motion ----------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  .goals-bar-fill,
+  .sysw-meter-fill {
+    transition: none;
+  }
+}
