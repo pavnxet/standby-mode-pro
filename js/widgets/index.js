@@ -35,6 +35,15 @@ import { converterWidget } from "../features/converterWidget.js";
 import { calculatorWidget } from "../features/calculatorWidget.js";
 import { goalsWidget } from "../features/goalsWidget.js";
 
+import { timezoneWidget } from "../features/timezoneWidget.js";
+import { agendaWidget } from "../features/agendaWidget.js";
+import { flashcardsWidget } from "../features/flashcardsWidget.js";
+import { fxWidget } from "../features/fxWidget.js";
+import { marketWidget } from "../features/marketWidget.js";
+import { newsWidget } from "../features/newsWidget.js";
+import { mediaSessionWidget } from "../features/mediaSessionWidget.js";
+import { prayerWidget } from "../features/prayerWidget.js";
+
 /**
  * Every widget, in picker order.
  * @type {Array<{ id: string, widget: object, milestone: string, feature?: string }>}
@@ -64,7 +73,19 @@ export const WIDGETS = [
   { id: "goals", widget: goalsWidget, milestone: "M3", feature: "C18" },
   { id: "sun", widget: sunWidget, milestone: "M3", feature: "C10" },
   { id: "airquality", widget: airQualityWidget, milestone: "M3", feature: "C9" },
-  { id: "system", widget: systemStatusWidget, milestone: "M3", feature: "C11" }
+  { id: "system", widget: systemStatusWidget, milestone: "M3", feature: "C11" },
+
+  // --- Milestone 3, second pass (C6, C7, C8, C12, C14, C17, C19, C20) ---
+  // C19 is flagged experimental on the widget object, which the registry
+  // (registry.js) carries into the picker as a visible badge.
+  { id: "agenda", widget: agendaWidget, milestone: "M3", feature: "C6" },
+  { id: "flashcards", widget: flashcardsWidget, milestone: "M3", feature: "C14" },
+  { id: "timezone", widget: timezoneWidget, milestone: "M3", feature: "C20" },
+  { id: "mediakeys", widget: mediaSessionWidget, milestone: "M3", feature: "C12" },
+  { id: "fx", widget: fxWidget, milestone: "M3", feature: "C17" },
+  { id: "market", widget: marketWidget, milestone: "M3", feature: "C7" },
+  { id: "news", widget: newsWidget, milestone: "M3", feature: "C8" },
+  { id: "prayer", widget: prayerWidget, milestone: "M3", feature: "C19" }
 ];
 
 /** Milestone 3 widgets, for filtering in tests and the picker. */

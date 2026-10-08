@@ -31,6 +31,16 @@ function localDayKey(date = new Date()) {
   ].join("-");
 }
 
+/**
+ * Size ceiling for a stored ICS document, in characters.
+ *
+ * localStorage is a ~5 MB budget shared by every feature in this app, so one
+ * widget cannot claim all of it. An .ics export from a calendar kept for years
+ * can exceed this, which is why the limit is enforced at import time with a
+ * visible message rather than discovered later as a silently truncated agenda.
+ */
+const AGENDA_MAX_CHARS = 512 * 1024;
+
 const defaultState = {
   activeSpaceId: "home",
   keepScreenAwake: true,
@@ -184,7 +194,20 @@ const defaultState = {
   decks: [],
   converter: { category: "length", fromUnit: "m", toUnit: "ft" },
   unitLocation: { lat: null, lon: null, name: "", resolvedAt: null },
-  fxPrefs: { base: "USD", quote: "EUR" }
+  fxPrefs: { base: "USD", quote: "EUR" },
+  // C20 world clock. City ids from timezones.js DEFAULT_CITIES; an empty list
+  // means "use the defaults", so a fresh install and a reset agree.
+  worldClockCities: [],
+  // C6 ICS agenda. `icsText` is the user's own pasted or uploaded file; it is
+  // stored locally and never uploaded anywhere.
+  agenda: { icsText: "", sourceName: "", importedAt: null },
+  // C8 RSS. One user-supplied URL, opt-in only.
+  rss: { url: "", itemCount: 5 },
+  // C7 market tickers, as CoinGecko ids.
+  marketSymbols: ["bitcoin", "ethereum"],
+  // C19 prayer calculation school. A user choice, not a constant: schools
+  // differ by 10-20 minutes and there is no single correct default.
+  prayerMethod: 3
 };
 
 export class Store {
@@ -871,6 +894,123 @@ export class Store {
   deleteDeck(deckId) {
     this.state.decks = this.state.decks.filter(d => d.id !== deckId);
     this.notify("decks_updated", this.state.decks);
+  }
+
+  /**
+   * C14 Flashcards: records one review.
+   *
+   * The next state is computed by core/flashcards.js (pure, unit-tested) and
+   * passed in, so the scheduling rules live in exactly one place. `next` is the
+   * full card state returned by scheduleCard(), which is why this action does
+   * not import it - the widget owns the decision, the store owns persistence.
+   *
+   * Returns false when the deck or card is gone, so the caller can re-render
+   * rather than optimistically showing a review that did not save.
+   */
+  reviewCard(deckId, cardId, next) {
+    if (!next || typeof next !== "object") return false;
+
+    let found = false;
+    this.state.decks = this.state.decks.map((deck) => {
+      if (deck.id !== deckId) return deck;
+      return {
+        ...deck,
+        cards: (deck.cards || []).map((card) => {
+          if (card.id !== cardId) return card;
+          found = true;
+          return { ...card, ...next };
+        })
+      };
+    });
+
+    if (!found) return false;
+    this.notify("decks_updated", this.state.decks);
+    return true;
+  }
+
+  deleteCard(deckId, cardId) {
+    this.state.decks = this.state.decks.map((deck) =>
+      deck.id === deckId
+        ? { ...deck, cards: (deck.cards || []).filter((card) => card.id !== cardId) }
+        : deck
+    );
+    this.notify("decks_updated", this.state.decks);
+  }
+
+  /** C20 which cities the world clock shows. */
+  setWorldClockCities(ids) {
+    const list = Array.isArray(ids)
+      ? ids.filter((id) => typeof id === "string").slice(0, 8)
+      : [];
+    this.state.worldClockCities = list;
+    this.notify("world_clock_cities_updated", list);
+    return list;
+  }
+
+  /**
+   * C6 the user's own ICS document. Stored locally only.
+   *
+   * Capped at 512 KB: an .ics export from a long-lived calendar can be large,
+   * and localStorage is a 5 MB budget shared with everything else in this app.
+   * Silently truncating an ICS file mid-event would be worse than refusing it,
+   * so over-size text is rejected and the caller reports it.
+   *
+   * @returns {{ok: boolean, reason?: string}}
+   */
+  setAgendaIcs(text, sourceName = "") {
+    const value = String(text || "");
+    if (value.length > AGENDA_MAX_CHARS) {
+      return { ok: false, reason: "that file is too large for browser storage" };
+    }
+    this.state.agenda = {
+      icsText: value,
+      sourceName: String(sourceName || "").slice(0, 80),
+      importedAt: value ? Date.now() : null
+    };
+    this.notify("agenda_updated", this.state.agenda);
+    return { ok: true };
+  }
+
+  clearAgendaIcs() {
+    this.state.agenda = { icsText: "", sourceName: "", importedAt: null };
+    this.notify("agenda_updated", this.state.agenda);
+  }
+
+  /** C8 the user's own feed URL, opt-in. */
+  setRssPrefs(updates) {
+    if (!isPlainObject(updates)) return this.state.rss;
+    const next = { ...this.state.rss, ...updates };
+    if (typeof next.itemCount === "number") {
+      next.itemCount = Math.max(1, Math.min(20, Math.round(next.itemCount)));
+    }
+    next.url = String(next.url || "").slice(0, 500);
+    this.state.rss = next;
+    this.notify("rss_updated", next);
+    return next;
+  }
+
+  /** C7 which instruments the ticker shows. */
+  setMarketSymbols(ids) {
+    const list = Array.isArray(ids)
+      ? ids.filter((id) => typeof id === "string" && /^[a-z0-9-]+$/i.test(id)).slice(0, 10)
+      : [];
+    this.state.marketSymbols = list;
+    this.notify("market_symbols_updated", list);
+    return list;
+  }
+
+  /**
+   * C19 prayer calculation school.
+   *
+   * Only ids the picker actually offers are accepted, so persisted state from a
+   * future or corrupted value cannot put the widget into an unknown school.
+   */
+  setPrayerMethod(id) {
+    const allowed = [1, 2, 3, 4, 5, 12, 13];
+    const method = allowed.includes(Number(id)) ? Number(id) : 3;
+    this.state.prayerMethod = method;
+    this.notify("prayer_method_updated", method);
+    return method;
   }
 
   /** C15 Converter preferences. Stateless, but persisted so the panel does not

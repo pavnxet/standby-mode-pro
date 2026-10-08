@@ -22,7 +22,7 @@
 
 export const STORAGE_KEY_LEGACY = "standby_mode_pro_v1";
 export const STORAGE_KEY = "standby_mode_pro_v2";
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 /**
  * Keys that must exist on a fully-formed state object. The deep-merge in
@@ -214,6 +214,49 @@ export const MIGRATIONS = [
         { base: "USD", quote: "EUR" },
         next.fxPrefs
       );
+
+      return next;
+    }
+  },
+  {
+    from: 3,
+    to: 4,
+    description: "Backfill the second Milestone 3 widget pass (world clock cities, ICS agenda, RSS feed, market symbols, prayer method) so the eight new widgets read a complete shape instead of guarding against undefined.",
+    migrate(state) {
+      const next = { ...state };
+
+      // C20 World clock. An empty list means "use the defaults", which is what a
+      // fresh install gets too - so a reset and an upgrade agree.
+      next.worldClockCities = Array.isArray(next.worldClockCities) ? next.worldClockCities : [];
+
+      // C6 ICS agenda. The user's own calendar text, stored locally and never
+      // transmitted. `importedAt` is null until an import actually succeeds,
+      // which is distinct from "imported long ago".
+      next.agenda = deepMerge(
+        { icsText: "", sourceName: "", importedAt: null },
+        next.agenda
+      );
+
+      // C8 RSS. No default URL on purpose: every mainstream feed blocks browser
+      // access, so a seeded feed would produce a permanently broken widget.
+      next.rss = deepMerge(
+        { url: "", itemCount: 5 },
+        next.rss
+      );
+
+      // C7 Market tickers, as CoinGecko ids.
+      next.marketSymbols = Array.isArray(next.marketSymbols) && next.marketSymbols.length
+        ? next.marketSymbols
+        : ["bitcoin", "ethereum"];
+
+      // C19 Prayer calculation school. A user choice, so it is stored rather
+      // than hard-coded: schools differ by 10-20 minutes and there is no
+      // defensible single default for everyone.
+      next.prayerMethod = Number.isInteger(next.prayerMethod) ? next.prayerMethod : 3;
+
+      // C12 needs nothing new: the M1 `updateMediaState()` action and the
+      // pre-existing mediaState namespace already cover it. No entry here on
+      // purpose, so the migration does not imply a shape that does not exist.
 
       return next;
     }
