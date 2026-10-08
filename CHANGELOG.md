@@ -102,13 +102,21 @@ over.
 
 ### Known gaps
 
-- **CI size budget is red.** Source JS is 963 KB against the 900 KB budget the
-  owner set. Not carried by Milestone 6; it needs either a raise or ~63 KB of
-  cuts. Raised rather than silently moved.
 - **CLS 0.354** as above.
 - **`remaining-features.mjs` lists 24 features by name that are actually
   shipped** — the plan guessed several filenames wrong. The four genuinely
   unimplemented ones were H6, I6, J3 and G5, and all four are now shipped.
+
+### Resolved after the 3.0.0 cut
+
+- **CI size budget raised 900 KB to 1000 KB by owner decision.** Source JS
+  measures 956 KB on CI's LF checkout (963 KB locally on CRLF), leaving 37 KB of
+  headroom. The alternative was cutting ~56 KB. Before deciding, unused exports
+  were searched for systematically: `scripts/find-unused-exports.mjs` found 55 of
+  them totalling ~50 KB inside otherwise-reachable files, the largest being
+  `js/state/tursoSync.js` at 16.4 KB with no importer in the app or the tests.
+  50 KB would not have cleared 56 KB, and the remainder was working
+  functionality, so the budget was lifted. ADR-036.
 
 ---
 

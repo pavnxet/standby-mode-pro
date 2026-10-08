@@ -206,7 +206,9 @@ Meaningful technical decisions, library choices, and trade-offs for flip clock.
 - **Status:** Accepted and implemented
 - **Decision:** The CI size budget is raised from 400 KB to 900 KB, matching the owner's decision to lift the cap. Shipped JS is 658 KB.
 - **Why:** The 400 KB figure was set at M1 with 11 clocks and 9 widgets. After M3 added 18 clock faces and 15 widgets it could no longer make an unexpected jump visible — a guard that is always red has stopped guarding.
-- **Consequence:** 900 KB is roughly 35% headroom over the current figure. `js/app.bundle.js` (237 KB, dead, CI forbids its use) is excluded from the measurement and remains an owner decision.### 2026-10-08 ADR-036: Ambience generators take a `dest` node and return their gain node
+- **Consequence:** 900 KB is roughly 35% headroom over the current figure. `js/app.bundle.js` (237 KB, dead, CI forbids its use) is excluded from the measurement and remains an owner decision.
+
+### 2026-10-08 ADR-036: Ambience generators take a `dest` node and return their gain node
 - **Status:** Accepted and implemented
 - **Decision:** Every ambience factory has the signature `(dest: AudioNode) => { gainNode, stop() }`. The layer's internal gain is near 1 and the user's level is applied on `dest`. `stopAmbient()` disconnects both the source nodes and the layer's `GainNode`.
 - **Why:** E2 needs per-layer fades. A layer can only be faded independently if it has its own `GainNode`, and it can only have one if the factory was handed somewhere to connect — the previous hard-coded `gain.connect(this.masterGain)` made that impossible without rewriting every generator.
@@ -235,3 +237,9 @@ Meaningful technical decisions, library choices, and trade-offs for flip clock.
 - **Decision:** `readEnergyBands()` returns bass / mid / treble / level from an `AnalyserNode` with `fftSize = 256` and `smoothingTimeConstant = 0.8`. No beat detection, no tempo inference.
 - **Why:** `FEATURE_PLAN` E4 is explicit: "our synthesised audio has no defined beat, so 'beat-reactive' must be driven by the AnalyserNode energy band, not a BPM detector." A BPM detector on a noise bed returns confident nonsense.
 - **Consequence:** The analyser is created **lazily** on first request, not wired permanently — an `AnalyserNode` costs an FFT per sample, and paying that for a display with no visualiser selected is spending CPU on nothing. Verified in-browser: bass ramped 0.58 → 0.85 across six samples. Recorded as **partial**: the energy source is built and verified, the drawing is not done, so E4 is not shipped.
+
+### 2026-10-09 ADR-041: The source budget is raised to 1000 KB, and the growth was costed before it was
+- **Status:** Accepted and implemented (second owner raise)
+- **Decision:** `BUDGET_KB` in `.github/workflows/validate.yml` goes 900 to 1000. Shipped JS is 956 KB measured on CI's LF checkout, 963 KB locally on CRLF. Nothing is deleted to get under the old number.
+- **Why:** The 900 KB figure (ADR-035) was set before M4 and M5 existed. M3+M4+M5 added 20 widgets, 29 clock faces, a theme engine, a layout grid, i18n, a worker and a command palette on top of the 15 widgets and 18 faces ADR-035 was already covering. The measurement turned red on the first push after the 3.0.0 cut.
+- **Consequence:** The raise was not taken on faith. `scripts/find-unused-exports.mjs` now answers the question the orphan check cannot - whether code inside a *reachable* file is actually used - and found 55 such exports totalling ~50 KB, the largest being `js/state/tursoSync.js` at 16.4 KB with zero importers in the app or the tests. That 50 KB would not have cleared a 56 KB overage, and the remainder was working functionality, so the honest options were a raise or deleting features. **The ~50 KB list is a standing offer, not a closed question**: `tursoSync.js` in particular is dead code behind an exposed-token history, and deleting it is 16 KB that needs no owner trade-off. ADR-035's framing still holds - 1000 KB is thin headroom, so the next raise should be expected and costed the same way.

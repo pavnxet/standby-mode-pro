@@ -294,3 +294,35 @@ failure mode is a flat line rather than NaN.
 ### Not pushed
 
 All work local on `phase-3-widgets-final`, now 51 commits ahead of `origin/master`.
+
+### 2026-10-09 - Release 3.0.0, and the size budget raised to 1000 KB
+
+- **Pushed.** `v3.0.0` (annotated tag) and the branch `phase-3-widgets-final`,
+  both on `origin`. 67 commits, previously 64 ahead of `origin/master` and
+  unpushed. Commit `7a9fb18`.
+- **Version files added.** No `VERSION` file existed and nothing read a version,
+  so one was created as the single source and `package.json` matched to it
+  (2.0.0 to 3.0.0). Three places now agree: `VERSION`, `package.json`, and the
+  `## [3.0.0]` CHANGELOG heading. CI still does not verify they agree - if that
+  is wanted it is a step in `validate.yml`, left out deliberately rather than
+  implied.
+- **CI went red on the first push** at 956 KB against the 900 KB budget (ADR-035).
+  Costed before raising: `scripts/find-unused-exports.mjs` finds 55 unused
+  exports inside reachable files, ~50 KB total, largest `tursoSync.js` at 16.4 KB.
+  50 KB does not clear 56 KB, so the choice was a raise or deleting features.
+  Owner raised to 1000 KB. **ADR-041.**
+- **`npx` side effect cleaned up.** `npx --yes lighthouse` and
+  `npx --yes tailwindcss` had downloaded 157 MB to the global npm cache
+  (`%LOCALAPPDATA%\npm-cache\_npx`). Nothing reached the project: no
+  `node_modules`, zero dependencies in `package.json`, and only the *outputs*
+  (`css/tailwind-built.css`, `tailwind.config.js`, `scripts/lighthouse-compare.mjs`)
+  are committed. Cache removed at the owner's request; `_cacache` (309 MB) left
+  alone because it is shared by every npm install, not specific to this work.
+- **Docs corrected.** The 3.0.0 CHANGELOG entry claimed the size budget was red
+  and needed a raise, which the owner decision made false; replaced with a
+  "Resolved after the 3.0.0 cut" section. `learning/DECISIONS.md` line 209 had
+  glued ADR-035's consequence to ADR-036's heading into one line (an edit that
+  inserted without a separating newline) - split.
+- **Still not done:** `TESTING.md` has no M4/M5 section. CLS 0.354 against a
+  0.001 baseline, cause unidentified. The ~50 KB unused-export list remains
+  deletable without an owner trade-off.

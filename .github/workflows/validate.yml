@@ -268,15 +268,16 @@ jobs:
       # from source; CI forbids its use. This guard makes sure first-load
       # JavaScript does not silently grow (FEATURE_PLAN.md J4).
       #
-      # The budget was raised from 400 KB to 900 KB by the owner once Milestone 3
-      # landed 15 widgets and 19 clock faces. It is a growth alarm, not a target:
+      # The budget was raised from 400 KB to 900 KB once Milestone 3 landed 15
+      # widgets and 19 clock faces, and from 900 KB to 1000 KB by the owner once
+      # M3, M4 and M5 landed on top of that. It is a growth alarm, not a target:
       # the point is to make an unexpected jump visible, and the previous 400 KB
       # threshold could no longer do that.
       - name: Bundle size budget
         shell: bash
         run: |
           set -euo pipefail
-          BUDGET_KB=900
+          BUDGET_KB=1000
           # Everything reachable as a static import from the entry point, plus
           # the modules index.html loads. The legacy bundle is excluded on purpose.
           TOTAL_KB=$(find js -type f -name '*.js' ! -name 'app.bundle.js' -exec cat {} + | wc -c | awk '{printf "%d", $1/1024}')

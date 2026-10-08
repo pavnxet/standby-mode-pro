@@ -173,3 +173,18 @@ store.notify(event)
 - **`js/core/a11y.js`:** `applyAccessibilitySettings` now guards a missing `document.body`.
 - **Measured:** 15/15 M3 widgets mount + unmount; **0px overflow at 120–900px** in empty and data states; hostile-value XSS pass clean.
 - **Milestone reached:** **M3 COMPLETE** — clocks and all 15 widgets.
+
+  ### 2026-10-09 - Release 3.0.0 and the budget raise
+  - **`.github/workflows/validate.yml`:** `BUDGET_KB` 900 to 1000. Same
+    measurement, same exclusion of the legacy bundle. Nothing else in the
+    workflow changed.
+  - **`VERSION` (new):** the only file that states the release. `package.json`
+    reads it manually - there is no script that keeps them in sync, so the two
+    can drift, and CI does not check.
+  - **`scripts/find-unused-exports.mjs` (new):** import-graph walk over `js/`
+    reporting exports no file, test or script references. Answers a different
+    question from `find-orphans.mjs`, which only reports unreachable files.
+    55 found, ~50 KB, largest `js/state/tursoSync.js` (16.4 KB, no importers).
+  - **`learning/DECISIONS.md`:** ADR-041 records the raise and the costing.
+  - **Recent changes to runtime code:** none. This commit touches the workflow,
+    two new files and documentation only.
