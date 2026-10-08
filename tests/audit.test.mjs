@@ -27,6 +27,38 @@ const ALL_CSS = ["main.css", "clocks.css", "widgets.css", "a11y.css"]
   .map(name => read("css", name))
   .join("\n");
 
+/**
+ * Every Milestone 3 widget and the file that implements it.
+ *
+ * Single source for the three widget tests below. They previously each held
+ * their own hardcoded list, which is exactly how a test starts failing for the
+ * wrong reason: a newly added widget made the count assertions fail, and the
+ * failure read as a lifecycle or escaping defect when nothing was wrong.
+ *
+ * The mapping is still checked against the index - see
+ * "the index and the file list must not drift apart" - so this cannot drift
+ * silently either.
+ */
+const M3_WIDGET_FILES = [
+  // First pass.
+  { id: "countdown", file: "countdownWidget.js" },
+  { id: "converter", file: "converterWidget.js" },
+  { id: "calculator", file: "calculatorWidget.js" },
+  { id: "goals", file: "goalsWidget.js" },
+  { id: "sun", file: "sunWidget.js" },
+  { id: "airquality", file: "airQualityWidget.js" },
+  { id: "system", file: "systemStatusWidget.js" },
+  // Second pass: C6, C14, C20, C12, C17, C7, C8, C19.
+  { id: "agenda", file: "agendaWidget.js" },
+  { id: "flashcards", file: "flashcardsWidget.js" },
+  { id: "timezone", file: "timezoneWidget.js" },
+  { id: "mediakeys", file: "mediaSessionWidget.js" },
+  { id: "fx", file: "fxWidget.js" },
+  { id: "market", file: "marketWidget.js" },
+  { id: "news", file: "newsWidget.js" },
+  { id: "prayer", file: "prayerWidget.js" }
+];
+
 // ------------------------------------------------- D1: media setter existed
 
 test("store exposes the media state setter the widget calls", () => {
@@ -560,8 +592,11 @@ test("the widget inventory is 12 legacy plus 7 Milestone 3 widgets", async () =>
 
   assert.equal(WIDGETS.filter((w) => w.milestone === "M0").length, 9, "nine original widgets");
   assert.equal(WIDGETS.filter((w) => w.milestone === "M2").length, 3, "alarm, note, habit");
-  assert.equal(M3_WIDGETS.length, 7);
-  assert.equal(WIDGETS.length, 19);
+  // 7 from the first Milestone 3 pass, 8 from the second (C6, C14, C20, C12,
+  // C17, C7, C8, C19) = 15. This brings Milestone 3 to all 15 widgets the
+  // feature plan assigned to it.
+  assert.equal(M3_WIDGETS.length, 15);
+  assert.equal(WIDGETS.length, 27);
 
   for (const { id, widget, milestone } of WIDGETS) {
     assert.match(id, /^[a-z][a-z0-9]*$/, `widget id "${id}" must be a lowercase slug`);
@@ -596,11 +631,7 @@ test("every Milestone 3 widget implements unmount and captures its cleanup", asy
   // AUDIT D2 lesson: a captured unsubscribe is mandatory. A widget that mounts
   // a timer or subscribes without releasing it leaks on every stage re-render.
   const { M3_WIDGETS } = await import("../js/widgets/index.js");
-  const files = [
-    "countdownWidget.js", "airQualityWidget.js", "sunWidget.js",
-    "systemStatusWidget.js", "converterWidget.js", "calculatorWidget.js",
-    "goalsWidget.js"
-  ];
+  const files = M3_WIDGET_FILES.map((f) => f.file);
 
   for (const name of files) {
     const source = read("js", "features", name);
@@ -625,15 +656,11 @@ test("every Milestone 3 widget escapes user-authored text before rendering", asy
   // wrapped in it. The runtime probe in TESTING.md covers the rest.
   const { M3_WIDGETS } = await import("../js/widgets/index.js");
 
-  const FILE_FOR_ID = {
-    countdown: "countdownWidget.js", converter: "converterWidget.js",
-    calculator: "calculatorWidget.js", goals: "goalsWidget.js",
-    sun: "sunWidget.js", airquality: "airQualityWidget.js",
-    system: "systemStatusWidget.js"
-  };
-
   for (const { id } of M3_WIDGETS) {
-    const source = read("js", "features", FILE_FOR_ID[id]);
+    const entry = M3_WIDGET_FILES.find((f) => f.id === id);
+    assert.ok(entry, `${id} has no file mapping; add it to M3_WIDGET_FILES`);
+
+    const source = read("js", "features", entry.file);
     assert.match(source, /import\s*\{[^}]*escapeHtml[^}]*\}\s*from/, `${id} must import escapeHtml`);
 
     // Any interpolation that mentions a user-authored field must be escaped.
