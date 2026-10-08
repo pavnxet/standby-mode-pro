@@ -193,9 +193,9 @@ test("skip is two-stage, so a mis-tap does not end the tour", () => {
 // ═══════════════════════════════════════════════════════════ J3: worker
 
 const SESSIONS = [
-  { id: 1, stage: "focus", startedAt: Date.UTC(2026, 0, 5, 9), durationMinutes: 25 },
-  { id: 2, stage: "break", startedAt: Date.UTC(2026, 0, 5, 10), durationMinutes: 5 },
-  { id: 3, stage: "focus", startedAt: Date.UTC(2026, 0, 6, 9), durationMinutes: 30 }
+  { id: 1, stage: "focus", timestamp: Date.UTC(2026, 0, 5, 9), duration: 25 },
+  { id: 2, stage: "break", timestamp: Date.UTC(2026, 0, 5, 10), duration: 5 },
+  { id: 3, stage: "focus", timestamp: Date.UTC(2026, 0, 6, 9), duration: 30 }
 ];
 
 test("aggregation sums by day and by stage", () => {
@@ -218,12 +218,42 @@ test("aggregation tolerates malformed sessions", () => {
   const result = aggregateSessions([
     null,
     undefined,
-    { stage: "focus", durationMinutes: 10 },          // no startedAt
-    { stage: "focus", startedAt: Date.UTC(2026, 0, 1), durationMinutes: "x" },
+    { stage: "focus", duration: 10 },      // no timestamp
+    { stage: "focus", timestamp: Date.UTC(2026, 0, 1), duration: "x" },
     SESSIONS[0]
   ]);
   assert.equal(result.totalMinutes, 25, "a malformed session contributed to a total");
   assert.ok(result.sessionCount >= 1);
+});
+
+test("the worker accepts the store own history shape", async () => {
+  /*
+   * The contract bug this pins: the worker expected `{ startedAt,
+   * durationMinutes }` while the store writes `{ timestamp, duration }`. Every
+   * finite-check dropped every session, so the aggregation returned zeros - which
+   * reads as "no focus data yet" rather than as a broken pipeline.
+   *
+   * The shape is read out of the store rather than typed into the test, so this
+   * cannot drift again without someone changing the fixture too.
+   */
+  const { store } = await import("../js/state/store.js");
+  const before = store.getState().stats.history.length;
+  store.recordCompletedSession("focus", 25);
+  store.recordCompletedSession("break", 5);
+
+  const history = store.getState().stats.history;
+  assert.ok(history.length === before + 2, "the store did not record the sessions");
+
+  for (const entry of history) {
+    assert.ok(Number.isFinite(entry.timestamp), "history has no `timestamp`");
+    assert.ok(Number.isFinite(entry.duration), "history has no `duration`");
+  }
+
+  const result = aggregateSessions(history);
+  assert.equal(result.totalMinutes, history.reduce((sum, e) => sum + e.duration, 0),
+    "the worker did not see the store's own records");
+  assert.ok(result.totalMinutes > 0,
+    "the worker aggregated nothing from a live history - the contract is wrong again");
 });
 
 test("aggregation of nothing is empty, not an error", () => {

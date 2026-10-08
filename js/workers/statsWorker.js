@@ -39,32 +39,39 @@ export const WORKER_JOBS = {
 /* -------------------------------------------------------------- pure work */
 
 /**
- * Aggregates sessions by day, stage and week.
+ * Aggregates focus sessions by day, stage and week.
  *
  * Pure and also exported from the main thread: the worker and the fallback must
  * run the SAME code, otherwise the stats view changes depending on whether the
  * worker was available - which would be a bug nobody could reproduce.
  *
- * A session is `{ id, stage, startedAt (epoch ms), durationMinutes }`.
+ * Takes the store's OWN history shape: `{ id, stage, duration, timestamp }`, where
+ * `duration` is minutes and `timestamp` is epoch ms. The first version used
+ * `{ startedAt, durationMinutes }`, which nothing in this codebase produces - and
+ * the finite-check would have dropped every session, so the stats view would have
+ * quietly read "no data" while the data was sitting right there. A contract that
+ * does not match the caller is worse than no contract.
  */
 export function aggregateSessions(sessions) {
   const list = Array.isArray(sessions) ? sessions : [];
   const byDay = new Map();
   const byStage = new Map();
   let totalMinutes = 0;
+  let counted = 0;
 
   for (const session of list) {
     if (!session) continue;
-    const startedAt = Number(session.startedAt);
-    const minutes = Number(session.durationMinutes);
-    if (!Number.isFinite(startedAt) || !Number.isFinite(minutes)) continue;
+    const timestamp = Number(session.timestamp);
+    const duration = Number(session.duration);
+    if (!Number.isFinite(timestamp) || !Number.isFinite(duration)) continue;
 
-    const day = new Date(startedAt).toISOString().slice(0, 10);
+    const day = new Date(timestamp).toISOString().slice(0, 10);
     const stage = String(session.stage || "unknown");
 
-    byDay.set(day, (byDay.get(day) || 0) + minutes);
-    byStage.set(stage, (byStage.get(stage) || 0) + minutes);
-    totalMinutes += minutes;
+    byDay.set(day, (byDay.get(day) || 0) + duration);
+    byStage.set(stage, (byStage.get(stage) || 0) + duration);
+    totalMinutes += duration;
+    counted++;
   }
 
   // Sorted by key so the order does not depend on the order sessions were
@@ -74,7 +81,10 @@ export function aggregateSessions(sessions) {
 
   return {
     totalMinutes,
-    sessionCount: list.length,
+    // `sessionCount` is the count of USABLE sessions, not the input length. The
+    // first version reported the input length, so a malformed log and a short one
+    // were indistinguishable in the UI.
+    sessionCount: counted,
     days: days.map(([day, minutes]) => ({ day, minutes })),
     stages: stages.map(([stage, minutes]) => ({ stage, minutes })),
     busiestDay: days.length

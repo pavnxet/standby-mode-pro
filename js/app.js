@@ -44,6 +44,9 @@ import { ScreenTimeoutRescue } from './core/screenTimeoutRescue.js';
 import { applyLocale, currentLocale, localeAttributes, detectLocale } from './core/i18n.js';
 import { OnboardingTour, shouldShowTour } from './components/onboarding.js';
 import { voiceCommands, voiceHost } from './features/voiceCommands.js';
+// J3: the compute worker host. Created lazily and only used by the stats view, so
+// a browser that blocks workers pays nothing and the fallback runs the same code.
+import { workerHost } from './core/hostCompute.js';
 import { profileFromEnvironment, applyProfile, columnsFor } from './core/deviceProfile.js';
 // Milestone 5: theme engine, command palette, layout grid, permission centre.
 import { applyTheme, currentThemeId, exportState, importState } from './core/themeEngine.js';
@@ -183,6 +186,10 @@ class App {
       else if (id === "cheatsheet") this.commands?.openCheatsheet();
       return Boolean(this.commands?.run?.(id));
     };
+
+    // J3: exposed for the stats modal, which is the only consumer. Holding it on
+    // the app rather than a module singleton keeps one instance per page.
+    this.compute = workerHost;
 
     // I1/G6: the settings centre and the permission list are rendered into a
     // lazily-created host, so neither costs anything until the panel is opened.
