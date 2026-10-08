@@ -42,6 +42,7 @@ const SHELL_ASSETS = [
   "./css/widgets.css",
   "./css/a11y.css",
   "./css/widgets-m2.css",
+  "./css/widgets-m3.css",
   "./js/app.js",
   "./js/core/schema.js",
   "./js/core/registry.js",
@@ -50,6 +51,10 @@ const SHELL_ASSETS = [
   "./js/core/a11y.js",
   "./js/core/notifications.js",
   "./js/core/alarmScheduler.js",
+  // Missed when the PWA shipped: the manifest and worker were precached but the
+  // module implementing install/offline detection was not, so the app would
+  // 404 on js/core/pwa.js while offline.
+  "./js/core/pwa.js",
   "./js/clocks/_shared/numeralMap.js",
   "./js/engines/clockEngine.js",
   "./js/engines/widgetEngine.js",
@@ -115,6 +120,26 @@ const SHELL_ASSETS = [
   "./js/features/alarmWidget.js",
   "./js/features/noteWidget.js",
   "./js/features/habitWidget.js",
+
+  // Milestone 3 widgets. The index is listed because js/app.js imports from it;
+  // the core modules are listed because the widgets import them.
+  "./js/features/countdownWidget.js",
+  "./js/features/airQualityWidget.js",
+  "./js/features/sunWidget.js",
+  "./js/features/systemStatusWidget.js",
+  "./js/features/converterWidget.js",
+  "./js/features/calculatorWidget.js",
+  "./js/features/goalsWidget.js",
+  "./js/widgets/index.js",
+  "./js/core/netPolicy.js",
+  "./js/core/units.js",
+  "./js/core/calculator.js",
+  "./js/core/timezones.js",
+  "./js/core/clockMath.js",
+  "./js/core/systemStatus.js",
+  "./js/core/airQuality.js",
+  "./js/core/countdownMath.js",
+  "./js/core/inputParse.js",
   "./assets/icons/icon.svg",
   "./assets/icons/icon-192.png",
   "./assets/icons/icon-512.png"

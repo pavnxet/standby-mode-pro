@@ -122,12 +122,20 @@ jobs:
                    js/components/modalRuntime.js \
                    js/features/alarmWidget.js js/features/noteWidget.js \
                    js/features/habitWidget.js \
+                   js/features/countdownWidget.js js/features/airQualityWidget.js \
+                   js/features/sunWidget.js js/features/systemStatusWidget.js \
+                   js/features/converterWidget.js js/features/calculatorWidget.js \
+                   js/features/goalsWidget.js \
+                   js/widgets/index.js \
+                   js/core/netPolicy.js js/core/units.js js/core/calculator.js \
+                   js/core/timezones.js js/core/clockMath.js js/core/systemStatus.js \
+                   js/core/airQuality.js js/core/countdownMath.js js/core/inputParse.js \
                    js/clocks/_shared/numeralMap.js \
                    js/clocks/_shared/primitives.js js/clocks/_shared/solarMath.js \
                    js/clocks/_shared/words.js js/clocks/index.js \
                    js/engines/clockEngine.js js/engines/widgetEngine.js \
                    css/main.css css/clocks.css css/widgets.css css/a11y.css \
-                   css/clocks-m3.css css/widgets-m2.css \
+                   css/clocks-m3.css css/widgets-m2.css css/widgets-m3.css \
                    assets/icons/icon.svg assets/icons/icon-192.png \
                    assets/icons/icon-512.png assets/icons/icon-maskable-512.png \
                    package.json; do
