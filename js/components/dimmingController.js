@@ -11,8 +11,7 @@
  *
  * That requirement is the whole feature, and it is easy to violate by accident.
  * Three specific ways this implementation could have failed, and what stops
- * each:
- *
+ * each: *
  *  1. A floor on the slider. If the minimum were 10%, the complaint reproduces
  *     exactly. `DIM_MIN` is 0.
  *
@@ -30,6 +29,20 @@
  */
 
 import { store } from "../state/store.js";
+
+/*
+ * E6/F1. The schedule authoring UI lives in its own module and is imported here,
+ * at the panel it belongs to. It was written as a complete, tested module and
+ * then never reachable from the entry point - which scripts/find-orphans.mjs
+ * caught by walking the import graph. Nothing anywhere imported it, so the store
+ * had the actions and the controller had applySchedule, but a reader could not
+ * author a schedule at all.
+ */
+import {
+  renderSchedulePanel,
+  wireSchedulePanel,
+  watchSchedulePanel
+} from "../features/nightSchedule.js";
 import { scheduler } from "../core/scheduler.js";
 import { escapeHtml } from "../core/escape.js";
 
@@ -279,6 +292,23 @@ export function renderBrightnessPanel() {
             ${escapeHtml(p.label)}
           </button>`).join("")}
       </div>
+
+      <!--
+        E6/F1 - the schedule authoring UI.
+
+        This is why nightSchedule.js is imported here. It existed as a complete,
+        tested module and was never reachable from the entry point - so the store
+        had the actions and the controller had applySchedule, but there was no way
+        for a reader to author a schedule at all. scripts/find-orphans.mjs found it
+        by walking the import graph.
+
+        It is a separate section rather than folded into the slider because it
+        answers a different question: "how bright should it be now" versus "when
+        should it change by itself".
+      -->
+      <div class="dim-schedule" data-host="night-schedule">
+        ${renderSchedulePanel()}
+      </div>
     </div>`;
 }
 
@@ -309,7 +339,38 @@ export function wireBrightnessPanel(root, controller) {
     });
   });
 
+  // E6/F1 - wire the schedule section.
+  //
+  // `refreshSchedule` is called after every edit so the controller re-reads the
+  // schedule and applies it immediately, rather than waiting for the next minute
+  // boundary to notice the reader just changed the rules.
+  const scheduleRoot = root.querySelector('[data-host="night-schedule"]');
+  let unwireSchedule = null;
+  let unwatchSummary = null;
+
+  if (scheduleRoot) {
+    const scheduleController = {
+      refreshSchedule() {
+        controller?.initSchedule?.();
+        controller?.applySchedule?.();
+      },
+      onPanelRerendered() {
+        if (unwireSchedule) unwireSchedule();
+        unwireSchedule = wireSchedulePanel(scheduleRoot, scheduleController);
+      }
+    };
+    unwireSchedule = wireSchedulePanel(scheduleRoot, scheduleController);
+    unwatchSummary = watchSchedulePanel(scheduleRoot, scheduleController);
+  }
+
   return () => {
     if (slider) slider.removeEventListener("input", onInput);
+
+    // E6/F1. The schedule panel re-renders itself on every edit, which replaces
+    // the elements its listeners were bound to. Releasing both keeps the teardown
+    // symmetric with the wiring, so closing and reopening the panel does not
+    // accumulate listeners - the leak the AUDIT D2 lesson is about.
+    if (unwireSchedule) unwireSchedule();
+    if (unwatchSummary) unwatchSummary();
   };
 }

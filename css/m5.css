@@ -906,7 +906,196 @@ kbd {
 .pc-action:focus-visible { outline: 2px solid var(--accent, #60a5fa); outline-offset: 2px; }
 .pc-action--none { border-color: transparent; }
 
-/* ---------------------------------------------- Reduced motion */
+/* ------------------------------------------------------- H6: language picker */
+
+.i18n-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.i18n-option {
+  font: inherit;
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  min-height: var(--device-tap-target, 40px);
+  padding: 0.45em 0.75em;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle, #94a3b826);
+  background: var(--bg-surface, #111827);
+  color: var(--text-secondary, #cbd5e1);
+  cursor: pointer;
+}
+
+.i18n-option--on {
+  border-color: var(--accent, #60a5fa);
+  color: var(--text-primary, #f1f5f9);
+  box-shadow: 0 0 0 1px var(--accent, #60a5fa);
+}
+
+.i18n-option:hover { filter: brightness(1.12); }
+
+.i18n-option:focus-visible {
+  outline: 2px solid var(--accent, #60a5fa);
+  outline-offset: 2px;
+}
+
+/* The native name is the point of the picker: "हिन्दी" is what someone who reads
+ * Hindi looks for, and spelling it "Hindi" would be a choice made for the wrong
+ * person. */
+.i18n-native { font-size: clamp(0.85rem, 3.6cqi, 1rem); }
+
+.i18n-label {
+  font-size: clamp(0.7rem, 3cqi, 0.82rem);
+  color: var(--text-muted, #94a3b8);
+}
+
+.i18n-coverage {
+  font-size: 0.62rem;
+  font-family: var(--font-mono, monospace);
+  padding: 0.1em 0.4em;
+  border-radius: 999px;
+  background: #94a3b826;
+  color: var(--text-muted, #94a3b8);
+}
+
+.i18n-note {
+  margin: 0.4rem 0 0;
+  font-size: clamp(0.66rem, 2.8cqi, 0.78rem);
+  line-height: 1.45;
+  color: var(--text-muted, #94a3b8);
+}
+
+/* -------------------------------------------------------- I6: onboarding */
+
+/*
+ * A faint scrim, not a blackout. This is a standby display: covering the clock
+ * entirely on first load would be the wrong trade, so the time stays faintly
+ * readable behind the tour and the tour is skippable from step one.
+ */
+.onb-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 1rem;
+  background: rgb(4 6 12 / 0.45);
+  backdrop-filter: blur(2px);
+  animation: onb-fade 200ms ease-out;
+}
+
+.onb-card {
+  width: min(30rem, 94vw);
+  padding: 1.1rem;
+  border-radius: 12px;
+  border: 1px solid var(--border-strong, #94a3b852);
+  background: var(--bg-elevated, #0d1117);
+  box-shadow: var(--shadow, 0 8px 24px rgb(0 0 0 / 0.45));
+  color: var(--text-primary, #f1f5f9);
+}
+
+.onb-title {
+  margin: 0 0 0.4rem;
+  font-size: clamp(1rem, 4.2cqi, 1.2rem);
+  font-weight: 600;
+}
+
+.onb-body {
+  margin: 0 0 0.9rem;
+  font-size: clamp(0.8rem, 3.3cqi, 0.92rem);
+  line-height: 1.5;
+  color: var(--text-secondary, #cbd5e1);
+}
+
+.onb-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.onb-count {
+  font-size: 0.72rem;
+  font-family: var(--font-mono, monospace);
+  color: var(--text-muted, #94a3b8);
+}
+
+.onb-actions { display: flex; gap: 0.4rem; }
+
+.onb-btn {
+  font: inherit;
+  min-height: var(--device-tap-target, 36px);
+  padding: 0.4em 0.9em;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle, #94a3b826);
+  background: transparent;
+  color: var(--text-primary, #f1f5f9);
+  cursor: pointer;
+}
+
+.onb-btn:hover { filter: brightness(1.15); }
+
+.onb-btn:focus-visible {
+  outline: 2px solid var(--accent, #60a5fa);
+  outline-offset: 2px;
+}
+
+.onb-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.onb-btn--primary {
+  border-color: var(--accent, #60a5fa);
+  background: #3b82f61f;
+}
+
+/* -------------------------------------------------- G5: experimental badge */
+
+/*
+ * G5 is Chromium-only and ships audio to the browser vendor's servers, so it is
+ * labelled in the UI, permanently. The badge carries the same wording as the
+ * permission centre's explanation rather than a bare icon, because "experimental"
+ * on its own does not tell anyone what the trade-off is.
+ */
+.voice-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  padding: 0.5em 0.6em;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle, #94a3b826);
+  background: var(--bg-surface, #111827);
+}
+
+.voice-state {
+  font-size: 0.72rem;
+  color: var(--text-muted, #94a3b8);
+  white-space: nowrap;
+}
+
+.voice-badge {
+  font-size: 0.58rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.1em 0.4em;
+  border-radius: 3px;
+  border: 1px solid #fbbf24;
+  background: #fbbf242a;
+  color: #fde68a;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .onb-overlay { animation: none; }
+}
+
+@keyframes onb-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* ---------------------------------------------------------- reduced motion */
 
 @media (prefers-reduced-motion: reduce) {
   .toast { animation: none; }

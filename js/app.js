@@ -40,6 +40,10 @@ import { WakeLockResilience } from './engines/wakeLockResilience.js';
 import { BeatVisualiser } from './engines/beatVisualiser.js';
 import { LiveBackgrounds } from './features/liveBackgrounds.js';
 import { ScreenTimeoutRescue } from './core/screenTimeoutRescue.js';
+// Milestone 5, second pass: H6 i18n, I6 onboarding, J3 compute worker, G5 voice.
+import { applyLocale, currentLocale, localeAttributes, detectLocale } from './core/i18n.js';
+import { OnboardingTour, shouldShowTour } from './components/onboarding.js';
+import { voiceCommands, voiceHost } from './features/voiceCommands.js';
 import { profileFromEnvironment, applyProfile, columnsFor } from './core/deviceProfile.js';
 // Milestone 5: theme engine, command palette, layout grid, permission centre.
 import { applyTheme, currentThemeId, exportState, importState } from './core/themeEngine.js';
@@ -137,6 +141,14 @@ class App {
     // than each carrying their own copy of the colours.
     applyTheme(currentThemeId());
 
+    // H6: the locale is applied as soon as the store has been read, and the HTML
+    // `lang` attribute is set to match the dictionary rather than the browser
+    // default. Leaving `lang="en"` while the interface is Hindi means a screen
+    // reader pronounces Hindi with an English voice, which is unintelligible -
+    // and the visitor count pill is the first thing that would be misread.
+    this.initLocale = this.initLocale.bind(this);
+    this.initLocale();
+
     // --- Milestone 5 controllers.
     //
     // `getWidgetIds` is a closure over the registry rather than a module-scope
@@ -152,6 +164,25 @@ class App {
     // cheat sheet is generated from the same index, so it cannot go stale.
     this.commands = new CommandSystem(this.commandActions());
     toasts.mount(document.body);
+
+    // I6: runs once, and only when the reader has not already seen or dismissed it.
+    // Constructed lazily enough that the DOM is present, and `start()` is a no-op
+    // when any step's target has not rendered - so a step list pointing at a widget
+    // that is not on screen cannot break the tour.
+    this.onboarding = new OnboardingTour();
+    if (shouldShowTour() && this.onboarding.available) {
+      this.onboarding.start();
+    }
+
+    // G5: the voice host needs the command system, which exists by this point. It
+    // is installed here rather than in the constructor because the palette does
+    // not exist when voiceCommands.js is first imported.
+    voiceHost.onCommand = (id) => {
+      if (id === "palette") this.commands?.openPalette();
+      else if (id === "open-settings") this.openSettingsPanel?.();
+      else if (id === "cheatsheet") this.commands?.openCheatsheet();
+      return Boolean(this.commands?.run?.(id));
+    };
 
     // I1/G6: the settings centre and the permission list are rendered into a
     // lazily-created host, so neither costs anything until the panel is opened.
@@ -251,6 +282,13 @@ class App {
         // changing the style does not require waiting for the next idle.
         if (this.screensaver?.isActive) this.screensaver.renderScreensaverContent();
       }
+      if (event === 'locale_updated') {
+        // H6: the store records the choice, the module applies the attributes.
+        // Split so a restore from a backup goes through the same path as a click
+        // in the picker - otherwise an imported locale would be recorded but
+        // never heard.
+        localeAttributes();
+      }
       if (event === 'breathing_pattern_updated') {
         // C13: the widget owns its own markup, so a pattern change is a
         // remount rather than a mutation of someone else's DOM.
@@ -294,8 +332,28 @@ class App {
    *
    * Bound in the constructor so it can be removed from `resize` by identity.
    */
+  /**
+   * H6 - applies the stored locale, or detects one on first run.
+   *
+   * Named `initLocale` rather than `applyLocale` on purpose: the module already
+   * exports a function by that name, and a method of the same name shadows it -
+   * which would make the body call itself. The first version of this did exactly
+   * that and passed `node --check`, because the mistaken call is only wrong at
+   * runtime.
+   */
+  initLocale() {
+    const state = store.getState();
+    if (state.localePersisted) return currentLocale();
+
+    const detected = detectLocale(
+      typeof navigator !== "undefined" ? [...(navigator.languages || [navigator.language])] : []
+    );
+    if (detected !== currentLocale()) applyLocale(detected);
+    else localeAttributes();
+    return detected;
+  }
+
   applyDeviceProfile() {
-    const forced = store.getState().deviceProfile;
     const { profile } = profileFromEnvironment(forced);
     applyProfile(profile);
     this.deviceProfile = profile;

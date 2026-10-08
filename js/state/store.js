@@ -173,6 +173,19 @@ const defaultState = {
   liveBackground: "gradient",
   /** C13 breathing pattern. */
   breathingPattern: "box",
+  /** H6 interface locale. English is the source of truth; Hindi is complete for the chrome. */
+  locale: "en",
+  /*
+   * H6: whether the reader has chosen a locale themselves.
+   *
+   * `locale: "en"` alone cannot distinguish "user picked English" from "fresh
+   * install", and the difference matters: on a fresh install the browser's own
+   * preference should be detected first. This flag flips on the first explicit
+   * `setLocale`, so detection happens once and never overrides a choice.
+   */
+  localePersisted: false,
+  /** I6 onboarding state. */
+  onboarding: { tourSeen: false, tourDismissed: false },
   wallpaper: {
     enabled: false,
     activeUrl: "",
@@ -1262,6 +1275,42 @@ export class Store {
     this.state.breathingPattern = next;
     this.notify("breathing_pattern_updated", next);
     return next;
+  }
+
+  /**
+   * H6 - the interface locale.
+   *
+   * An unsupported code is rejected rather than stored: a persisted locale this
+   * build has no dictionary for would fall back to English on every render, so the
+   * picker would show a language the app is not actually speaking.
+   */
+  setLocale(code) {
+    const allowed = ["en", "hi"];
+    const next = allowed.includes(code) ? code : "en";
+    this.state.locale = next;
+    this.state.localePersisted = true;
+    this.notify("locale_updated", next);
+    return next;
+  }
+
+  /**
+   * I6 - the onboarding tour's state.
+   *
+   * Separate flags for "seen" and "dismissed", because they mean different things:
+   * seen is the normal end of the tour, dismissed is the reader choosing not to be
+   * told. Collapsing them into one boolean would make re-running the tour require
+   * resetting the flag the tour itself just set.
+   */
+  setOnboardingSeen() {
+    this.state.onboarding = { ...this.state.onboarding, tourSeen: true };
+    this.notify("onboarding_updated", this.state.onboarding);
+    return this.state.onboarding;
+  }
+
+  resetOnboarding() {
+    this.state.onboarding = { tourSeen: false, tourDismissed: false };
+    this.notify("onboarding_updated", this.state.onboarding);
+    return this.state.onboarding;
   }
 
   /**
