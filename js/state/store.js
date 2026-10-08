@@ -171,6 +171,8 @@ const defaultState = {
   },
   /** E5 live canvas background. */
   liveBackground: "gradient",
+  /** C13 breathing pattern. */
+  breathingPattern: "box",
   wallpaper: {
     enabled: false,
     activeUrl: "",
@@ -231,6 +233,14 @@ const defaultState = {
   // C20 world clock. City ids from timezones.js DEFAULT_CITIES; an empty list
   // means "use the defaults", so a fresh install and a reset agree.
   worldClockCities: [],
+  /**
+   * C1 world clock presentation.
+   *
+   * `showWeather` is false on purpose: the widget shows times, offsets and
+   * day/night with no network at all, so switching weather on has to be an
+   * explicit decision rather than a side effect of adding the widget.
+   */
+  worldClock: { showWeather: false, pickerOpen: false, error: "" },
   // C6 ICS agenda. `icsText` is the user's own pasted or uploaded file; it is
   // stored locally and never uploaded anywhere.
   agenda: { icsText: "", sourceName: "", importedAt: null },
@@ -887,12 +897,15 @@ export class Store {
    * `ranges` is a list of `{ from: "HH:MM", to: "HH:MM", dim: 0..1, night: bool }`.
    * Stored as local wall-clock strings because that is how a person describes
    * "dim after 10pm" - an epoch would be meaningless across devices and zones.
+   *
+   * Delegates to `setNightSchedule` rather than keeping a second implementation.
+   * E6 added the validated version, and two setters for one field is how the
+   * validating one quietly stops being called: whichever was wired last wins and
+   * the other looks fine until a malformed range reaches the dimming controller
+   * at the moment the display is going dark.
    */
   setDisplaySchedule(ranges) {
-    const list = Array.isArray(ranges) ? ranges.slice(0, 6) : [];
-    this.state.dimming.scheduled = list.length ? list : null;
-    this.notify("display_schedule_updated", this.state.dimming.scheduled);
-    return this.state.dimming.scheduled;
+    return this.setNightSchedule(ranges);
   }
 
   /**
@@ -1095,6 +1108,27 @@ export class Store {
   }
 
   /**
+   * C1 - world clock presentation options.
+   *
+   * `showWeather` defaults to FALSE, and that default is the point: the widget
+   * is complete offline, so there is no reason to contact a third party merely
+   * because someone added the widget to their layout. Nothing leaves the device
+   * until the reader ticks the box.
+   */
+  setWorldClockPrefs(updates) {
+    if (!isPlainObject(updates)) return this.state.worldClock;
+
+    const next = { ...this.state.worldClock };
+    if ("showWeather" in updates) next.showWeather = updates.showWeather === true;
+    if ("pickerOpen" in updates) next.pickerOpen = updates.pickerOpen === true;
+    if ("error" in updates) next.error = String(updates.error || "");
+
+    this.state.worldClock = next;
+    this.notify("world_clock_updated", next);
+    return next;
+  }
+
+  /**
    * C6 the user's own ICS document. Stored locally only.
    *
    * Capped at 512 KB: an .ics export from a long-lived calendar can be large,
@@ -1218,6 +1252,15 @@ export class Store {
     const next = allowed.includes(style) ? style : "gradient";
     this.state.liveBackground = next;
     this.notify("live_background_updated", next);
+    return next;
+  }
+
+  /** C13 - which breathing pattern to use. */
+  setBreathingPattern(id) {
+    const allowed = ["box", "relaxing", "coherent", "sigh"];
+    const next = allowed.includes(id) ? id : "box";
+    this.state.breathingPattern = next;
+    this.notify("breathing_pattern_updated", next);
     return next;
   }
 

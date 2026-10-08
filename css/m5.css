@@ -1,0 +1,838 @@
+/* StandBy Mode Pro - Milestone 5 styles: palette, cheat sheet, toasts,
+ * layout grid, picker gallery, breathing guide, permission centre
+ *
+ * One file for all of them. They share an overlay surface, a focus-ring
+ * treatment and a keyboard-target size, so splitting them would either duplicate
+ * that or leave three files arguing about z-index.
+ *
+ * Every colour comes from the theme tokens (H2). No literal hex in this file
+ * except inside the contrast guarantees in the comments - a theme that cannot
+ * restyle a panel is not a theme engine.
+ */
+
+.zi-overlay { z-index: 80; }
+.zi-panel { z-index: 81; }
+
+/* ------------------------------------------- I3: command palette */
+
+.cp-overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  /* A scrim, not a full blackout: the clock behind stays faintly visible so
+   * the palette reads as an overlay on the app rather than a separate page. */
+  background: rgb(4 6 12 / 0.55);
+  padding: clamp(1rem, 8vh, 6rem) 1rem 1rem;
+  z-index: 80;
+}
+
+.cp-panel {
+  width: min(38rem, 94vw);
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  border-radius: 12px;
+  background: var(--bg-elevated, #0d1117);
+  border: 1px solid var(--border-strong, rgba(148,163,184,0.32));
+  box-shadow: var(--shadow, 0 8px 24px rgba(0,0,0,0.45));
+  overflow: hidden;
+}
+
+.cp-input {
+  font: inherit;
+  font-size: clamp(0.95rem, 4cqi, 1.15rem);
+  padding: 0.85em 1em;
+  border: 0;
+  border-bottom: 1px solid var(--border-subtle, rgba(148,163,184,0.16));
+  background: transparent;
+  color: var(--text-primary, #f1f5f9);
+  outline: none;
+}
+
+.cp-results {
+  overflow-y: auto;
+  padding: 0.4rem;
+  flex: 1 1 auto;
+}
+
+.cp-group-label {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted, #94a3b8);
+  padding: 0.5em 0.6em 0.25em;
+}
+
+.cp-list { list-style: none; margin: 0; padding: 0; }
+
+.cp-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.55em 0.6em;
+  border-radius: 7px;
+  cursor: pointer;
+  color: var(--text-secondary, #cbd5e1);
+}
+
+.cp-item:hover,
+.cp-item--active {
+  background: var(--bg-surface, #111827);
+  color: var(--text-primary, #f1f5f9);
+}
+
+.cp-item--active {
+  /* A left rule rather than a background change alone, so the selection is
+   * still distinguishable without colour. */
+  box-shadow: inset 3px 0 0 var(--accent, #60a5fa);
+}
+
+.cp-item-label { font-size: clamp(0.82rem, 3.4cqi, 0.95rem); }
+
+.cp-empty {
+  padding: 1.2em 0.6em;
+  text-align: center;
+  color: var(--text-muted, #94a3b8);
+  font-size: 0.85rem;
+}
+
+.cp-key,
+kbd {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.7rem;
+  padding: 0.15em 0.4em;
+  border-radius: 4px;
+  border: 1px solid var(--border-subtle, rgba(148,163,184,0.16));
+  background: rgb(148 163 184 / 0.1);
+  color: var(--text-muted, #94a3b8);
+  white-space: nowrap;
+}
+
+.cp-footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9em;
+  padding: 0.5em 0.8em;
+  border-top: 1px solid var(--border-subtle, rgba(148,163,184,0.16));
+  font-size: 0.7rem;
+  color: var(--text-muted, #94a3b8);
+}
+
+.cp-footer kbd { margin-right: 0.2em; }
+
+/* ------------------------------------------ I2: cheat sheet */
+
+.cs-panel {
+  width: min(40rem, 94vw);
+  max-height: 78vh;
+  overflow-y: auto;
+  padding: 1.2rem;
+  border-radius: 12px;
+  background: var(--bg-elevated, #0d1117);
+  border: 1px solid var(--border-strong, rgba(148,163,184,0.32));
+  box-shadow: var(--shadow, 0 8px 24px rgba(0,0,0,0.45));
+  color: var(--text-primary, #f1f5f9);
+}
+
+.cs-title {
+  margin: 0 0 0.8rem;
+  font-size: clamp(1rem, 4cqi, 1.25rem);
+  font-weight: 600;
+}
+
+.cs-group-title {
+  margin: 0.9rem 0 0.3rem;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted, #94a3b8);
+}
+
+.cs-list { margin: 0; }
+
+.cs-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid var(--border-subtle, rgba(148,163,184,0.1));
+}
+
+.cs-row dt { font-size: 0.85rem; color: var(--text-secondary, #cbd5e1); }
+.cs-row dd { margin: 0; display: flex; align-items: center; gap: 0.3rem; font-size: 0.75rem; }
+.cs-row dd span { color: var(--text-muted, #94a3b8); }
+
+.cs-close {
+  font: inherit;
+  margin-top: 1rem;
+  padding: 0.45em 1em;
+  border-radius: 7px;
+  border: 1px solid var(--border-strong, rgba(148,163,184,0.32));
+  background: transparent;
+  color: var(--text-primary, #f1f5f9);
+  cursor: pointer;
+}
+
+.cs-close:hover { background: rgb(148 163 184 / 0.1); }
+.cs-close:focus-visible { outline: 2px solid var(--accent, #60a5fa); outline-offset: 2px; }
+
+/* ---------------------------------------------------- I5: toasts */
+
+.toast-region {
+  position: fixed;
+  bottom: 1.2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  z-index: 90;
+  pointer-events: none;
+  max-width: min(30rem, 92vw);
+}
+
+.toast {
+  pointer-events: auto;
+  padding: 0.6em 0.9em;
+  border-radius: 8px;
+  border: 1px solid var(--border-strong, rgba(148,163,184,0.32));
+  background: var(--bg-elevated, #0d1117);
+  box-shadow: var(--shadow, 0 8px 24px rgba(0,0,0,0.45));
+  color: var(--text-primary, #f1f5f9);
+  font-size: 0.85rem;
+  cursor: pointer;
+  animation: toast-in 160ms ease-out;
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(0.5rem); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* Tone is carried by the left rule and the border, and the text says the same
+ * thing - so the distinction survives a greyscale screenshot. */
+.toast--info { border-left: 3px solid var(--info, #a5b4fc); }
+.toast--success { border-left: 3px solid var(--success, #4ade80); }
+.toast--warn { border-left: 3px solid var(--warning, #fbbf24); }
+.toast--error { border-left: 3px solid var(--danger, #f87171); }
+
+/* ------------------------------------- B1/B2: layout grid + drag */
+
+.lg-grid {
+  display: grid;
+  gap: 0.6rem;
+  /* The column count is set inline from the device ceiling, so a phone cannot
+   * be talked into three columns by a stored layout. */
+  align-items: start;
+}
+
+.lg-tile {
+  position: relative;
+  min-width: 0;
+  border-radius: 10px;
+  border: 1px solid var(--border-subtle, rgba(148,163,184,0.16));
+  background: var(--bg-surface, #111827);
+  padding: 0.6rem;
+  /* Dragging must never start a scroll or a text selection. */
+  touch-action: none;
+  user-select: none;
+}
+
+.lg-tile--dragging {
+  opacity: 0.75;
+  border-color: var(--accent, #60a5fa);
+  box-shadow: 0 6px 18px rgb(0 0 0 / 0.35);
+}
+
+.lg-handle {
+  position: absolute;
+  top: 0.3rem;
+  right: 0.4rem;
+  font-size: 0.75rem;
+  color: var(--text-muted, #94a3b8);
+  cursor: grab;
+  padding: 0.2em 0.35em;
+  border-radius: 4px;
+}
+
+.lg-handle:active { cursor: grabbing; }
+
+.lg-resize {
+  margin-top: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.7rem;
+  color: var(--text-muted, #94a3b8);
+}
+
+.lg-resize input { flex: 1; accent-color: var(--accent, #60a5fa); }
+
+.lg-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-bottom: 0.6rem;
+}
+
+.lg-preset {
+  font: inherit;
+  font-size: 0.78rem;
+  padding: 0.35em 0.75em;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle, rgba(148,163,184,0.16));
+  background: transparent;
+  color: var(--text-secondary, #cbd5e1);
+  cursor: pointer;
+}
+
+.lg-preset:hover { background: rgb(148 163 184 / 0.1); }
+.lg-preset:focus-visible { outline: 2px solid var(--accent, #60a5fa); outline-offset: 2px; }
+
+.lg-undo {
+  font: inherit;
+  font-size: 0.75rem;
+  padding: 0.3em 0.7em;
+  border-radius: 6px;
+  border: 1px solid var(--border-subtle, rgba(148,163,184,0.16));
+  background: transparent;
+  color: var(--text-secondary, #cbd5e1);
+  cursor: pointer;
+}
+
+.lg-undo:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ------------------------------------------------ B6: picker gallery */
+
+.pg-panel { container-type: inline-size; container-name: picker; }
+
+.pg-intro { margin: 0 0 0.7rem; font-size: 0.8rem; color: var(--text-muted, #94a3b8); }
+
+.pg-group-title {
+  margin: 0.8rem 0 0.35rem;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted, #94a3b8);
+}
+
+.pg-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  /* minmax, not a fixed count: three cards across 320px is 100px each and the
+   * labels truncate. This wraps instead. */
+  grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
+  gap: 0.4rem;
+}
+
+.pg-card {
+  font: inherit;
+  width: 100%;
+  min-height: var(--device-tap-target, 40px);
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.55em 0.6em;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle, rgba(148,163,184,0.16));
+  background: var(--bg-surface, #111827);
+  color: var(--text-secondary, #cbd5e1);
+  cursor: pointer;
+  text-align: left;
+}
+
+.pg-card--on {
+  border-color: var(--accent, #60a5fa);
+  color: var(--text-primary, #f1f5f9);
+}
+
+.pg-card:hover { filter: brightness(1.1); }
+.pg-card:focus-visible { outline: 2px solid var(--accent, #60a5fa); outline-offset: 2px; }
+
+.pg-name { flex: 1; font-size: 0.82rem; }
+
+.pg-tag {
+  font-size: 0.6rem;
+  padding: 0.1em 0.35em;
+  border-radius: 3px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.pg-tag--exp { background: rgb(251 191 36 / 0.16); border: 1px solid #fbbf24; color: #fde68a; }
+.pg-tag--net { background: rgb(165 180 252 / 0.14); border: 1px solid #a5b4fc; color: #c7d2fe; }
+
+.pg-toggle { color: var(--accent, #60a5fa); font-weight: 700; }
+
+/* ------------------------------------------------- I1: settings search */
+
+.ss-panel { container-type: inline-size; container-name: search; display: flex; flex-direction: column; gap: 0.35rem; }
+
+.ss-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--text-primary, #f1f5f9);
+}
+
+.ss-input {
+  font: inherit;
+  font-size: 0.88rem;
+  padding: 0.5em 0.7em;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle, rgba(148,163,184,0.16));
+  background: var(--bg-surface, #111827);
+  color: var(--text-primary, #f1f5f9);
+}
+
+.ss-input:focus-visible { outline: 2px solid var(--accent, #60a5fa); outline-offset: 1px; }
+
+.ss-count { margin: 0; font-size: 0.7rem; color: var(--text-muted, #94a3b8); }
+
+.ss-results { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.2rem; }
+
+.ss-result {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.4em 0.5em;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text-secondary, #cbd5e1);
+  font-size: 0.84rem;
+}
+
+.ss-result:hover { background: var(--bg-surface, #111827); color: var(--text-primary, #f1f5f9); }
+.ss-result-section { font-size: 0.68rem; color: var(--text-muted, #94a3b8); }
+
+/* ------------------------------------------------- C13: breathing */
+
+.br-container {
+  container-type: inline-size;
+  container-name: breathing;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.br-header {
+  align-self: stretch;
+  font-size: clamp(0.75rem, 3.2cqi, 1rem);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-muted, #94a3b8);
+}
+
+.br-stage {
+  position: relative;
+  width: min(9rem, 44vw);
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+}
+
+/* The animation is driven by the widget's generated @keyframes. It is declared
+ * here only for the resting state, so the rings have a shape before Start. */
+.br-ring {
+  position: absolute;
+  border-radius: 999px;
+  transform: scale(0.8);
+  will-change: transform;
+}
+
+.br-ring--outer {
+  inset: 0;
+  border: 2px solid var(--accent, #60a5fa);
+  opacity: 0.75;
+}
+
+.br-ring--inner {
+  inset: 18%;
+  background: rgb(96 165 250 / 0.16);
+  border: 1px solid var(--accent, #60a5fa);
+  opacity: 0.5;
+}
+
+.br-phase {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.1;
+  pointer-events: none;
+}
+
+.br-phase-label {
+  font-size: clamp(0.78rem, 3.4cqi, 0.95rem);
+  color: var(--text-primary, #f1f5f9);
+}
+
+.br-phase-count {
+  font-size: clamp(1.5rem, 8cqi, 2.4rem);
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
+  color: var(--accent, #60a5fa);
+}
+
+.br-patterns { display: flex; flex-wrap: wrap; gap: 0.3rem; justify-content: center; }
+
+.br-pattern {
+  font: inherit;
+  font-size: 0.75rem;
+  padding: 0.3em 0.7em;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle, rgba(148,163,184,0.16));
+  background: transparent;
+  color: var(--text-secondary, #cbd5e1);
+  cursor: pointer;
+}
+
+.br-pattern--on { border-color: var(--accent, #60a5fa); color: var(--text-primary, #f1f5f9); }
+.br-pattern:focus-visible { outline: 2px solid var(--accent, #60a5fa); outline-offset: 2px; }
+
+.br-cycle {
+  display: flex;
+  gap: 2px;
+  width: 100%;
+  border-radius: 5px;
+  overflow: hidden;
+  font-size: 0.6rem;
+}
+
+.br-cycle-seg {
+  padding: 0.25em 0.3em;
+  text-align: center;
+  color: var(--bg-base, #0b0f17);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.br-cycle-seg--inhale { background: #93c5fd; }
+.br-cycle-seg--hold { background: #cbd5e1; }
+.br-cycle-seg--exhale { background: #86efac; }
+.br-cycle-seg--holdEmpty { background: #94a3b8; }
+
+.br-hint {
+  margin: 0;
+  text-align: center;
+  font-size: 0.72rem;
+  line-height: 1.45;
+  color: var(--text-muted, #94a3b8);
+}
+
+.br-btn {
+  font: inherit;
+  font-size: 0.85rem;
+  min-width: 6em;
+  padding: 0.45em 1em;
+  border-radius: 999px;
+  border: 1px solid var(--accent, #60a5fa);
+  background: transparent;
+  color: var(--accent, #60a5fa);
+  cursor: pointer;
+}
+
+.br-btn:hover { background: rgb(96 165 250 / 0.12); }
+.br-btn:focus-visible { outline: 2px solid var(--accent, #60a5fa); outline-offset: 2px; }
+
+/* ---------------------------------------------------- C1: world clock */
+
+.wc-container {
+  container-type: inline-size;
+  container-name: worldclock;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4em;
+  min-width: 0;
+}
+
+.wc-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5em;
+  font-size: clamp(0.7rem, 3cqi, 0.85rem);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-muted, #94a3b8);
+}
+
+.wc-add {
+  font: inherit;
+  font-size: 0.85em;
+  letter-spacing: 0.04em;
+  padding: 0.2em 0.6em;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle, rgba(148,163,184,0.16));
+  background: transparent;
+  color: var(--text-secondary, #cbd5e1);
+  cursor: pointer;
+  text-transform: lowercase;
+}
+
+.wc-add:hover { background: rgb(148 163 184 / 0.1); }
+.wc-add:focus-visible { outline: 2px solid var(--accent, #60a5fa); outline-offset: 2px; }
+
+.wc-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15em;
+}
+
+/* A 4-column row with the label flexible. Below ~22rem the container query
+ * drops the meta cell rather than letting it wrap, because a wrapped row makes
+ * the offset ambiguous about which city it belongs to. */
+.wc-row {
+  display: grid;
+  grid-template-columns: 1.1em minmax(0, 1fr) auto auto;
+  align-items: baseline;
+  gap: 0.5em;
+  padding: 0.2em 0;
+}
+
+.wc-daynight {
+  font-size: 0.75em;
+  line-height: 1;
+  text-align: center;
+}
+
+.wc-city {
+  font-size: clamp(0.78rem, 3.2cqi, 0.92rem);
+  color: var(--text-secondary, #cbd5e1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wc-country {
+  margin-left: 0.35em;
+  font-size: 0.8em;
+  font-family: var(--font-mono, monospace);
+  color: var(--text-muted, #94a3b8);
+}
+
+.wc-time {
+  font-size: clamp(0.82rem, 3.4cqi, 1rem);
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary, #f1f5f9);
+}
+
+/* An unknown zone says so in the same place a time would be, rather than
+ * showing a plausible-looking number. */
+.wc-time--unknown {
+  font-size: clamp(0.68rem, 2.8cqi, 0.8rem);
+  font-style: italic;
+  color: var(--text-muted, #94a3b8);
+}
+
+.wc-meta {
+  display: flex;
+  gap: 0.5em;
+  font-size: clamp(0.62rem, 2.6cqi, 0.75rem);
+  font-family: var(--font-mono, monospace);
+  color: var(--text-muted, #94a3b8);
+  white-space: nowrap;
+}
+
+/*
+ * The relative offset ("5 hours behind") is dimmer than the numeric UTC offset.
+ * They answer different questions - "what does my clock say" versus "how far
+ * ahead are they" - and putting them at the same weight makes the row harder to
+ * scan than the two facts deserve.
+ */
+.wc-relative { opacity: 0.72; }
+
+@container worldclock (max-width: 22rem) {
+  .wc-row { grid-template-columns: 1.1em minmax(0, 1fr) auto; }
+  .wc-meta { display: none; }
+}
+
+.wc-weather {
+  font-size: clamp(0.65rem, 2.7cqi, 0.78rem);
+  color: var(--text-muted, #94a3b8);
+  white-space: nowrap;
+}
+
+.wc-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5em;
+  margin-top: 0.2em;
+}
+
+.wc-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.3em;
+  font-size: clamp(0.68rem, 2.8cqi, 0.8rem);
+  color: var(--text-secondary, #cbd5e1);
+  cursor: pointer;
+}
+
+.wc-toggle input { accent-color: var(--accent, #60a5fa); }
+
+/*
+ * The approximation is stated in the UI, not just in the source. A day/night
+ * marker that is wrong by an hour and looks authoritative is the complaint this
+ * avoids - so the widget says what rule it used.
+ */
+.wc-note {
+  font-size: clamp(0.6rem, 2.5cqi, 0.72rem);
+  color: var(--text-muted, #94a3b8);
+}
+
+.wc-error {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  font-size: clamp(0.65rem, 2.7cqi, 0.78rem);
+  color: var(--warning, #fbbf24);
+}
+
+.wc-retry {
+  font: inherit;
+  font-size: 0.95em;
+  padding: 0.15em 0.6em;
+  border-radius: 5px;
+  border: 1px solid currentColor;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.wc-retry:focus-visible { outline: 2px solid var(--accent, #60a5fa); outline-offset: 2px; }
+
+.wc-picker {
+  margin-top: 0.3em;
+  padding: 0.5em;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle, rgba(148,163,184,0.16));
+  background: var(--bg-elevated, #0d1117);
+}
+
+.wc-picker[hidden] { display: none; }
+
+.wc-picker-title {
+  margin: 0 0 0.4em;
+  font-size: clamp(0.65rem, 2.7cqi, 0.78rem);
+  color: var(--text-muted, #94a3b8);
+}
+
+.wc-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(6.5rem, 1fr));
+  gap: 0.25rem;
+}
+
+.wc-city-btn {
+  font: inherit;
+  font-size: clamp(0.68rem, 2.8cqi, 0.8rem);
+  min-height: var(--device-tap-target, 32px);
+  padding: 0.25em 0.5em;
+  border-radius: 6px;
+  border: 1px solid var(--border-subtle, rgba(148,163,184,0.16));
+  background: var(--bg-surface, #111827);
+  color: var(--text-secondary, #cbd5e1);
+  cursor: pointer;
+  text-align: left;
+}
+
+.wc-city-btn--on {
+  border-color: var(--accent, #60a5fa);
+  color: var(--text-primary, #f1f5f9);
+}
+
+.wc-city-btn:focus-visible { outline: 2px solid var(--accent, #60a5fa); outline-offset: 2px; }
+
+/* ------------------------------------------------ G6: permissions */
+
+.pc-panel { container-type: inline-size; container-name: permissions; }
+
+.pc-intro {
+  margin: 0 0 0.6rem;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: var(--text-muted, #94a3b8);
+}
+
+.pc-rows { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.35rem; }
+
+.pc-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45em 0.55em;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle, rgba(148,163,184,0.16));
+  background: var(--bg-surface, #111827);
+}
+
+.pc-label { font-size: 0.85rem; color: var(--text-primary, #f1f5f9); }
+.pc-why { font-size: 0.7rem; line-height: 1.4; color: var(--text-muted, #94a3b8); }
+
+.pc-state {
+  font-size: 0.68rem;
+  padding: 0.15em 0.5em;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.pc-state--good { background: rgb(74 222 128 / 0.15); color: #bbf7d0; }
+.pc-state--warn { background: rgb(251 191 36 / 0.15); color: #fde68a; }
+.pc-state--bad { background: rgb(248 113 113 / 0.15); color: #fecaca; }
+.pc-state--neutral { background: rgb(148 163 184 / 0.15); color: var(--text-muted, #94a3b8); }
+
+.pc-action {
+  font: inherit;
+  font-size: 0.72rem;
+  padding: 0.3em 0.7em;
+  border-radius: 6px;
+  border: 1px solid var(--border-subtle, rgba(148,163,184,0.16));
+  background: transparent;
+  color: var(--text-secondary, #cbd5e1);
+  cursor: pointer;
+  min-height: var(--device-tap-target, 32px);
+}
+
+.pc-action:hover { background: rgb(148 163 184 / 0.1); }
+.pc-action:focus-visible { outline: 2px solid var(--accent, #60a5fa); outline-offset: 2px; }
+.pc-action--none { border-color: transparent; }
+
+/* ---------------------------------------------- Reduced motion */
+
+@media (prefers-reduced-motion: reduce) {
+  .toast { animation: none; }
+  .lg-tile { transition: none; }
+  .br-ring { transform: scale(0.8); }
+
+  /*
+   * The breathing ring is the one animation that is the FEATURE, so it is not
+   * disabled - it is slowed to a rate that is calm rather than motion-sickening.
+   * A breathing guide that does not move is not a breathing guide, but one that
+   * scales at full speed every five seconds is exactly what triggers symptoms.
+   */
+  .br-stage--running .br-ring--outer { animation-duration: 32s !important; }
+  .br-stage--running .br-ring--inner { animation-duration: 32s !important; }
+}

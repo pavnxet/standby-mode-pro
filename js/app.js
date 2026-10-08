@@ -40,7 +40,12 @@ import { WakeLockResilience } from './engines/wakeLockResilience.js';
 import { BeatVisualiser } from './engines/beatVisualiser.js';
 import { LiveBackgrounds } from './features/liveBackgrounds.js';
 import { ScreenTimeoutRescue } from './core/screenTimeoutRescue.js';
-import { profileFromEnvironment, applyProfile } from './core/deviceProfile.js';
+import { profileFromEnvironment, applyProfile, columnsFor } from './core/deviceProfile.js';
+// Milestone 5: theme engine, command palette, layout grid, permission centre.
+import { applyTheme, currentThemeId, exportState, importState } from './core/themeEngine.js';
+import { CommandSystem, toasts } from './core/commandPalette.js';
+import { LayoutEngine } from './core/layoutEngine.js';
+import { renderPermissionCentre } from './core/platform.js';
 import { Screensaver } from './components/screensaver.js';
 import { PomoFocusView } from './components/pomoFocusView.js';
 
@@ -127,6 +132,31 @@ class App {
     this.applyDeviceProfile();
     window.addEventListener('resize', this.applyDeviceProfile, { passive: true });
 
+    // H2: the theme is applied before anything else reads a token, so the
+    // palette, the grid and the widgets all restyle from one source rather
+    // than each carrying their own copy of the colours.
+    applyTheme(currentThemeId());
+
+    // --- Milestone 5 controllers.
+    //
+    // `getWidgetIds` is a closure over the registry rather than a module-scope
+    // read: the widget index is populated by a side-effecting import, and
+    // reading it during construction would depend on import order.
+    this.layout = new LayoutEngine({
+      getColumns: () => columnsFor(this.deviceProfile || { columns: 3 }, this.layoutColumns),
+      getWidgetIds: () => WIDGETS.map((entry) => entry.id)
+    });
+    this.layoutColumns = 3;
+
+    // I2/I3/I5: one index of named actions, reachable by key and by typing. The
+    // cheat sheet is generated from the same index, so it cannot go stale.
+    this.commands = new CommandSystem(this.commandActions());
+    toasts.mount(document.body);
+
+    // I1/G6: the settings centre and the permission list are rendered into a
+    // lazily-created host, so neither costs anything until the panel is opened.
+    this.permissionHost = this.mountHost('permissions-host');
+
     // AUDIT.md §5.2 / §5.3: installs role="dialog", aria-modal, focus trap,
     // focus restore, Escape handling, and `inert` on the three closed modals.
     this.modals = installModalRuntime({
@@ -209,6 +239,36 @@ class App {
       if (event === 'device_profile_updated') {
         this.applyDeviceProfile();
       }
+      if (event === 'theme_changed') {
+        // H2: the store records the choice, the engine applies the tokens.
+        // Split so that a restore from a backup goes through the same path as a
+        // click in the picker - otherwise an imported theme would be recorded
+        // but not visible.
+        applyTheme(currentThemeId());
+      }
+      if (event === 'screensaver_updated') {
+        // E7: re-render immediately if the screensaver is already up, so
+        // changing the style does not require waiting for the next idle.
+        if (this.screensaver?.isActive) this.screensaver.renderScreensaverContent();
+      }
+      if (event === 'breathing_pattern_updated') {
+        // C13: the widget owns its own markup, so a pattern change is a
+        // remount rather than a mutation of someone else's DOM.
+        this.rerenderWidget('breathing');
+      }
+      if (event === 'layout_reordered' || event === 'layout_resized' ||
+          event === 'layout_preset_applied' || event === 'layout_undone' ||
+          event === 'layout_redone') {
+        this.refreshWidgetOrder();
+      }
+      if (event === 'alarms_missed') {
+        // F7. The rescue reports; the toast is how the reader finds out. Each
+        // miss gets its own toast so two alarms are not collapsed into one
+        // message that only names the first.
+        for (const miss of (event.payload || [])) {
+          toasts.show(`Alarm for ${String(miss.alarm.hour).padStart(2, '0')}:${String(miss.alarm.minute).padStart(2, '0')} was missed. ${miss.reason}`, { tone: 'warn' });
+        }
+      }
       if (event === 'vibe_changed') {
         // E2: a legacy single-track change is translated into a one-layer mix,
         // so the pre-E2 spaces (which store a bare `vibe` string) keep working
@@ -239,6 +299,124 @@ class App {
     const { profile } = profileFromEnvironment(forced);
     applyProfile(profile);
     this.deviceProfile = profile;
+
+    // The profile is a ceiling on the grid, so a stored three-column layout
+    // has to be re-clamped when the viewport crosses a boundary. Without this,
+    // rotating a tablet would leave three columns on a phone-width screen.
+    this.layoutColumns = columnsFor(profile, this.layoutColumns || profile.columns);
+  }
+
+  /**
+   * The command index's callbacks (I2/I3).
+   *
+   * Every one is guarded rather than assumed. A command that throws when its
+   * precondition is missing - fullscreen on a browser that refuses it, an
+   * export with nothing to export - would surface as a dead key with no
+   * explanation, which is worse than a key that reports why it did nothing.
+   *
+   * @returns {object} the actions object handed to CommandSystem
+   */
+  commandActions() {
+    return {
+      openPalette: () => this.commands?.openPalette(),
+      showCheatsheet: () => this.commands?.openCheatsheet(),
+      openSettings: () => this.openSettingsPanel?.(),
+
+      toggleNight: () => store.toggleNightMode(),
+
+      toggleFullscreen: () => {
+        try {
+          if (document.fullscreenElement) {
+            document.exitFullscreen?.();
+          } else if (document.documentElement.requestFullscreen) {
+            document.documentElement.requestFullscreen().catch((err) => {
+              // Fullscreen needs a direct user gesture in some browsers, and a
+              // keypress from the palette may not count.
+              toasts.show(`Fullscreen was refused: ${err.message}`, { tone: 'warn' });
+            });
+          } else {
+            toasts.show('This browser cannot go fullscreen.', { tone: 'warn' });
+          }
+        } catch (err) {
+          toasts.show('Fullscreen is unavailable here.', { tone: 'warn' });
+        }
+      },
+
+      toggleKiosk: () => store.setKioskMode({ enabled: !store.getState().kiosk?.enabled }),
+
+      stopAudio: () => {
+        store.clearAmbienceMix();
+        toasts.show('Ambient sound stopped.', { tone: 'info' });
+      },
+
+      setTheme: (id) => {
+        store.setTheme(id);
+        applyTheme(id);
+      },
+
+      // Space navigation walks the declared order rather than incrementing an
+      // index, so a removed or reordered space cannot land on a missing one.
+      nextSpace: () => this.stepSpace(1),
+      prevSpace: () => this.stepSpace(-1)
+    };
+  }
+
+  /**
+   * Moves to the next or previous space in the declared order.
+   *
+   * Wraps, because a wall display has no scroll gesture to overshoot with.
+   */
+  stepSpace(direction) {
+    const spaces = store.getState().spaces || {};
+    const ids = Object.keys(spaces);
+    if (ids.length < 2) return false;
+
+    const current = store.getState().activeSpaceId;
+    const at = ids.indexOf(current);
+    // An unknown active id means the saved space was removed; start from the
+    // beginning rather than landing somewhere arbitrary.
+    const next = ids[(Math.max(0, at) + direction + ids.length) % ids.length];
+    if (!spaces[next]) return false;
+
+    store.setActiveSpace(next);
+    this.renderStage();
+    return true;
+  }
+
+  /**
+   * C13 - remounts one widget.
+   *
+   * `widgetEngine` has no `rerender`, so this is unmount-then-mount. Guarded on
+   * the id being present, because a layout that has not added `breathing` yet
+   * must not throw here - a pattern change is not worth breaking the page over.
+   */
+  rerenderWidget(id) {
+    const space = store.getActiveSpace();
+    if (!Array.isArray(space?.widgets) || !space.widgets.includes(id)) return false;
+    try {
+      widgetEngine.unmount(id);
+      widgetEngine.mount(id);
+      return true;
+    } catch (err) {
+      // A widget that throws on mount should not take the whole layout with it.
+      console.error(`[app] remounting "${id}" failed:`, err);
+      return false;
+    }
+  }
+
+  /**
+   * B1/B2 - rebuilds the widget grid after an order or span change.
+   *
+   * Dispatched rather than subscribed per-widget so there is exactly one place
+   * that decides what a layout change means.
+   */
+  refreshWidgetOrder() {
+    try {
+      widgetEngine.unmountAll();
+      this.renderStage();
+    } catch (err) {
+      console.error('[app] refreshing the layout failed:', err);
+    }
   }
 
   /**
