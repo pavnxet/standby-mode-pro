@@ -117,6 +117,35 @@
 .alarm-item__controls .btn-icon { min-width: 32px; min-height: 32px; }
 .alarm-item__controls .btn-icon svg { width: 14px; height: 14px; }
 
+/*
+ * The enable/disable toggle and the delete button.
+ *
+ * Both were emitted by the markup with no rule of their own, so they inherited
+ * `.btn-icon` and looked identical whether an alarm was on or off. The toggle
+ * carries `aria-pressed`, so a screen reader announced the state while the
+ * display showed nothing - which is worse than having no state, because the
+ * reader is told something the display contradicts.
+ *
+ * State is carried by opacity and a rule, not by colour alone, so it survives a
+ * greyscale screenshot.
+ */
+.alarm-toggle {
+  opacity: 0.45;
+  /* The dimmed state is what says "this alarm will not ring". */
+  filter: grayscale(1);
+}
+
+.alarm-toggle[aria-pressed="true"] {
+  opacity: 1;
+  filter: none;
+  box-shadow: inset 0 0 0 1px var(--accent-color, currentColor);
+}
+
+.alarm-delete:hover,
+.alarm-delete:focus-visible {
+  color: var(--danger-color, #f87171);
+}
+
 .alarm-snoozed-badge {
   position: absolute;
   top: -0.35rem;
@@ -225,6 +254,16 @@
 }
 
 .note-status { color: var(--success-color); }
+
+/* The character counter. Styled because it is a number that changes as you type:
+ * without tabular figures it shifts the footer sideways on every keystroke. */
+.note-count {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+
+/* Near the limit it is worth knowing before you hit it. */
+.note-count[data-near-limit="true"] { color: var(--warning-color); }
 
 /* --- Habit widget --------------------------------------------------- */
 
