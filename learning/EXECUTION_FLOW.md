@@ -130,3 +130,22 @@ store.notify(event)
 - **CI:** required-files list extended; precache grew 59 → 80 entries.
 - **Measured:** 29/29 faces mount and render in 12h and 24h mode. 0 horizontal overflow for all 15 M3 faces at 180/240/320/480/640/900 px. Sunrise verified to the minute for 6 cities; worst lunar error 0.72 days. Lighthouse **not re-run**.
 - **Milestone reached:** M3 **clock half only**. The widget half (C6–C20) is **not started**. Shipped JS is 438 KB against the 400 KB budget — reported, not met by deleting working code.
+
+### 2026-10-07 — Milestone 3 (widgets): 7 of 15 planned widgets (branch `phase-3-widgets`)
+- **Delivered widgets:** C5 `countdownWidget`, C9 `airQualityWidget`, C10 `sunWidget`, C11 `systemStatusWidget`, C15 `converterWidget`, C16 `calculatorWidget`, C18 `goalsWidget`. Inventory is now **19 widgets** (9 original + 3 M2 + 7 M3).
+- **Not delivered, with reasons recorded:** C6 (ICS timezones, HIGH risk), C7 (market, unverified rate source), C8 (RSS, CORS), C12 (functional half already fixed in M1), C14 (store + schema done, UI not built), C17 (FX, unverified rate source), C19 (prayer, plan marks experimental), C20 (timezone engine built and tested, UI not built).
+- **New shared modules:**
+  - `js/core/netPolicy.js` — H4. Timeout, in-flight dedupe, per-host rate limit, stale-while-error, AbortController wiring. Never throws for a network failure; resolves with `error` set so callers render a state.
+  - `js/core/units.js` — 8 categories as factors to a category base, plus an affine special case for temperature.
+  - `js/core/calculator.js` — shunting-yard parser. No `eval`, no `Function`.
+  - `js/core/timezones.js` — `formatInZone`, `offsetLabel`, `offsetMinutes` (DST-correct), `zoneDifferenceHours`, `isValidZone`, `supportedZones`.
+  - `js/core/airQuality.js`, `js/core/systemStatus.js`, `js/core/countdownMath.js`, `js/core/inputParse.js`, `js/core/clockMath.js`.
+- **New CSS:** `css/widgets-m3.css` (15.9 KB). `css/widgets.css` untouched.
+- **Schema v3 migration** backfills `countdown`, `goals`, `decks`, `converter`, `unitLocation`, `fxPrefs`. Appended to the END of `MIGRATIONS`; `SCHEMA_VERSION` raised to 3.
+- **Store actions added:** `setCountdown`, `clearCountdown`, `addGoal`, `toggleGoal`, `deleteGoal`, `addDeck`, `addCard`, `deleteDeck`, `setConverterPrefs`, `setUnitLocation`, `setFxPrefs`.
+- **`js/widgets/index.js`** — declarative `WIDGETS` list; `app.js` iterates it once to feed both `widgetEngine` and `registry`, replacing two hand-written lists. `app.js` now imports no widget module by name.
+- **Testability change:** `store` is now a lazy Proxy and `scheduler` guards `document`. Both previously made every importing module untestable under `node --test`.
+- **Tests:** 133 → 195.
+- **Measured:** 19/19 widgets mount. 0 horizontal overflow for all 7 M3 widgets at 160–900px (verified floor 160px). Calculator and converter paths verified through real input. XSS probe rendered as text, 0 elements injected. Clean page boot.
+- **Milestone reached:** M3 widget half **7 of 15**. **M3 is NOT complete.**
+- **Out of budget:** shipped JS now 530 KB against 400 KB.

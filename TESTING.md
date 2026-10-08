@@ -13,7 +13,7 @@
 npm run serve          # http://localhost:8080
 
 # Automated checks
-npm test               # 132 unit + audit regression tests
+npm test               # 195 unit + audit regression tests
 npm run validate       # syntax check + tests
 
 # Regenerate the world map geometry from Natural Earth 110m land
@@ -487,6 +487,120 @@ permission prompt cannot be granted in this environment, so only the
 unavailable" state rather than a fabricated position. The location-resolved
 rendering of these three faces is **not** verified in-browser; the underlying
 astronomy is covered by unit tests against published values.
+
+---
+
+## 3B. Milestone 3 — Widgets (executed 2026-10-07)
+
+> **Scope:** 7 of 15 planned Milestone 3 widgets — C5, C9, C10, C11, C15, C16, C18
+> — plus the H4 network policy layer and the widget index. **C6, C7, C8, C12, C14,
+> C17, C19 and C20 are not delivered**; see the deferral table in `CHANGELOG.md`
+> for the reason each was held back.
+
+### 3B.1 Automated — **PASS**
+
+```
+npm test        ->  195 tests, 195 pass, 0 fail
+npm run validate ->  pass
+```
+
+`tests/widgets-m3.test.mjs` (55 tests) and 7 new guards in `tests/audit.test.mjs`.
+Test count rose from 133 to 195.
+
+| Area | Result |
+|---|---|
+| Unit conversion | 14 tests — reference values, SI/IEC prefixes, affine temperature, null-not-NaN |
+| Calculator parser | 12 tests — precedence, right-associative `^`, unary vs `^`, 10 injection payloads rejected, non-finite handled |
+| Countdown / dates | 8 tests — local `datetime-local` parsing, round-trip, day-key logic |
+| Timezones | 8 tests — real offsets, DST tracking, unknown zone → null |
+| Numeric input | 2 tests — `parseFloat("12abc")` rejection case |
+| Air quality | 6 tests — band edges, Unknown never "Good", invalid coordinates rejected |
+| System status | 6 tests — null-normalisation, clamping, both Chromium property generations |
+
+### 3B.2 Every widget mounts and renders — **PASS**
+
+| Set | Result |
+|---|---|
+| Widgets mount and produce content | **19/19** (9 original + 3 M2 + 7 M3) |
+| Live data, not placeholders | `sun` showed real ephemeris; `system` showed a live 31% battery and 4G |
+
+### 3B.3 Calculator behaviour — **PASS**
+
+Driven through the real keypad in a browser:
+
+| Input | Display | Correct? |
+|---|---|---|
+| `12*4` then `=` | `48` | yes |
+| `(1+2` then `=` | `Unbalanced parentheses` | yes |
+| `1+` then `=` | `"+" needs two operands` | yes |
+| `7/0` then `=` | `∞` | yes — not a crash, not a wrong number |
+| `99*99` then `=` | `9,801` | yes |
+| error, then new digit | clears the error and previews | yes |
+
+### 3B.4 Converter behaviour — **PASS**
+
+| Input | Result | Correct? |
+|---|---|---|
+| 100 m → ft | `328.1` | yes (100 / 0.3048 = 328.08) |
+| `12abc` | `Not a number` | yes — **not** 12, which is what `parseFloat` gives |
+| 100 °C → °F | `212°F` | yes |
+
+### 3B.5 XSS probe — **PASS**
+
+A goal labelled `<img src=x onerror=alert(1)>` was added through the widget's
+own input. Result: the string rendered as **text**, and `querySelectorAll('img')`
+returned **0**. No element was injected and no handler ran.
+
+### 3B.6 Responsive sizing — **PASS for M3 widgets**
+
+Horizontal overflow measured for all 7 M3 widgets, with a deliberately long
+unbroken goal string as the worst case:
+
+| Panel width | M3 widgets overflowing | Legacy widgets overflowing |
+|---|---|---|
+| 140 px | 1 (`system`, by 2px) | — |
+| 160 px | **0** | — |
+| 180 px | **0** | 6 |
+| 240 px | **0** | 3 |
+| 320 px | **0** | 2 |
+| 480 px | **0** | 1 |
+| 640 px | **0** | 1 |
+| 900 px | **0** | 1 |
+
+**Verified floor: 160px.** The one 140px overflow (2px) is recorded rather than
+hidden; 140px is below the width at which the legacy widgets themselves break.
+
+The legacy column is **pre-existing**, not a regression: `css/widgets.css` is
+byte-identical to master and no rule in `css/widgets-m3.css` targets a legacy
+class.
+
+### 3B.7 Offline / network — **PARTIAL**
+
+No network-emulation capability is available, so no widget was exercised with the
+network genuinely down. `airquality` was verified only in its loading state. The
+precache is complete (99/99 resolvable, including `js/core/pwa.js`, which was
+found missing by a broadened test and fixed). **Not** claimed as a verified
+offline load.
+
+### 3B.8 Geolocation — **PARTIAL**
+
+`sun` and `airquality` request geolocation, which cannot be granted here. The
+**degraded** path was verified: `sun` falls back to a labelled `Delhi (default)`
+and shows real computed times; `airquality` shows its loading state. The
+permission-granted path is **not** verified in-browser.
+
+### 3B.9 Lighthouse — **NOT RUN**
+
+Not performed for the widget half. §5 remains the M2 measurement and is not
+claimed as current. Contrast on the 15.9 KB of new CSS is unverified.
+
+### 3B.10 Screenshots — **NOT CAPTURED**
+
+The screenshot tool requires a visible desktop window that could not be brought
+forward. Rendering was instead verified programmatically: computed styles,
+`textContent`, and overflow measurements at 8 panel widths. That is stronger
+evidence of layout correctness than a screenshot, but the visual appearance
+itself has not been reviewed by eye.
 
 ---
 

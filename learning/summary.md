@@ -138,3 +138,23 @@ Append-only running log of session execution history for this project.
 - **Known gaps left open:** Lighthouse not re-run for M3; offline load with the network down still not verifiable with available tooling; geolocation-resolved rendering of `sunarc`/`tide`/`terminator` not verified in-browser (only the degraded state); the 11 legacy faces still overflow narrow panels (pre-existing, unchanged, asserted not to be a regression).
 - **Out of budget:** shipped JS is 438 KB against a 400 KB budget set at M1. Dead code was removed (7 unused exports, a duplicated Braille table, a 4× glyph encoding) taking it from 441.8 KB to 438 KB, but the remainder is working functionality. Reported for an owner decision rather than resolved by deleting features.
 - **Not pushed.** All work is local on `phase-3-clocks`. `.claude/` and `CLAUDE.md` remain untracked user files, untouched.
+
+### 2026-10-07 — Milestone 3, widget half: 7 of 15 widgets
+- **Task:** Build widgets for Milestone 3 on branch `phase-3-widgets` off `phase-3-clocks`.
+- **Sequence followed:** the plan already existed in `FEATURE_PLAN.md`; no code was written before reading it.
+- **Actions:**
+  1. Added schema v3 migration backfilling `countdown`, `goals`, `decks`, `converter`, `unitLocation`, `fxPrefs`.
+  2. Added 11 store actions for the new widgets.
+  3. Built `js/core/netPolicy.js` (H4), `units.js`, `calculator.js`, `timezones.js`, `airQuality.js`, `systemStatus.js`, `countdownMath.js`, `inputParse.js`, `clockMath.js`.
+  4. Wrote 7 widgets: countdown, air quality, sun times, system status, converter, calculator, goals.
+  5. Added `js/widgets/index.js` and refactored `app.js` to feed both widget registries from it, so `app.js` imports no widget module by name.
+  6. Added `css/widgets-m3.css` (15.9 KB), sized with `cqi`.
+  7. Wrote `tests/widgets-m3.test.mjs` (55 tests) and 7 new guards in `tests/audit.test.mjs`.
+  8. Made `store` lazy and `scheduler`/`db.js` DOM-guarded so widgets are unit-testable.
+  9. Updated `sw.js` precache (80 -> 99) and the CI file list.
+- **Defects found and fixed:** units data category off by 8× (bytes base, bits label); calculator error message overwritten by the next render; `js/core/pwa.js` never precached; `goals-feature-text` missing `flex: 1 1 auto`; `sun` grid overflow at 180px; `@container face` matching no container.
+- **Results:** `npm test` -> **195 pass, 0 fail**. `npm run validate` passes. 19/19 widgets mount and render. 0 horizontal overflow for all 7 M3 widgets from 160px to 900px. Clean page boot with no errors from new code.
+- **Milestone reached:** M3 widget half **7 of 15**. **M3 is NOT complete.** Eight widgets deferred with named reasons (C6, C7, C8, C12, C14, C17, C19, C20).
+- **Known gaps left open:** Lighthouse not re-run; offline load not verifiable; geolocation-granted path for `sun`/`airquality` unverified; screenshots not captured (tool requires a visible desktop window) so visual appearance has not been reviewed by eye; `system` overflows 2px at 140px, below the verified floor.
+- **Out of budget:** shipped JS 530 KB against 400 KB.
+- **Not pushed.** All work is local on `phase-3-widgets`.

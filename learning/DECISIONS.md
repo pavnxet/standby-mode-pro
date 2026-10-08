@@ -148,3 +148,27 @@ Meaningful technical decisions, library choices, and trade-offs for flip clock.
 - **Decision:** Shipped JS is 438 KB against the 400 KB budget set at M1. This milestone added 98 KB for 15 working faces.
 - **Why:** The budget was set when there were 11 clocks and 9 widgets. Meeting it now would mean deleting features, comments or the map geometry. Dead code *was* removed (seven unused exports, one duplicated Braille table, a 4x glyph encoding), taking it from 441.8 KB to 438 KB - but the remainder is real functionality.
 - **Consequence:** Reported in `CHANGELOG.md` and `TESTING.md` with the breakdown. Raising the budget is an owner decision and is left open, not silently decided here.
+
+### 2026-10-07 ADR-026: The store and scheduler are lazily constructed and DOM-guarded
+- **Status:** Accepted and implemented
+- **Decision:** `store` is exported as a Proxy that constructs the `Store` on first property access, keeping `store.getState()` identical at all 22 import sites. `scheduler` guards its `document` access with `typeof document !== "undefined"`. `db.js` resolves `null` instead of rejecting when IndexedDB is absent.
+- **Why:** `export const store = new Store()` ran `applyAccessibilitySettings()` at module load, which touches `document`. Every module importing the store was therefore untestable under `node --test`. This was hit twice in one session, and the first workaround was to duplicate logic into DOM-free modules rather than test the real thing — which is how tests end up testing a copy.
+- **Consequence:** A test asserts `importing the widget index does not require a DOM`, so reverting to eager construction fails loudly rather than silently making every widget test impossible again.
+
+### 2026-10-07 ADR-027: The calculator uses a shunting-yard parser, never eval
+- **Status:** Accepted and implemented
+- **Decision:** `js/core/calculator.js` is a hand-written tokeniser, shunting-yard converter and RPN evaluator (~200 lines). No `eval`, no `Function` constructor. `^` is right-associative and unary minus binds looser than exponentiation.
+- **Why:** `FEATURE_PLAN.md` C16 says so explicitly. Independently: `eval` on user input is arbitrary code execution, and it is the exact pattern that turns an XSS-shaped bug into an RCE-shaped one. Two tests assert neither `eval(` nor `new Function(` appears (with comments stripped, since the module's own header explains why it avoids eval).
+- **Consequence:** 12 tests including 10 injection and prototype-pollution payloads, all of which must be *rejected* rather than evaluated.
+
+### 2026-10-07 ADR-028: Unreliable platform APIs render an explicit unavailable state
+- **Status:** Accepted and implemented
+- **Decision:** `navigator.getBattery` (Chromium-only, deprecated) and `navigator.connection` (non-standard) are normalised through `core/systemStatus.js` where every field is nullable. An unknown timezone returns `null`, never a fallback to the local zone. A missing AQI reading returns `Unknown`, never a healthy band.
+- **Why:** The plan is explicit that these must "degrade gracefully... and show 'unavailable' rather than blank". More importantly, for a clock a plausible-but-wrong value is the worst possible bug: a fallback time zone produces a confidently incorrect time.
+- **Consequence:** Tested with `null`/`undefined`/`NaN`/`Infinity` inputs. Contrast on the unavailable state is styled distinctly so it cannot be misread as a measurement.
+
+### 2026-10-07 ADR-029: Deferred widgets are named with a reason, not silently dropped
+- **Status:** Accepted
+- **Decision:** 8 of the 15 planned Milestone 3 widgets (C6, C7, C8, C12, C14, C17, C19, C20) are not built. Each is listed in `CHANGELOG.md` with its reason.
+- **Why:** The plan itself rates C6 (ICS timezones) and C8 (RSS CORS) HIGH risk and calls C19 experimental. C7 and C17 need unverified keyless rate sources. Shipping a widget that shows the wrong time, a fabricated price, or an empty feed is worse than not shipping it.
+- **Consequence:** Partial foundation is committed where it is genuinely reusable: `core/timezones.js` (built and tested, awaiting C20's UI), the store actions and schema namespace for C14 (awaiting the UI), and `core/netPolicy.js` which every remaining networked widget needs.

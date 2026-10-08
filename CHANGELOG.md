@@ -11,13 +11,74 @@ Format follows [Conventional Commits](https://www.conventionalcommits.org/).
 
 ---
 
+## [Unreleased] — Phase 3: Clocks & Widgets (Milestone M3, complete)
+
+**Status: clocks complete (A2–A16); widgets 7 of 15 (C5, C9, C10, C11, C15, C16, C18).**
+
+Milestone 3 has two halves. Both are now started and the clock half is complete;
+7 of the 15 planned widgets are shipped. **M3 is not complete** — C6, C7, C8, C12,
+C14, C17, C19 and C20 remain.
+
+The undelivered widgets are not arbitrary. Each is deferred with a reason:
+
+| Deferred | Why |
+|---|---|
+| C6 Agenda + ICS | HIGH risk per plan: "timezone correctness is an unsolved industry-wide failure", with 4 competitor threads of timezone bugs. A clock showing the wrong time is the worst bug in the product. |
+| C7 Market ticker | Needs a keyless rate source, unverified. Plan requires "must never render $0 on failure". |
+| C8 RSS | HIGH risk: "browser CORS blocks most RSS feeds", and the no-proxy privacy rule forbids the usual workaround. |
+| C12 Media Session | The functional half (the broken widget, AUDIT D1) was already fixed in M1. |
+| C14 Flashcards | The store, schema namespace and actions are in place; the spaced-repetition UI is not built. |
+| C17 FX | Needs a keyless rate source, unverified. Plan requires never presenting a stale rate as live. |
+| C19 Prayer times | Plan marks it experimental; several calculation schools, high risk. |
+| C20 Timezone converter | The shared timezone engine is built (`core/timezones.js`) and tested; only the widget UI is missing. |
+
+### Milestone 3 widgets — delivered and verified
+
+| Area | Change | Verification |
+|---|---|---|
+| C5 | **Countdown.** One target (a list competes with the clock in a small panel), absolute epoch so a throttled tab cannot drift, counts *up* after the target passes rather than freezing on zero. Presets for 10 min / 1 h / tomorrow 9am / 1 week. | 8 tests + browser |
+| C9 | **Air Quality.** Open-Meteo, keyless, same host family as the existing weather call so outbound traffic stays one domain. European AQI bands, PM2.5/PM10, explicit "last reading" state when a refresh fails. | 8 tests + browser |
+| C10 | **Sun Times.** Sunrise, sunset, civil twilight, golden hour, day length, live sun altitude. Reuses `core/solarMath.js`, so these are the same numbers as the Sunrise/Sunset Arc face — there is no second astronomy implementation to drift. | browser (unit maths covered in M3 clocks) |
+| C11 | **System Status.** Battery, connection type, downlink, data saver, online state. `getBattery` is Chromium-only and deprecated; `navigator.connection` is non-standard — every field is nullable and renders as an explicit "Unavailable". | 6 tests + browser |
+| C15 | **Unit Converter.** 8 categories, 60+ units, all defined as factors to a category base so a compound conversion cannot be wrong. Live result while typing. | 14 tests + browser |
+| C16 | **Calculator.** Hand-written shunting-yard parser with a keypad. The plan forbids `eval()`, and no module calls it or the `Function` constructor. | 12 tests + browser |
+| C18 | **Daily Goals.** Momentum's "one thing, rendered large" pattern. Goals filed under a **local** calendar day. | browser + store tests |
+| H4 | **Network policy layer** (`core/netPolicy.js`), which the plan lists as a prerequisite for every networked widget: timeout, in-flight dedupe, per-host rate limit, stale-while-error. | browser |
+| A1 | **Widget index** (`js/widgets/index.js`), extending the clock index to widgets: one list feeds both registries. | 4 tests |
+
+### Defects found and fixed in this milestone
+
+| Defect | Impact | Test |
+|---|---|---|
+| `store` constructed eagerly at module load | Every module importing it was **untestable under `node --test`**. Now a lazy Proxy. | `importing the widget index does not require a DOM` |
+| `scheduler` touched `document` unguarded | Same problem, one level down. Now guarded. | same |
+| `db.js` rejected when IndexedDB is absent | An unhandled rejection failed an unrelated test. Now resolves `null`. | same |
+| `units.js` based the data category on bytes but labelled the unit "Bits" | A kilobyte came out as 1024 **bits** — off by 8× in the one category where the SI/IEC distinction is the point. | 2 tests |
+| Calculator wrote its error straight to the DOM | The next render overwrote it, so `(1+2` displayed "0" instead of "Unbalanced parentheses". | browser |
+| `js/core/pwa.js` was never precached | Found by a broadened test: the manifest and worker were cached but the module implementing install detection was not, so it would 404 offline. | precache test |
+| `.goals-feature-text` used `min-width: 0` without `flex: 1 1 auto` | A long unbroken goal string pushed the card 4px past a 160px panel. | browser |
+| `sun` grid overflowed at 180px | Two columns cannot hold a label and a time below ~240px. | browser |
+
+### Milestone 3 widgets — measured
+
+| Check | Result |
+|---|---|
+| Widgets mount and render | **19/19** (9 original + 3 M2 + 7 M3) |
+| M3 widget horizontal overflow, 160–900px | **0** at every width |
+| Calculator paths | `12*4`→48, `(1+2`→"Unbalanced parentheses", `1+`→`"+" needs two operands`, `7/0`→∞, `99*99`→9,801, recovers after error |
+| Converter paths | 100 m→328.1 ft, `12abc`→"Not a number", 100 °C→212 °F |
+| XSS probe on a goal label | `<img src=x onerror=alert(1)>` rendered as text; **0** elements injected |
+| Page boot | Clean; no errors from new code |
+
+---
+
 ## [Unreleased] — Phase 3: Clock Faces (Milestone M3, clocks portion)
 
-**Status: clocks complete; the M3 widget half (C6–C20) is NOT started.**
+**Status: clocks complete.**
 
 Milestone 3 in `FEATURE_PLAN.md` has two halves: new clock faces (A2–A16) and
-new widgets (C6–C20). Only the clock half is delivered here. Reporting this as
-"Milestone 3 complete" would be false.
+new widgets (C6–C20). Only the clock half was delivered here, and the widget half
+is recorded above.
 
 The 15 clock *features* ship as **18 faces**, because A5 is one feature — an
 analog skins suite — that registers four distinct faces.
@@ -51,10 +112,10 @@ code and caught by verification rather than shipped.
 - **Widgets C6–C20** — the second half of Milestone 3. Not started.
 - **Lighthouse re-run.** Not performed for this milestone; the previous run's
   scores are unchanged and are **not** claimed as current.
-- **Source budget.** Shipped JS is now **438 KB against a 400 KB budget**
-  (98 KB added by this milestone). The budget was set at M1 when there were 11
-  clocks. It is reported here rather than met by deleting working code; raising
-  it is an owner decision.
+- **Source budget.** Shipped JS is now **530 KB against a 400 KB budget** (98 KB
+  added by the widget half). The budget was set at M1 with 11 clocks and 9
+  widgets. Dead code was removed rather than the features; raising it is an
+  owner decision and is left open, not silently decided here.
 
 ---
 

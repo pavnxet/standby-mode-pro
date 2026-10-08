@@ -95,3 +95,26 @@
 - **Simplify generated geometry with iterative Douglas-Peucker**, not recursion: Natural Earth rings have thousands of points and would overflow the call stack.
 - **Store coordinates as scaled integers** (tenths of a degree) - avoids a decimal point per value and cut the payload by ~25%.
 - **Test map data with real point-in-polygon**, not by marking ring vertices: a vertex grid reports the interior of every continent as sea.
+
+## Testing Architecture
+- **A module that touches the DOM at import time is untestable.** `export const store = new Store()` ran `applyAccessibilitySettings()` on load, so every module importing it failed under `node --test`. This was hit twice in one session and the first workaround was duplicating logic into DOM-free modules rather than testing the real thing — which is how tests end up testing a copy that silently diverges. A lazy Proxy fixed the class of problem. Look for eager singletons first when a unit test fails on `document is not defined`.
+- **Guard async initialisation too.** `db.js` rejecting when IndexedDB is absent became an *unhandled rejection* that failed an unrelated test, three layers away from the cause. Resolve `null` and let each method handle it.
+- **Add a test that the testability property still holds** (`importing the widget index does not require a DOM`). Otherwise reverting the fix silently makes widget tests impossible again rather than failing loudly.
+
+## Test Design
+- **Never assert against a value you remember.** Three of my own assertions were wrong before the code was: December solar noon is 15.1° not 61.9°; solar midnight is 12h after solar noon not after sunrise; October 2026's new moon is the 10th, not the 3rd. Each was re-derived from an almanac. A test encoding a remembered fact is worse than no test, because it will be "fixed" to match a bug.
+- **A regex allowlist of "safe" interpolations produces false positives** and is how a real XSS guard ends up disabled. Narrow the assertion instead: check only lines that contain an HTML tag, which removes false positives from values composed for storage.
+- **Strip comments before asserting on forbidden syntax.** `/\beval\s*\(/` matches the module header explaining why eval is not used. The naive check flagged the very documentation that makes the code correct.
+- **A test can catch a pre-existing defect.** Broadening "every shipped module is precached" from `js/clocks` to `js/clocks + js/features + js/widgets + js/core` immediately surfaced `js/core/pwa.js`, which had been uncached since the PWA shipped.
+
+## Widget & CSS Pitfalls
+- **`min-width: 0` alone does not let a flex item shrink below its content width.** It needs `flex: 1 1 auto` as well. A long unbroken goal string (`<img src=x onerror=alert(1)>`) pushed the card 4px past a 160px panel until both were set.
+- **A `@container` query must name a container that exists.** The widget containers declared `container-type: inline-size` but no `container-name`, so `@container face (...)` matched nothing. Use the anonymous form `@container (...)` unless a name is declared.
+- **The dev server sets `no-store`, so a stale stylesheet means the service worker is serving a cached copy.** Unregister and clear caches before concluding CSS did not apply.
+- **Beware backslash escapes inside template literals passed to an evaluation tool.** `\s` became `s`, turning a regex into a literal that matched nothing, and I briefly concluded the CSS was missing when the file was correct.
+- **A per-call `err` variable shadows the outer `err`**, so `(catch (e) {...})` inside `mount` referenced the wrong binding. Not a bug here, but a real trap in this codebase's style.
+- **Anchor-derived wall-clock math follows local time.** `Date.UTC(y, m, d)` for the day, plus a separate local `setHours` for the hour. Mixing the two is how a countdown ends up hours off.
+
+## Deliberate Degradation
+- **1/0 must render `∞`, not crash or show a wrong number.** Same for NaN, unknown timezones, missing AQI readings, and absent battery APIs. Every one of these is a case where the honest answer is "I don't know" and the dishonest one is a plausible number.
+- **A widget must never render `$0` or a blank on failure** (plan requirement, and DAKboard #2449 is exactly that bug). Stale-while-error keeps the last good reading and labels it as stale rather than blanking the panel.
