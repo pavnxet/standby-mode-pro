@@ -153,13 +153,24 @@ const defaultState = {
   },
   burnInProtection: {
     enabled: true,
-    intervalMinutes: 1
+    intervalMinutes: 1,
+    // F3. Four modes; the pre-F3 implementation had a single implicit
+    // whole-stage translate, which did not protect static widgets at all.
+    mode: "pixel-shift"
   },
+  /**
+   * B4/F6 device profile. `null` means "detect from the viewport"; forcing a
+   * profile is how 10-foot TV mode is entered, because there is no reliable
+   * signal that says a display is a television.
+   */
+  deviceProfile: null,
   screensaver: {
     enabled: true,
     idleSeconds: 120,
     style: "clock"
   },
+  /** E5 live canvas background. */
+  liveBackground: "gradient",
   wallpaper: {
     enabled: false,
     activeUrl: "",
@@ -182,7 +193,7 @@ const defaultState = {
     /** E3 sleep timer. `endsAtMs` is absolute so a throttled tab cannot drift. */
     sleepTimer: { endsAtMs: null, fadeSeconds: 30 },
     /** F2 dimming. 1 is normal brightness; the low end must reach near zero. */
-    dimming: { level: 1, scheduled: null },
+    dimming: { level: 1, scheduled: null, mode: "time" },
     /**
      * F5 kiosk / lock-safe mode.
      *
@@ -1147,6 +1158,100 @@ export class Store {
     this.state.prayerMethod = method;
     this.notify("prayer_method_updated", method);
     return method;
+  }
+
+  /**
+   * F3 - which burn-in protection mode to use.
+   *
+   * An unknown id falls back to pixel-shift rather than being stored: a mode
+   * the engine does not implement would leave the panel unprotected while the
+   * UI showed it as selected.
+   */
+  setBurnInMode(mode) {
+    const allowed = ["pixel-shift", "checkerboard", "edge-crop", "static-dim"];
+    const next = allowed.includes(mode) ? mode : "pixel-shift";
+    this.state.burnInProtection = { ...this.state.burnInProtection, mode: next };
+    this.notify("burn_in_mode_updated", next);
+    return next;
+  }
+
+  /**
+   * B4/F6 - force a device profile, or pass null to go back to detection.
+   *
+   * Only ids the detector knows are accepted, so persisted state cannot put the
+   * layout into a profile that does not exist.
+   */
+  setDeviceProfile(id) {
+    const allowed = ["phone", "tablet", "desktop", "wall", "tv", null];
+    const next = allowed.includes(id) ? id : null;
+    this.state.deviceProfile = next;
+    this.notify("device_profile_updated", next);
+    return next;
+  }
+
+  /**
+   * E6 - how the automatic dimming schedule is derived.
+   *
+   * "time" uses the authored wall-clock windows; "solar" follows the user's own
+   * sunrise and sunset. Stored separately from the schedule itself so switching
+   * between them does not discard what was authored.
+   */
+  setDimmingMode(mode) {
+    const next = mode === "solar" ? "solar" : "time";
+    this.state.dimming = { ...this.state.dimming, mode: next };
+    this.notify("dimming_mode_updated", next);
+    return next;
+  }
+
+  /** E7 - which screensaver style to use. */
+  setScreensaverStyle(style) {
+    const allowed = ["clock", "kenburns", "quote", "world", "solar"];
+    const next = allowed.includes(style) ? style : "clock";
+    this.state.screensaver = { ...this.state.screensaver, style: next };
+    this.notify("screensaver_updated", this.state.screensaver);
+    return next;
+  }
+
+  /** E5 - which live background to render. */
+  setLiveBackground(style) {
+    const allowed = ["none", "gradient", "particles", "aurora"];
+    const next = allowed.includes(style) ? style : "gradient";
+    this.state.liveBackground = next;
+    this.notify("live_background_updated", next);
+    return next;
+  }
+
+  /**
+   * E6/F1 - a complete display schedule, replacing any previous one.
+   *
+   * Validated on write so the controller never has to reason about a malformed
+   * range at the moment it matters, which is when the display is going dark.
+   */
+  setNightSchedule(ranges) {
+    const cleaned = [];
+    for (const range of Array.isArray(ranges) ? ranges.slice(0, 8) : []) {
+      if (!range || typeof range !== "object") continue;
+      const from = /^([01]\d|2[0-3]):[0-5]\d$/.test(String(range.from || "")) ? range.from : null;
+      const to = /^([01]\d|2[0-3]):[0-5]\d$/.test(String(range.to || "")) ? range.to : null;
+      if (!from || !to || from === to) continue;
+
+      const dim = Number(range.dim);
+      cleaned.push({
+        from,
+        to,
+        // 0 is a real, reachable value here - unlike most sliders, low
+        // brightness is the point of the whole feature.
+        dim: Number.isFinite(dim) ? Math.max(0, Math.min(1, dim)) : 0.12,
+        night: range.night === true
+      });
+    }
+
+    this.state.dimming = {
+      ...this.state.dimming,
+      scheduled: cleaned.length ? cleaned : null
+    };
+    this.notify("display_schedule_updated", this.state.dimming.scheduled);
+    return this.state.dimming.scheduled;
   }
 
   /** C15 Converter preferences. Stateless, but persisted so the panel does not

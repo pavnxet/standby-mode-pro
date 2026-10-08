@@ -22,7 +22,7 @@
 
 export const STORAGE_KEY_LEGACY = "standby_mode_pro_v1";
 export const STORAGE_KEY = "standby_mode_pro_v2";
-export const SCHEMA_VERSION = 5;
+export const SCHEMA_VERSION = 6;
 
 /**
  * Keys that must exist on a fully-formed state object. The deep-merge in
@@ -298,6 +298,46 @@ export const MIGRATIONS = [
       next.kiosk = deepMerge(
         { enabled: false, idleMs: 120000 },
         next.kiosk
+      );
+
+      return next;
+    }
+  },
+  {
+    from: 5,
+    to: 6,
+    description: "Backfill the remaining Milestone 4 keys: device profile, burn-in mode, screensaver style set, live background, and the dimming trigger mode.",
+    migrate(state) {
+      const next = { ...state };
+
+      // B4/F6. null means "detect from the viewport". A stored id would pin a
+      // device to a profile that was right when it was chosen and wrong after
+      // the user docked or undocked the thing.
+      next.deviceProfile = typeof next.deviceProfile === "string" ? next.deviceProfile : null;
+
+      next.burnInProtection = deepMerge(
+        // F3: pixel-shift is the default because it is the only mode that moves
+        // content on every tick with no visible cycle point. static-dim is the
+        // reduced-motion fallback and is not chosen for the user.
+        { enabled: true, intervalMinutes: 1, mode: "pixel-shift" },
+        next.burnInProtection
+      );
+
+      next.screensaver = deepMerge(
+        { enabled: true, idleSeconds: 120, style: "clock" },
+        next.screensaver
+      );
+
+      // E5. "gradient" rather than "none": the feature's value is removing the
+      // 4.3MB JPEG dependency, so an empty default would leave every existing
+      // user still downloading it.
+      next.liveBackground = typeof next.liveBackground === "string"
+        ? next.liveBackground
+        : "gradient";
+
+      next.dimming = deepMerge(
+        { level: 1, scheduled: null, mode: "time" },
+        next.dimming
       );
 
       return next;
