@@ -36,6 +36,10 @@ const SHELL_ASSETS = [
   "./",
   "./index.html",
   "./manifest.webmanifest",
+  // ADR-015: the precompiled Tailwind build. Precache it, because without it the
+  // clock would be unstyled offline - and a standby display is exactly the case
+  // that has to work with no network.
+  "./css/tailwind-built.css",
   "./css/main.css",
   "./css/clocks.css",
   "./css/clocks-m3.css",

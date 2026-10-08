@@ -99,8 +99,36 @@ const LOADED_STYLESHEETS = [
 const UNLINKED = readdirSync(join(root, "css"))
   .filter((f) => f.endsWith(".css") && !LOADED_STYLESHEETS.includes(f));
 
+/*
+ * Every app-owned class prefix, checked against the loaded stylesheets.
+ *
+ * The widget list above is derived from the widget index, so anything the index
+ * knows about is covered. This second sweep covers the rest of the surface -
+ * command palette, cheat sheet, toasts, layout grid, picker gallery, permission
+ * centre, theme picker, breathing guide, schedule panel, device profile classes.
+ *
+ * It exists because those surfaces were not in any check, and the theme picker in
+ * particular shipped with markup and no stylesheet at all - a control the reader
+ * could open and not see. A gap that no check looks at is a gap that ships.
+ */
+const APP_PREFIXES = [
+  "wc-", "br-", "cp-", "cs-", "toast", "lg-", "pg-", "ss-", "pc-", "th-", "ns-",
+  "m4-", "aqi-", "alarm-", "note-", "habit-", "pr-", "mk-", "fx-", "ag-", "fc-",
+  "cd-", "sa-", "sunw-", "news-", "tz-", "m4"
+];
+
+/**
+ * Declared here, before every block that increments it.
+ *
+ * It was declared further down, next to the app-class sweep, and the unlinked-
+ * stylesheet loop above incremented it first - a temporal-dead-zone error that
+ * only appeared when a stylesheet was actually unlinked, i.e. never in normal
+ * operation. Found by negative-testing the unlink path, which is the only way to
+ * reach it.
+ */
 let failures = 0;
 
+console.log("");
 for (const file of UNLINKED) {
   console.log(`FAIL css/${file} exists but no <link> in index.html loads it`);
   failures++;
@@ -132,9 +160,24 @@ function classesDefined(file) {
   const path = join(root, "css", file);
   if (!existsSync(path)) throw new Error(`missing stylesheet: css/${file}`);
 
-  const css = readFileSync(path, "utf8");
+  // Only the SELECTOR side of each rule is inspected.
+  //
+  // An earlier version matched `^\.name` at the start of a line, which found only
+  // selectors written on their own line and reported every class appearing after
+  // a descendant combinator as unstyled - `.screensaver-layer[data-style=x]
+  // .sa-quote` was invisible to it, so ten correctly-styled classes came back
+  // missing. A check that misreads its own stylesheet teaches people to ignore it.
+  const css = readFileSync(path, "utf8").replace(/\/\*[\s\S]*?\*\//g, " ");
   const defined = new Set();
-  for (const match of css.matchAll(/^\.([a-zA-Z0-9_-]+)/gm)) defined.add(match[1]);
+
+  for (const match of css.matchAll(/([^{}]+)\{/g)) {
+    // A class token counts only in selector position: preceded by the start of the
+    // selector, whitespace, or a combinator. That is what stops `0.55rem` in a
+    // declaration being read as a class called `55rem`.
+    for (const token of match[1].matchAll(/(?:^|[\s>+~,(])\.([a-zA-Z0-9_-]+)/g)) {
+      defined.add(token[1]);
+    }
+  }
   return defined;
 }
 
@@ -162,11 +205,72 @@ for (const [file, id] of WIDGET_FILES) {
   }
 }
 
+/*
+ * The app-owned sweep.
+ *
+ * Scans every shipped module for class tokens beginning with an owned prefix and
+ * requires each to be defined by a loaded stylesheet. Prefix-scoped rather than
+ * universal because the legacy widgets are styled with Tailwind utilities that a
+ * local stylesheet deliberately does not define - see the scope note above.
+ */
+const JS_ROOTS = ["js"];
+
+let appClasses = 0;
+const unstyled = new Set();
+
+/**
+ * Tailwind's spacing scale collides with two of this project's prefixes.
+ *
+ * `pr-1` is Tailwind's padding-right, not the prayer widget's `pr-*` classes, and
+ * `m-4` is the margin utility rather than the M4 surfaces. A bare suffix that is
+ * entirely a number is a Tailwind utility, never one of ours.
+ */
+const isTailwindCollision = (token) => /^[\w]+-\d+(\.\d+)?$/.test(token);
+
+function walkJs(dir) {
+  for (const entry of readdirSync(join(root, dir), { withFileTypes: true })) {
+    if (entry.name.startsWith(".") || entry.name === "node_modules") continue;
+    const rel = `${dir}/${entry.name}`.split("\\").join("/");
+    if (entry.isDirectory()) {
+      walkJs(rel);
+      continue;
+    }
+    if (!entry.name.endsWith(".js")) continue;
+
+    // The dead legacy bundle is excluded everywhere in this project: it is never
+    // loaded and CI forbids its use.
+    if (entry.name === "app.bundle.js") continue;
+
+    const source = readFileSync(join(root, rel), "utf8");
+    for (const match of source.matchAll(CLASS_ATTR)) {
+      for (const token of match[1].trim().split(/\s+/)) {
+        if (!token || token.includes("${")) continue;
+        if (isTailwindCollision(token)) continue;
+
+        // BEM-ish: `--on` and `--outer` variants share their base rule.
+        const base = token.startsWith("is-") ? token : token.split("--")[0];
+        if (!APP_PREFIXES.some((p) => base === p || base.startsWith(p))) continue;
+
+        appClasses++;
+        if (!globallyDefined.has(base)) unstyled.add(`${base}  (${rel})`);
+      }
+    }
+  }
+}
+
+for (const dir of JS_ROOTS) walkJs(dir);
+
+if (unstyled.size) {
+  for (const entry of [...unstyled].sort()) console.log(`FAIL unstyled app class: ${entry}`);
+  failures++;
+}
+
 console.log(
   `\n${failures
     ? `${failures} problem(s) found`
     : "every widget class is styled"} ` +
-  `(${totalClasses} class references, ${WIDGET_FILES.length} widgets, ` +
+  `(${totalClasses} widget class references, ${WIDGET_FILES.length} widgets, ` +
+  `${appClasses} app-class references, ` +
   `${LOADED_STYLESHEETS.length} stylesheets loaded from index.html)`
 );
 

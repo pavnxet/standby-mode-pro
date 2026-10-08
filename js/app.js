@@ -584,72 +584,42 @@ class App {
     }
   }
 
-  async initViewsCounter() {
+  /**
+   * A local visit counter.
+   *
+   * REWRITTEN. The previous implementation incremented a global counter at two
+   * third-party services - api.counterapi.dev and, as a fallback,
+   * abacus.jasoncameron.dev - on every page load, with no identifier, no consent
+   * and no opt-out. That is tracking, and this app's stated position is that it
+   * does none. It was carried over from the original codebase and recorded as
+   * AUDIT T10 rather than fixed, which is not the same thing as resolved: it was
+   * live in every build up to and including Milestone 4, and a Lighthouse run
+   * during Milestone 5 showed both hosts still being contacted.
+   *
+   * What it is now: a counter in localStorage. Visits on this device. No request
+   * is made, so there is nothing to consent to, nothing to leak and nothing that
+   * can fail offline.
+   *
+   * The counter is kept rather than deleted because once local it is harmless and
+   * it was a deliberate feature. The pill is relabelled in index.html from "VIEWS"
+   * with a "Global All-Time Visitors" tooltip to "VISITS" with "on this device",
+   * because a number that counts one device must not claim to count all of them.
+   */
+  initViewsCounter() {
     const countEl = document.getElementById('global-views-count');
     if (!countEl) return;
 
-    // 1. Initial immediate display from local cache
-    let currentCount = 1;
     try {
-      const stored = localStorage.getItem('standby_site_views');
-      currentCount = Math.max(1, (parseInt(stored, 10) || 0) + 1);
-      localStorage.setItem('standby_site_views', String(currentCount));
-    } catch (e) {}
-    countEl.textContent = currentCount.toLocaleString();
-
-    // 2. Query Public Shared Cloud Counter (Increment Global Viewers Across All Devices)
-    const namespace = "pavnxet_standby_mode_pro";
-    const key = "pageviews";
-    let globalCount = null;
-
-    // Primary Cloud Provider: CounterAPI.dev (Public CORS REST API)
-    try {
-      const res = await fetch(`https://api.counterapi.dev/v1/${namespace}/${key}/up`, {
-        method: "GET",
-        headers: { "Accept": "application/json" },
-        mode: "cors"
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data && (data.count !== undefined || data.value !== undefined)) {
-          globalCount = data.count !== undefined ? data.count : data.value;
-        }
-      }
-    } catch (e) {
-      // Secondary Cloud Provider: Abacus Integer API
-      try {
-        const res2 = await fetch(`https://abacus.jasoncameron.dev/hit/${namespace}/${key}`, {
-          method: "GET",
-          headers: { "Accept": "application/json" },
-          mode: "cors"
-        });
-        if (res2.ok) {
-          const data2 = await res2.json();
-          if (data2 && data2.value !== undefined) {
-            globalCount = data2.value;
-          }
-        }
-      } catch (e2) {}
-    }
-
-    // 3. Update DOM with shared global count if received
-    if (globalCount !== null && globalCount > 0) {
-      countEl.textContent = Number(globalCount).toLocaleString();
-      try {
-        localStorage.setItem('standby_site_views', String(globalCount));
-      } catch (e) {}
-      return;
-    }
-
-    // 4. Optional Turso DB Cloud Fallback if user configured their own sync
-    const cfg = store.getState().tursoConfig;
-    if (cfg && cfg.url && cfg.token) {
-      try {
-        const cloudCount = await tursoSync.incrementGlobalViews();
-        if (cloudCount !== null && cloudCount > 0) {
-          countEl.textContent = Number(cloudCount).toLocaleString();
-        }
-      } catch (e) {}
+      const stored = parseInt(localStorage.getItem('standby_site_views'), 10);
+      const visits = (Number.isFinite(stored) && stored > 0 ? stored : 0) + 1;
+      localStorage.setItem('standby_site_views', String(visits));
+      countEl.textContent = visits.toLocaleString();
+      countEl.title = `${visits} ${visits === 1 ? 'visit' : 'visits'} on this device`;
+    } catch (err) {
+      // Private browsing, or storage denied. The count is a nicety, so the pill
+      // says so rather than showing a number that could not be kept.
+      countEl.textContent = "—";
+      countEl.title = "Visit counting is unavailable: this browser blocked local storage.";
     }
   }
 

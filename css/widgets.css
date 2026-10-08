@@ -5,6 +5,22 @@
   flex: 1;
   width: 100%;
   height: 100%;
+  /*
+   * `min-height: 0` is what makes this a stable box.
+   *
+   * A flex item defaults to `min-height: auto`, which means it is sized by its
+   * CONTENT and will not shrink below it. So the moment the clock and widgets
+   * mounted, the stage grew to fit them and pushed the header and navigation
+   * down - which is what Lighthouse measured as a 0.346 cumulative layout shift
+   * on <main id="main-stage"> once the page started painting before the clock
+   * existed.
+   *
+   * Zero lets the stage shrink into the space the flex container actually has,
+   * which is what `flex: 1` was asking for all along. `overflow: hidden` below
+   * then clips anything that genuinely does not fit, rather than letting it
+   * resize the layout.
+   */
+  min-height: 0;
   display: flex;
   align-items: center;
   justify-content: center;

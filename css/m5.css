@@ -549,6 +549,92 @@ kbd {
 .br-btn:hover { background: rgb(96 165 250 / 0.12); }
 .br-btn:focus-visible { outline: 2px solid var(--accent, #60a5fa); outline-offset: 2px; }
 
+/* ------------------------------------------------------- H2: theme picker */
+
+/*
+ * Written late, and only because a coverage sweep found that the theme picker
+ * markup shipped with no stylesheet at all - a control the reader could open and
+ * not see. Every other surface in this file has rules; these did not, because
+ * they were the only ones the widget-only coverage check could not see, since
+ * the theme picker is not a widget.
+ *
+ * The swatch is the whole point of the control: three near-identical dark themes
+ * distinguished only by a word would be unreadable, so each option shows the
+ * colour it actually applies.
+ */
+.th-picker {
+  container-type: inline-size;
+  container-name: theme;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.th-option {
+  font: inherit;
+  display: flex;
+  align-items: center;
+  gap: 0.45em;
+  min-height: var(--device-tap-target, 40px);
+  padding: 0.45em 0.7em;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle, rgba(148,163,184,0.16));
+  background: var(--bg-surface, #111827);
+  color: var(--text-secondary, #cbd5e1);
+  cursor: pointer;
+}
+
+/*
+ * The selected state is a border AND a ring, not a colour change alone - the
+ * three themes are all dark, so a subtle colour shift would not be enough to
+ * distinguish "selected" from "not".
+ */
+.th-option--on {
+  border-color: var(--accent, #60a5fa);
+  color: var(--text-primary, #f1f5f9);
+  box-shadow: 0 0 0 1px var(--accent, #60a5fa);
+}
+
+.th-option:hover { filter: brightness(1.12); }
+
+.th-option:focus-visible {
+  outline: 2px solid var(--accent, #60a5fa);
+  outline-offset: 2px;
+}
+
+.th-swatch {
+  /* A fixed swatch size with a border, so AMOLED's true black is visible as a
+   * black square rather than disappearing into the surrounding surface. */
+  width: 1.5em;
+  height: 1.5em;
+  flex: none;
+  border-radius: 5px;
+  border: 1px solid var(--border-strong, rgba(148,163,184,0.32));
+}
+
+.th-name { font-size: clamp(0.76rem, 3.2cqi, 0.88rem); white-space: nowrap; }
+
+/* ------------------------------------------- small layout rules that were missing */
+
+.cp-group + .cp-group { margin-top: 0.3rem; }
+
+.cs-group + .cs-group { margin-top: 0.5rem; }
+
+.cs-group-label {
+  margin: 0 0 0.2rem;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-muted, #94a3b8);
+}
+
+.pg-group + .pg-group { margin-top: 0.4rem; }
+
+.pc-main { min-width: 0; }
+
+.toast-text { display: block; }
+
 /* ---------------------------------------------------- C1: world clock */
 
 .wc-container {

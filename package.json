@@ -14,7 +14,8 @@
     "css": "node scripts/check-css-coverage.mjs",
     "validate": "npm run check && npm run css && npm test",
     "icons": "node scripts/generate-icons.mjs",
-    "serve": "node scripts/serve.mjs"
+    "serve": "node scripts/serve.mjs",
+    "css:tailwind": "tailwindcss -c tailwind.config.js -i tools/tailwind-input.css -o css/tailwind-built.css --minify"
   },
   "dependencies": {},
   "devDependencies": {}

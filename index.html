@@ -18,14 +18,52 @@
   <meta name="color-scheme" content="dark" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;700;800&family=Space+Grotesk:wght@400;500;600;700;800&family=Syne:wght@700;800;900&family=VT323&display=swap" rel="stylesheet" />
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = {
-      darkMode: 'class',
-      theme: { extend: { fontFamily: { sans: ['Space Grotesk', 'sans-serif'], mono: ['JetBrains Mono', 'monospace'], serif: ['Instrument Serif', 'serif'], display: ['Syne', 'sans-serif'], digital: ['VT323', 'monospace'] } } }
-    };
-  </script>
+  <!--
+    The five web fonts, loaded without blocking the first paint.
+
+    A Lighthouse run in Milestone 5 measured this stylesheet as 990ms of
+    render-blocking time, which is more than any single local stylesheet. The
+    `media="print"` + `onload` swap is the standard non-blocking pattern: the
+    browser parses it at low priority instead of holding the parser, and the
+    media flip promotes it once it arrives.
+
+    The cost is a flash of fallback font before the webfont loads. That is the
+    right trade for a standby clock - the digits are legible in the fallback and
+    the clock is usable immediately - whereas blocking would delay the whole page
+    to improve typography nobody is waiting on.
+
+    The noscript fallback keeps the fonts for anyone with scripting disabled,
+    where the onload handler never runs.
+  -->
+  <link
+    href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;700;800&family=Space+Grotesk:wght@400;500;600;700;800&family=Syne:wght@700;800;900&family=VT323&display=swap"
+    rel="stylesheet"
+    media="print"
+    onload="this.media='all'; this.onload=null;" />
+  <noscript>
+    <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;700;800&family=Space+Grotesk:wght@400;500;600;700;800&family=Syne:wght@700;800;900&family=VT323&display=swap" rel="stylesheet" />
+  </noscript>
+  <!--
+    Tailwind, precompiled. ADR-015.
+
+    This replaces `<script src="https://cdn.tailwindcss.com">` plus its inline
+    config. Measured reasons, from a Lighthouse run in Milestone 5:
+
+      - 124 KB of third-party JavaScript, the largest single transfer on the page
+      - 885 ms attributed to it as render-blocking
+      - it ran before the app did, so first paint waited on a network round trip
+        to a host this project does not control
+      - it contradicted the project's own no-CDN rule
+
+    28.5 KB of static CSS, served from the same origin as everything else and
+    precached by the service worker. Regenerate with `npm run css:tailwind`; the
+    CSS coverage check fails if a class is used that this file does not define.
+
+    Position matters and is unchanged: this link sits exactly where the script
+    was, so the cascade order relative to the local stylesheets below is the same
+    as before.
+  -->
+  <link rel="stylesheet" href="css/tailwind-built.css" />
   <link rel="stylesheet" href="css/main.css" />
   <link rel="stylesheet" href="css/clocks.css" />
   <!-- Milestone 3 faces. Own file so the legacy stylesheets stay byte-identical. -->
@@ -61,9 +99,21 @@
           <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
           <span id="battery-status-text">100% PWR</span>
         </div>
-        <div class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 backdrop-blur-md text-xs font-mono text-neutral-300" title="Global All-Time Visitors">
+        <!--
+          A local counter. It counts visits on THIS device and nothing leaves the
+          browser - no third-party service is contacted, no identifier is sent and
+          there is no consent prompt to accept, because there is nothing to consent
+          to. The previous version incremented a global counter at two external
+          APIs on every page load, which is tracking.
+
+          The label says "VISITS", not "VIEWS", and the tooltip says "on this
+          device": a number labelled "Global All-Time Visitors" that only counts
+          one device would be a false claim, which is a different kind of
+          dishonesty than the one it replaced.
+        -->
+        <div class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 backdrop-blur-md text-xs font-mono text-neutral-300" title="Times you have opened this app on this device. Nothing is sent anywhere.">
           <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2.2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
-          <span class="text-neutral-400 font-semibold text-[11px]">VIEWS:</span>
+          <span class="text-neutral-400 font-semibold text-[11px]">VISITS:</span>
           <span id="global-views-count" class="font-bold text-blue-400 font-mono px-1.5 py-0.5 rounded bg-blue-500/10">1</span>
         </div>
       </div>

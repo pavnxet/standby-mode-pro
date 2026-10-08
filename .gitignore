@@ -1,3 +1,17 @@
-.DS_Store
-*.tmp
-bundle_builder.py
+# Lighthouse raw reports.
+#
+# Several hundred KB of JSON each, reproducible with the command in
+# scripts/lighthouse-compare.mjs's header. The scores that matter are recorded in
+# TESTING.md, which is the thing a reader should be pointed at.
+lighthouse-report
+lighthouse-after
+lighthouse-cls
+lighthouse-tailwind
+*.lhr.json
+
+# Agent-local files, never part of this project.
+.claude/
+CLAUDE.md
+
+# Tooling that runs one-off diagnostics and leaves output behind.
+/tools/

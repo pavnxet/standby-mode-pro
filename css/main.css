@@ -310,10 +310,18 @@ svg {
   z-index: 1;
 }
 
+/*
+ * Duplicate of the #app-shell rule at the top of this file, merged in.
+ *
+ * Two rules for one id in one stylesheet: the second silently wins, so the first
+ * was dead code that still had to be read and understood. They differed only in
+ * `width` - 100% versus 100vw - and 100vw includes the scrollbar gutter, which
+ * on a narrow screen produces a horizontal scrollbar for no reason.
+ */
 #app-shell {
   position: relative;
-  width: 100vw;
-  height: 100vh;
+  width: 100%;
+  height: 100%;
   z-index: 10;
   display: flex;
   flex-direction: column;
