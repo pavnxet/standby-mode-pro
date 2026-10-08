@@ -148,4 +148,28 @@ store.notify(event)
 - **Tests:** 133 → 195.
 - **Measured:** 19/19 widgets mount. 0 horizontal overflow for all 7 M3 widgets at 160–900px (verified floor 160px). Calculator and converter paths verified through real input. XSS probe rendered as text, 0 elements injected. Clean page boot.
 - **Milestone reached:** M3 widget half **7 of 15**. **M3 is NOT complete.**
-- **Out of budget:** shipped JS now 530 KB against 400 KB.
+- **Out of budget:** shipped JS now 530 KB against 400 KB.### 2026-10-08 — Milestone 3 complete: final 8 widgets (branch `phase-3-widgets-final`)
+
+- **Delivered widgets:** C6 `agendaWidget`, C7 `marketWidget`, C8 `newsWidget`, C12 `mediaSessionWidget`, C14 `flashcardsWidget`, C17 `fxWidget`, C19 `prayerWidget`, C20 `timezoneWidget`. Inventory is now **27 widgets** (9 original + 3 M2 + 15 M3) and **29 clock faces**.
+- **New core modules (7), each pure and independently testable:**
+
+  | Module | Feature | Notes |
+  |---|---|---|
+  | `js/core/ics.js` | C6 | RFC 5545. Four date kinds kept distinct; `zonedWallTimeToUtc` two-pass; RRULE; EXDATE |
+  | `js/core/flashcards.js` | C14 | SM-2-lite. Pure `scheduleCard`, ease 1.3–2.8, 365 d cap |
+  | `js/core/rss.js` | C8 | RSS + Atom without `DOMParser`. `safeFeedLink` is the href choke point |
+  | `js/core/fx.js` | C17 | Frankfurter/ECB URL + parsing. Precision scales with magnitude |
+  | `js/core/market.js` | C7 | CoinGecko URL + parsing. `formatPrice(null)` → em dash, never 0 |
+  | `js/core/prayer.js` | C19 | Aladhan URL + parsing. Does **not** compute. 7 calculation schools |
+  | `js/core/mediaSession.js` | C12 | OS action handlers, metadata read, availability reason |
+
+- **New CSS:** `css/widgets-m3b.css` (200 rules, ~28 KB), linked after `widgets-m3.css` and before `a11y.css`.
+- **Schema v4 migration** backfills `worldClockCities`, `agenda` (512 KB cap), `rss` (no default URL), `marketSymbols`, `prayerMethod`. Appended to the END of `MIGRATIONS`; `SCHEMA_VERSION` = 4.
+- **Store actions added (9):** `reviewCard`, `deleteCard`, `setWorldClockCities`, `setAgendaIcs`, `clearAgendaIcs`, `setRssPrefs`, `setMarketSymbols`, `setPrayerMethod`.
+- **New tests:** `tests/widgets-m3b.test.mjs` (60), `tests/widgets-m3c.test.mjs` (43), `tests/mount.test.mjs` (11). Total 133 → **309**.
+- **New script:** `scripts/check-css-coverage.mjs`, wired as `npm run css` and into CI. Checks each widget's emitted classes against *all* loaded stylesheets.
+- **CI changed:** registry check rewritten (ADR-034 — the old regex matched zero modules); CSS coverage gate added; size budget 400 → 900 KB.
+- **`js/core/netPolicy.js`:** added `describeFetchFailure`.
+- **`js/core/a11y.js`:** `applyAccessibilitySettings` now guards a missing `document.body`.
+- **Measured:** 15/15 M3 widgets mount + unmount; **0px overflow at 120–900px** in empty and data states; hostile-value XSS pass clean.
+- **Milestone reached:** **M3 COMPLETE** — clocks and all 15 widgets.

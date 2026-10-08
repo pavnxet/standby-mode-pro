@@ -172,3 +172,38 @@ Meaningful technical decisions, library choices, and trade-offs for flip clock.
 - **Decision:** 8 of the 15 planned Milestone 3 widgets (C6, C7, C8, C12, C14, C17, C19, C20) are not built. Each is listed in `CHANGELOG.md` with its reason.
 - **Why:** The plan itself rates C6 (ICS timezones) and C8 (RSS CORS) HIGH risk and calls C19 experimental. C7 and C17 need unverified keyless rate sources. Shipping a widget that shows the wrong time, a fabricated price, or an empty feed is worse than not shipping it.
 - **Consequence:** Partial foundation is committed where it is genuinely reusable: `core/timezones.js` (built and tested, awaiting C20's UI), the store actions and schema namespace for C14 (awaiting the UI), and `core/netPolicy.js` which every remaining networked widget needs.
+### 2026-10-08 ADR-030: Prayer times are read, never computed
+- **Status:** Accepted and implemented
+- **Decision:** `core/prayer.js` does not calculate prayer times. It reads them from Aladhan (`/v1/timings`, verified keyless, `Access-Control-Allow-Origin: *`) and treats the calculation method as a stored user choice. The widget is flagged `experimental: true` permanently, which the registry carries into the picker.
+- **Why:** `FEATURE_PLAN.md` C19 rates it HIGH risk and says "Marked experimental", because times depend on latitude *and* on a calculation school, and schools legitimately differ by 10–20 minutes. There is no single correct answer to check a computation against. Shipping astronomical maths here would mean shipping numbers that cannot be verified — and these are times a person may act on. Measured confirmation that the choice matters: Fajr is 04:59 under Muslim World League and 04:57 under Umm al-Qura.
+- **Consequence:** The verifiable parts *are* implemented and tested: parsing, ordering, next-prayer, and `parseHhMm` rejecting impossible values like `12:60`. `Sunrise` carries `isPrayer: false` — it is a boundary, and treating it as a prayer makes "next prayer" wrong between Fajr and Dhuhr. `viewerMinutes()` deliberately uses the machine's clock rather than the API's date field, which is the date at the prayer location.
+
+### 2026-10-08 ADR-031: RSS ships with no default feed, and says so
+- **Status:** Accepted and implemented
+- **Decision:** C8 accepts only a user-supplied feed URL. There is no default. A feed that cannot be read renders an explicit "blocked by CORS" state.
+- **Why:** Measured during this milestone — `feeds.bbci.co.uk`, `hnrss.org`, `theverge.com` and `news.ycombinator.com` all return HTTP 200 with **no** `Access-Control-Allow-Origin` header. The browser refuses the body. A widget seeded with any of them would be permanently empty, which reads as broken rather than blocked. The no-proxy privacy rule forbids the workaround.
+- **Consequence:** Matches the plan's own instruction: "accept only user-supplied feeds that pass a CORS preflight, and surface a clear 'feed blocked by CORS' state rather than an empty widget." A self-hosted or CORS-permissive feed works.
+
+### 2026-10-08 ADR-032: `describeFetchFailure` lives in the network policy, not per widget
+- **Status:** Accepted and implemented
+- **Decision:** A single exported function maps a fetch failure to a sentence. Each widget may wrap it to add its own consequence; the news widget does, to say that a self-hosted feed will work.
+- **Why:** A blocked cross-origin response surfaces in-page as `TypeError: Failed to fetch` — no status, no header. Measured: the FX panel read "—  Failed to fetch". Putting this in each widget would mean N copies that drift, and it belongs with the layer that produces the failure.
+- **Consequence:** Distinguishes a refusal from a timeout, because those need different responses from a reader ("try later" vs "this will not work"). Wording is constrained to what is knowable: for a CORS rejection the page cannot distinguish "the server refused" from "no network", so it says what is most likely and stays silent about the rest rather than asserting an unverifiable cause.
+
+### 2026-10-08 ADR-033: Unstyled widget classes are a CI failure
+- **Status:** Accepted and implemented
+- **Decision:** `scripts/check-css-coverage.mjs` runs in CI via `npm run css`. A widget that emits a class no loaded stylesheet defines fails the build.
+- **Why:** Found six such classes by hand — four of them from the *previous* M3 widget pass, i.e. a gap that existed before this work and was undetectable. Unstyled elements fall back to the legacy `vw`-based widget CSS, which is precisely how a widget overflows a narrow panel while its own stylesheet looks complete.
+- **Consequence:** The check tests against *every* loaded stylesheet, not one expected file, so a shared utility like `.visually-hidden` is not falsely reported. That false failure was hit during development; a check that cries wolf is a check you learn to ignore.
+
+### 2026-10-08 ADR-034: The CI registry check verified the indexes, not a regex
+- **Status:** Accepted and implemented
+- **Decision:** The "module ids are unique" CI step was rewritten to verify `js/clocks/index.js` and `js/widgets/index.js` directly: ids unique, lowercase slugs, and `app.js` still importing both indexes.
+- **Why:** The previous step regex-scraped `app.js` for `registerClock('some-id', …)`. Milestone 1's A1 work replaced the hand-written lists with a declarative index, so `app.js` registers in a loop and the regex matched **zero** modules. It had been checking nothing at all, and it went unnoticed because it only ever ran in CI.
+- **Consequence:** Negative-tested by feeding the new check a truncated index — it exits 1 with a specific message. The old version could not fail in either direction. `npm test` separately imports both indexes and asserts every entry reaches both registries, so the underlying property is now covered by a test that runs locally.
+
+### 2026-10-08 ADR-035: The source budget is a growth alarm, not a target
+- **Status:** Accepted and implemented
+- **Decision:** The CI size budget is raised from 400 KB to 900 KB, matching the owner's decision to lift the cap. Shipped JS is 658 KB.
+- **Why:** The 400 KB figure was set at M1 with 11 clocks and 9 widgets. After M3 added 18 clock faces and 15 widgets it could no longer make an unexpected jump visible — a guard that is always red has stopped guarding.
+- **Consequence:** 900 KB is roughly 35% headroom over the current figure. `js/app.bundle.js` (237 KB, dead, CI forbids its use) is excluded from the measurement and remains an owner decision.

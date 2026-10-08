@@ -158,3 +158,83 @@ Append-only running log of session execution history for this project.
 - **Known gaps left open:** Lighthouse not re-run; offline load not verifiable; geolocation-granted path for `sun`/`airquality` unverified; screenshots not captured (tool requires a visible desktop window) so visual appearance has not been reviewed by eye; `system` overflows 2px at 140px, below the verified floor.
 - **Out of budget:** shipped JS 530 KB against 400 KB.
 - **Not pushed.** All work is local on `phase-3-widgets`.
+## 2026-10-08 — Milestone 3 completed: the final 8 widgets (C6, C7, C8, C12, C14, C17, C19, C20)
+
+- Task: Close the 8 deferred M3 widgets. The owner's 400 KB source budget was lifted first, so feasibility (not size) was the only gate.
+- Branch: `phase-3-widgets-final`, branched from `phase-3-widgets`. 8 commits.
+
+### Source verification (done BEFORE building, per the brief's sequence)
+
+CORS headers are only returned in response to a request carrying `Origin`, so every check sent one.
+
+| Source | Status | CORS | Key | Verdict |
+|---|---|---|---|---|
+| Frankfurter (ECB) | 200 | `*` | none | C17 viable |
+| CoinGecko | 200 | `*` | none | C7 viable |
+| Aladhan `/v1/timings` | 200 | `*` | none | C19 viable |
+| Open-Meteo AQ | 200 | `*` | none | C9 (pre-existing) |
+| BBC RSS | 200 | **none** | — | C8 evidence of infeasibility |
+| hnrss.org | 200 | **none** | — | ditto |
+| theverge.com | 200 | **none** | — | ditto |
+| news.ycombinator.com | 200 | **none** | — | ditto |
+
+Note: `api.aladhan.com/v1/timingsByCoords` and `.../timingsByCoords/{lat},{lon}` both 404. The working coordinate endpoint is `/v1/timings?latitude=&longitude=&method=`.
+
+### Did
+- **C6 agenda** — `core/ics.js`, RFC 5545. The four date kinds handled separately: `VALUE=DATE` keeps no time; `TZID` resolves via a two-pass offset read; trailing `Z` is absolute; neither floats in the viewer's zone. Line unfolding, first-unquoted-colon split with `GMT+05:30` leniency, RFC 6868 caret params, RRULE (DAILY/WEEKLY/MONTHLY/YEARLY × INTERVAL/COUNT/UNTIL/BYDAY) preserving wall-clock time across DST, EXDATE. 512 KB storage cap, refused with a visible message rather than truncated.
+- **C14 flashcards** — `core/flashcards.js`, SM-2-lite. Four grades, box ladder, a lapse resets the card, intervals capped at 365 d. `scheduleCard` is pure. Space flips, 1–4 grade.
+- **C20 world clock** — `features/timezoneWidget.js`. The engine already existed for the M3 face; only the widget was missing. Unknown zone → "unavailable", never the local time.
+- **C12 system media** — `core/mediaSession.js`. No audio element; controls media playing elsewhere. Handlers cleared on `destroy()`, throws swallowed, artwork `src`s filtered, unsupported actions surfaced.
+- **C17 currency** — `core/fx.js`. Frankfurter, 30 currencies, ECB base date shown, stale marked stale.
+- **C7 market** — `core/market.js`. CoinGecko. `formatPrice(null)` is an em dash; can never be `$0`.
+- **C8 news** — `core/rss.js`. No default feed. `safeFeedLink` is the single href choke point.
+- **C19 prayer** — `core/prayer.js`, marked **experimental** permanently. Reads Aladhan, does NOT compute. Calculation method is a user choice and measurably matters: Fajr 04:59 (MWL) vs 04:57 (Umm al-Qura).
+- Schema **v3 → v4** migration appended. 9 new store actions. `css/widgets-m3b.css` (200 rules). Registered all 8 in `js/widgets/index.js`. All new modules precached in `sw.js`.
+
+### Defects found and fixed (12 in the new code, 2 in existing)
+
+1. `applyAccessibilitySettings` threw at module-evaluation time without a `document.body` (store calls it in its constructor).
+2. Fetch errors rendered raw: "—  Failed to fetch". Added `describeFetchFailure` to `netPolicy`.
+3. **Six widget classes had no CSS rule at all** — `fc-front`, `fc-reveal-btn`, `wc-state--error`, `fx-rate`, plus `goals-title`, `sunw-header`/`sunw-row`, `aqi-state--loading` from the *previous* M3 pass. Added `scripts/check-css-coverage.mjs` as a CI gate.
+4. `.ag-item-meta` overflowed **102px** at 160px — `flex: 0 0 auto` cannot shrink below its widest child (`Europe/London` badge).
+5. `.mk-row` overflowed **12px** at 140px — fixed `em` tracks can't shrink; the price column (the one that may be long) collapsed to 0.
+6. `describeRelative` returned `""` for the exact input its own render path passes: `Number.isFinite(new Date())` is false.
+7. Agenda rendered nothing until midnight — tick only fired on day rollover, no first paint.
+8. `scheduler.everySecond` does not exist; the API is `subscribe` + `onSecondBoundary`.
+9. RFC 6868 caret params decoded per-token not per-character.
+10. February 31st accepted (`day <= 31` is not calendar validation) — rendered as March 3rd.
+11. `TZID=GMT+05:30` mis-split at the colon inside the param value.
+12. The `VCALENDAR`-missing warning fired on every valid document (checked "still open" instead of "was seen").
+13. RSS entities decoded twice.
+14. `newsWidget` pre-escaped into a local var — correct, but escaping was invisible at the interpolation site, which is exactly what the static guard checks for.
+
+### CI defect found and fixed
+
+The "module ids are unique" step regex-scraped `app.js` for `registerClock('some-id', …)`. M1's A1 refactor made registration a loop, so it matched **zero** modules — the guard was checking nothing and CI was red. Rewritten to verify the indexes directly (ADR-034). Negative-tested: exits 1 on a truncated index. Minimums corrected to 29 clocks / 27 widgets (I first wrote 19/18 from a misreading).
+
+### Results
+
+- `npm run validate` → **exit 0**. **309 tests, 309 pass, 0 fail** (up from 195).
+- 15 of 15 M3 widgets mount and unmount cleanly. 27 widgets, 29 clock faces total.
+- **0px horizontal overflow** for all 15 M3 widgets at 120/140/160/180/220/320/480/900px, empty **and** data states.
+- No XSS payload reaches the DOM under a hostile-value pass; `window.__pwned` never set.
+- Verified in a real browser: agenda parses a live 3-event ICS with correct TZ handling; prayer renders real Aladhan data; market renders live CoinGecko prices.
+
+### Milestone reached
+
+**M3 is COMPLETE** — 29 clock faces (11 legacy + 18 M3) and 15 of 15 widgets. All 56 planned features through M3 are now delivered.
+
+### Open (unchanged or new)
+
+- **Lighthouse not re-run.** M2's a11y/BP/SEO 1.00 scores are NOT claimed as current — ~36 KB new CSS + ~70 KB new JS unaudited.
+- **C17's success state never observed rendering in a browser** — Frankfurter is unreachable from this sandbox (reachable from the shell). Failure path WAS observed and correct. Success path covered by unit tests over a live-captured response. Stated, not papered over.
+- **Offline load with the network down** — still unverifiable, no network emulation. Never claimed as passing.
+- **Screenshots not captured** — tool requires a visible desktop window. Layout verified programmatically; visual appearance never reviewed by eye.
+- **Geolocation-granted paths** unverified for `sun`/`airquality`/`prayer`.
+- Pre-existing console items: `cdn.tailwindcss.com` (ADR-015) and the `api.counterapi.dev` analytics call at `js/app.js:353`, which contradicts the zero-tracking rule (AUDIT T10). Both owner decisions.
+- `js/app.bundle.js` (237 KB, dead) and `js/bundle_builder.py` still present. Owner decision.
+- **Turso token still exposed** in the repo. Only the owner can revoke it.
+
+### Not pushed
+
+All work is local on `phase-3-widgets-final`.
