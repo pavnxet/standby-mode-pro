@@ -83,6 +83,17 @@ export const prayerWidget = {
       if (controller) controller.abort();
       controller = new AbortController();
 
+      /*
+       * Render the loading state before the request.
+       *
+       * Both early-return branches above render, so the two "something is wrong
+       * with your settings" cases showed a message immediately - and the one case
+       * where everything was configured correctly showed nothing at all until the
+       * response arrived. The happy path was the broken one.
+       */
+      loading = true;
+      render();
+
       const { data, error: fetchError } = await fetchJson(url, {
         signal: controller.signal,
         maxAgeMs: MAX_AGE_MS

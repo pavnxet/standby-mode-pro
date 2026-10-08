@@ -66,6 +66,17 @@ export const newsWidget = {
       if (controller) controller.abort();
       controller = new AbortController();
 
+      /*
+       * Render the loading state before the request, not after it.
+       *
+       * The two early-return branches above both render, so a reader with no feed
+       * configured or an unusable URL saw something immediately - and a reader
+       * with a working feed URL saw an empty panel for the length of the request.
+       * The common case was the broken one.
+       */
+      loading = true;
+      render();
+
       let text;
       try {
         const result = await fetchText(url, {

@@ -149,6 +149,15 @@ export const marketWidget = {
       if (key === "market_symbols_updated") load();
     });
 
+    /*
+     * Render before the request, not after it.
+     *
+     * `render()` reads whatever is cached, so calling it first produces the
+     * loading state. Previously the first render happened only once the fetch
+     * resolved, leaving an empty tile for the length of the request.
+     */
+    loading = true;
+    render();
     load();
 
     return {

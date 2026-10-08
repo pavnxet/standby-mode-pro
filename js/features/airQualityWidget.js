@@ -32,6 +32,22 @@ export const airQualityWidget = {
     let unwatch = null;
     let controller = null;
 
+    /*
+     * Which place these readings are for.
+     *
+     * The header previously said only "Air Quality", while the fallback path
+     * quietly loaded Delhi's coordinates. The code comment claimed "labelled, not
+     * silently substituted" - and that was false, because nothing in the render
+     * named the location. A reader in Oslo had no way to tell those numbers were
+     * not about them.
+     *
+     * So the label is rendered, and the fallback location is named in the source
+     * next to the coordinates so the two cannot drift apart again.
+     */
+    const FALLBACK_PLACE = { lat: 28.6139, lon: 77.209, name: "Delhi (default)" };
+
+    let where = "your area";
+
     const render = (data, error) => {
       if (disposed) return;
 
@@ -50,7 +66,9 @@ export const airQualityWidget = {
 
       container.innerHTML = `
         <div class="aqi-container">
-          <div class="aqi-header">Air Quality</div>
+          <div class="aqi-header">
+            Air Quality<span class="aqi-where"> — ${escapeHtml(where)}</span>
+          </div>
           <div class="aqi-main">
             <span class="aqi-value aqi-tone--${band.tone}" id="aqi-value">${
               aqi === null ? "—" : Math.round(aqi)
@@ -70,9 +88,19 @@ export const airQualityWidget = {
         </div>`;
     };
 
-    const load = async (lat, lon) => {
+    const load = async (lat, lon, place = null) => {
       if (controller) controller.abort();
       controller = new AbortController();
+
+      // Remembered so the render can name the place, and so an error render can
+      // still say which location failed.
+      if (place) where = place;
+      else if (Number.isFinite(lat) && Number.isFinite(lon)) {
+        const cached = store.getState().unitLocation || {};
+        where = cached.name && Number.isFinite(cached.lat) && Math.abs(cached.lat - lat) < 0.5
+          ? cached.name
+          : `${lat.toFixed(2)}, ${lon.toFixed(2)}`;
+      }
 
       const url = airQualityUrl(lat, lon);
       if (!url) {
@@ -95,13 +123,23 @@ export const airQualityWidget = {
     // Resolve a location: the store's cached one, else geolocation, else the
     // same Delhi default the weather widget uses.
     const start = () => {
+      /*
+       * Render before resolving anything.
+       *
+       * This used to sit after the cached-location branch, so a reader who had
+       * already set a location - the normal case after first use - got an empty
+       * tile until the request came back, while a reader with no location saw a
+       * loading state immediately. The defect was invisible with default state,
+       * which is exactly why it survived: it only appeared once the widget was
+       * actually configured.
+       */
+      render(null, null);
+
       const cached = store.getState().unitLocation || {};
       if (Number.isFinite(cached.lat) && Number.isFinite(cached.lon)) {
         load(cached.lat, cached.lon);
         return;
       }
-
-      render(null, null);
 
       if (typeof navigator !== "undefined" && navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
@@ -112,13 +150,14 @@ export const airQualityWidget = {
           },
           () => {
             if (disposed) return;
-            // Explicit fallback: labelled, not silently substituted.
-            load(28.6139, 77.209);
+            // Named, and the name is rendered. The reader can see this is not
+            // their own air.
+            load(FALLBACK_PLACE.lat, FALLBACK_PLACE.lon, FALLBACK_PLACE.name);
           },
           { enableHighAccuracy: false, timeout: 7000, maximumAge: 1800000 }
         );
       } else {
-        load(28.6139, 77.209);
+        load(FALLBACK_PLACE.lat, FALLBACK_PLACE.lon, FALLBACK_PLACE.name);
       }
     };
 

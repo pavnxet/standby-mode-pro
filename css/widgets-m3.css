@@ -54,6 +54,21 @@
   color: var(--text-secondary);
 }
 
+/*
+ * The place these readings are for.
+ *
+ * Rendered because the widget loads Delhi's coordinates when geolocation is
+ * unavailable, and a reading with no place attached is indistinguishable from
+ * the reader's own. Lower weight and normal case so it reads as a qualifier
+ * rather than competing with the band name.
+ */
+.aqi-where {
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  color: var(--text-muted);
+}
+
 .cd-target {
   font-size: clamp(0.75rem, 5cqi, 0.95rem);
   font-weight: 600;

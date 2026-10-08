@@ -185,6 +185,15 @@ export const fxWidget = {
       if (key === "fx_updated") load();
     });
 
+    /*
+     * Render before the request, not after it.
+     *
+     * `render()` reads cached rate data, so calling it first produces the loading
+     * state. Previously the first render happened only once the fetch resolved,
+     * which meant an empty tile for the whole length of the request - on a slow
+     * connection that is several seconds of a blank panel in a layout.
+     */
+    render();
     load();
 
     return {

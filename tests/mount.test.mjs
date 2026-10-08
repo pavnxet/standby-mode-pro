@@ -136,6 +136,30 @@ function withDom(extra = {}) {
     clearTimeout: () => {},
     requestAnimationFrame: () => 0,
     cancelAnimationFrame: () => {},
+    /*
+     * A hermetic fetch.
+     *
+     * Without this, mounting a networked widget opened a real TCP connection to
+     * api.open-meteo.com. The file took 61 seconds of wall clock against 195ms of
+     * actual test time, and its runtime depended on DNS - so on a machine with no
+     * network, or a different one, the same suite behaved differently. That is
+     * the wrong property for a mounting test.
+     *
+     * Settles only when aborted. Rejecting immediately would bias every assertion
+     * toward the failure state, and resolving would require inventing weather
+     * data; holding the request open exercises exactly the path being tested -
+     * mount, start a request, unmount, abort - with no network and no fabricated
+     * response.
+     */
+    fetch: (_url, options = {}) => new Promise((_resolve, reject) => {
+      const signal = options?.signal;
+      const aborted = () => reject(
+        Object.assign(new Error("The operation was aborted."), { name: "AbortError" })
+      );
+      if (!signal) return; // never settles
+      if (signal.aborted) return aborted();
+      signal.addEventListener("abort", aborted, { once: true });
+    }),
     ...extra
   };
 
