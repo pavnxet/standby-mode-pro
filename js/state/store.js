@@ -15,6 +15,7 @@ import {
   isPlainObject
 } from "../core/schema.js";
 import { applyAccessibilitySettings } from "../core/a11y.js";
+import { normalizeMix, findAmbience, findPreset } from "../core/ambiences.js";
 
 /**
  * Local calendar-day key, "YYYY-MM-DD".
@@ -168,7 +169,28 @@ const defaultState = {
   vibes: {
     activeTrack: "none",
     volume: 0.65,
-    visualizer: "stars"
+    visualizer: "stars",
+    /**
+     * E2 multi-layer mixer: ambience id -> 0..1.
+     *
+     * Empty means "one layer at the volume below", which is what every
+     * pre-E2 payload holds. Defaulting to a full mix would surprise anyone
+     * upgrading, so the single-layer behaviour is preserved exactly and the
+     * mixer is opt-in.
+     */
+    mix: {},
+    /** E3 sleep timer. `endsAtMs` is absolute so a throttled tab cannot drift. */
+    sleepTimer: { endsAtMs: null, fadeSeconds: 30 },
+    /** F2 dimming. 1 is normal brightness; the low end must reach near zero. */
+    dimming: { level: 1, scheduled: null },
+    /**
+     * F5 kiosk / lock-safe mode.
+     *
+     * Defaults to off. Enabling it changes what the page shows when idle, and
+     * the disclosure that it is not device locking is part of turning it on -
+     * so it must be a deliberate act.
+     */
+    kiosk: { enabled: false, idleMs: 120000 }
   },
   mediaState: {
     isPlaying: false,
@@ -768,6 +790,120 @@ export class Store {
     this.state.vibes.activeTrack = vibeId;
     this.updateActiveSpace({ vibe: vibeId });
     this.notify("vibe_changed", this.state.vibes);
+  }
+
+  /**
+   * E2 - sets one layer's level in the mix.
+   *
+   * `mix` is the full desired mix rather than a partial update, because the
+   * engine needs the complete picture to know which layers to start. Callers
+   * read the current mix, change one key, and pass the result back.
+   *
+   * Every value goes through clampMix, so a slider that emits 1.4 or a stale
+   * payload full of junk cannot produce a GainNode outside 0..1.
+   */
+  setAmbienceMix(mix) {
+    const normalized = normalizeMix(isPlainObject(mix) ? mix : {});
+    this.state.vibes.mix = normalized;
+    this.notify("ambience_mix_updated", normalized);
+    return normalized;
+  }
+
+  /** E2 - one layer, without the caller having to build the whole map. */
+  setAmbienceLayer(id, level) {
+    const mix = { ...this.state.vibes.mix, [id]: level };
+    return this.setAmbienceMix(mix);
+  }
+
+  /** E2 - stops every layer. */
+  clearAmbienceMix() {
+    this.state.vibes.mix = {};
+    this.notify("ambience_mix_updated", this.state.vibes.mix);
+    return this.state.vibes.mix;
+  }
+
+  /**
+   * E2 - applies a named preset.
+   *
+   * A preset is a full replacement, not an addition: a user who picks "Sleep"
+   * after a custom mix expects the custom layers gone, not layered underneath.
+   */
+  applyMixPreset(presetId) {
+    const preset = findPreset(presetId);
+    if (!preset) return null;
+    const mix = {};
+    for (const layer of preset.layers) {
+      const found = findAmbience(layer);
+      if (found) mix[layer] = found.defaultMix;
+    }
+    return this.setAmbienceMix(mix);
+  }
+
+  /** E3 - arms a sleep timer. `minutes` 0 cancels. */
+  setSleepTimer(minutes, fadeSeconds = 30) {
+    const mins = Number(minutes);
+    if (!Number.isFinite(mins) || mins <= 0) {
+      this.state.vibes.sleepTimer = { endsAtMs: null, fadeSeconds: 30 };
+    } else {
+      this.state.vibes.sleepTimer = {
+        endsAtMs: Date.now() + mins * 60000,
+        fadeSeconds: Math.max(1, Math.min(600, Number(fadeSeconds) || 30))
+      };
+    }
+    this.notify("sleep_timer_updated", this.state.vibes.sleepTimer);
+    return this.state.vibes.sleepTimer;
+  }
+
+  /**
+   * F2 - display brightness.
+   *
+   * `level` is clamped 0..1 and 0 is a real value, not "off". The plan is
+   * explicit that low-brightness mode must reach near-zero: the most-cited
+   * night complaint about this category is a display that "snaps back up to
+   * some weird minimal value", which is exactly what a floor imposed by the UI
+   * would produce.
+   */
+  setDimming(level) {
+    const num = Number(level);
+    this.state.dimming.level = Number.isFinite(num) ? Math.max(0, Math.min(1, num)) : 1;
+    this.notify("dimming_updated", this.state.dimming);
+    return this.state.dimming;
+  }
+
+  /**
+   * F2/F1 - a schedule that drives dimming and night mode.
+   *
+   * `ranges` is a list of `{ from: "HH:MM", to: "HH:MM", dim: 0..1, night: bool }`.
+   * Stored as local wall-clock strings because that is how a person describes
+   * "dim after 10pm" - an epoch would be meaningless across devices and zones.
+   */
+  setDisplaySchedule(ranges) {
+    const list = Array.isArray(ranges) ? ranges.slice(0, 6) : [];
+    this.state.dimming.scheduled = list.length ? list : null;
+    this.notify("display_schedule_updated", this.state.dimming.scheduled);
+    return this.state.dimming.scheduled;
+  }
+
+  /**
+   * F5 kiosk / lock-safe mode.
+   *
+   * `enabled` hides the screen on idle. The name deliberately pairs "lock" with
+   * "safe", because a web page cannot lock a device and the feature must not
+   * imply that it does. See KIOSK_DISCLOSURE in features/kioskMode.js.
+   */
+  setKioskMode(updates) {
+    if (!isPlainObject(updates)) return this.state.kiosk;
+    const next = { ...this.state.kiosk, ...updates };
+
+    next.enabled = next.enabled === true;
+    const idle = Number(next.idleMs);
+    // Floor of 30s. A shorter idle would blank the screen while someone is
+    // still reading it, which is the fastest way to train them to disable it.
+    next.idleMs = Number.isFinite(idle) ? Math.max(30000, Math.min(3600000, idle)) : 120000;
+
+    this.state.kiosk = next;
+    this.notify("kiosk_updated", next);
+    return next;
   }
 
   setVisualizer(visId) {

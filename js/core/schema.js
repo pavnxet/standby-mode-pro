@@ -22,7 +22,7 @@
 
 export const STORAGE_KEY_LEGACY = "standby_mode_pro_v1";
 export const STORAGE_KEY = "standby_mode_pro_v2";
-export const SCHEMA_VERSION = 4;
+export const SCHEMA_VERSION = 5;
 
 /**
  * Keys that must exist on a fully-formed state object. The deep-merge in
@@ -257,6 +257,48 @@ export const MIGRATIONS = [
       // C12 needs nothing new: the M1 `updateMediaState()` action and the
       // pre-existing mediaState namespace already cover it. No entry here on
       // purpose, so the migration does not imply a shape that does not exist.
+
+      return next;
+    }
+  },
+  {
+    from: 4,
+    to: 5,
+    description: "Backfill the Milestone 4 namespaces (per-layer ambience mix, sleep timer, dimming and display schedule) so E2/E3/F2 read a complete shape instead of guarding against undefined.",
+    migrate(state) {
+      const next = { ...state };
+
+      // The existing `vibes` namespace predates E2, so it is merged rather
+      // than replaced - a user with a chosen track and visualizer keeps both.
+      next.vibes = deepMerge(
+        {
+          activeTrack: "none",
+          volume: 0.65,
+          visualizer: "stars",
+          // Empty mix means "single layer at `volume`", which is exactly how
+          // every pre-E2 payload behaved. Seeding a default multi-layer mix
+          // would silently start playing noise for someone who only ever
+          // wanted rain, so the mixer stays opt-in.
+          mix: {},
+          sleepTimer: { endsAtMs: null, fadeSeconds: 30 }
+        },
+        next.vibes
+      );
+
+      // F2. `level: 1` is normal brightness and 0 is a real, reachable value.
+      next.dimming = deepMerge(
+        { level: 1, scheduled: null },
+        next.dimming
+      );
+
+      // F5 kiosk / lock-safe mode. Defaults to OFF: enabling it changes what
+      // the page shows when idle, and the fact that it is not device locking is
+      // disclosed at the moment of enabling. So it must be a deliberate act,
+      // never a silent default.
+      next.kiosk = deepMerge(
+        { enabled: false, idleMs: 120000 },
+        next.kiosk
+      );
 
       return next;
     }
