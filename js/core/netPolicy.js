@@ -224,6 +224,43 @@ export function primeCache(url, data, at = Date.now()) {
   cache.set(url, { data, at });
 }
 
+/**
+ * Turns a fetch failure into something a user can act on.
+ *
+ * Lives here rather than in each widget because every networked widget needs it,
+ * and because the important case is one no exception type describes well: a
+ * blocked CORS response surfaces from inside the page as a bare `TypeError:
+ * Failed to fetch`, with no status and no header. Rendering that verbatim puts
+ * a developer's error string on a desk display.
+ *
+ * The wording is chosen to be true given what is actually knowable. For a CORS
+ * rejection the page cannot distinguish "the server refused" from "no network",
+ * so it says what is most likely and stays silent about the rest rather than
+ * asserting a cause it cannot verify.
+ *
+ * @param {Error|null|undefined} error
+ * @returns {string} A sentence, never an exception message.
+ */
+export function describeFetchFailure(error) {
+  if (!error) return "That could not be loaded.";
+
+  const message = String(error.message || error);
+
+  if (/failed to fetch|networkerror|load failed|access-control|cors|blocked by/i.test(message)) {
+    return "The server did not allow this request. That is often a cross-origin (CORS) restriction, or no network connection.";
+  }
+  if (/timed out|timeout/i.test(message)) {
+    return "That took too long to respond.";
+  }
+  if (/^HTTP 4\d\d/.test(message)) {
+    return "That service refused the request.";
+  }
+  if (/^HTTP 5\d\d/.test(message)) {
+    return "That service reported an internal error.";
+  }
+  return "That could not be loaded.";
+}
+
 /** Clears everything. Used by tests; the app never calls it. */
 export function _reset() {
   for (const { controller } of inFlight.values()) controller.abort();

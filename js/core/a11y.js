@@ -200,8 +200,18 @@ export function initMotionPreference(spec = {}) {
   return apply;
 }
 
-/** Applies the saved accessibility preferences. Safe to call repeatedly. */
+/**
+ * Applies the saved accessibility preferences. Safe to call repeatedly.
+ *
+ * Guarded on `document.body` because the store applies these settings in its
+ * constructor, so this runs at import time. Any environment without a body -
+ * a test harness, a module-graph import before the DOM exists - would
+ * otherwise throw during module evaluation, which is the one moment a caller
+ * cannot catch. Preferences are UI state, so skipping them where there is no UI
+ * is the correct behaviour, not an error to report.
+ */
 export function applyAccessibilitySettings(settings = {}) {
+  if (typeof document === "undefined" || !document.body) return;
   const body = document.body;
 
   if (settings.highContrast) body.classList.add("high-contrast");
