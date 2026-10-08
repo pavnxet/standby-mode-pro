@@ -23,8 +23,24 @@
 
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 
-import { WIDGETS, M3_WIDGETS } from "../js/widgets/index.js";
+import { WIDGETS } from "../js/widgets/index.js";
+
+const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+
+/**
+ * Every widget this project added: the index entries carrying a `feature` tag.
+ *
+ * Replaces a hardcoded list scoped to "Milestone 3". The scope is now derived
+ * because the milestone tags were corrected to match the plan - eleven widgets
+ * were tagged M3 for having been *built* in that pass, not for belonging to it -
+ * which left M3 holding four of nineteen and quietly excluded fifteen widgets
+ * from the XSS smoke test this file exists to perform.
+ */
+const ADDED_WIDGETS = WIDGETS.filter((w) => w.feature);
 
 // ============================================================ The DOM stand-in
 
@@ -312,24 +328,27 @@ test("no widget leaves a live global behind after unmount", async () => {
   assert.ok(results.length > 0);
 });
 
-test("every Milestone 3 widget renders something", async () => {
+test("every widget this project added renders something", async () => {
   // A widget that mounts and mounts and mounts but renders nothing is broken in
   // a way the static checks cannot see. The empty state IS content, so a
   // widget that produced literally nothing is the failure.
-  const results = await mountAll(M3_WIDGETS);
+  //
+  // Scoped to the added set rather than to M3, which is now only four widgets
+  // after the milestone tags were corrected to match the plan.
+  const results = await mountAll(ADDED_WIDGETS);
   const empty = results.filter((r) => !r.html || r.html.trim().length === 0);
 
   assert.equal(
     empty.length, 0,
-    "Milestone 3 widgets that rendered nothing: " + empty.map((r) => r.id).join(", ")
+    "widgets that rendered nothing: " + empty.map((r) => r.id).join(", ")
   );
 });
 
-test("each Milestone 3 widget has a distinct set of ids across mounts", async () => {
+test("each added widget has a distinct set of ids across mounts", async () => {
   // Not a uniqueness test on the widgets - a check that no two of them emit the
   // same element ids, which would make a getElementById lookup ambiguous when
   // two are mounted on the same page.
-  const results = await mountAll(M3_WIDGETS);
+  const results = await mountAll(ADDED_WIDGETS);
   const seen = new Map();
 
   for (const { id, html } of results) {
@@ -357,14 +376,58 @@ test("the prayer widget is reachable and flagged experimental in the index", asy
   assert.equal(entry.widget.experimental, true);
 });
 
-test("all fifteen Milestone 3 plan features are registered", async () => {
-  // FEATURE_PLAN assigns C6-C20 to Milestone 3. Each must appear exactly once,
-  // so a duplicated entry cannot quietly mask a missing one.
-  const features = M3_WIDGETS.map((w) => w.feature).filter(Boolean).sort();
+test("every planned widget feature is registered exactly once", async () => {
+  /*
+   * Was "all fifteen Milestone 3 plan features", listing C5-C9 and C10-C20.
+   *
+   * Two things changed. First, the scope: the plan puts C1-C16 in Milestone 2
+   * and C17-C20 in Milestone 3, and eleven widgets had been tagged M3 because
+   * that is when they were BUILT - which had narrowed this test to a list that
+   * no longer described the code. It now covers every planned widget feature,
+   * across both milestones.
+   *
+   * Second, the expected list is derived from FEATURE_PLAN.md instead of being
+   * written out here. A hardcoded copy of a plan goes stale silently: when C13
+   * was built, the hardcoded list was simply still the old fifteen, so the new
+   * widget looked like an unrequested addition rather than a planned one.
+   */
+  const plan = readFileSync(join(ROOT, "FEATURE_PLAN.md"), "utf8");
 
-  assert.deepEqual(
-    features,
-    ["C10", "C11", "C12", "C14", "C15", "C16", "C17", "C18", "C19", "C20", "C5", "C6", "C7", "C8", "C9"],
-    "the registered Milestone 3 features do not match the plan"
-  );
+  // A plan feature is one whose heading names a widget file - that is what
+  // distinguishes "C13 needs a new module" from a note or a dependency line.
+  const planned = new Set();
+  let current = null;
+  for (const line of plan.split(/\r?\n/)) {
+    const heading = /^### (C\d+)\b/.exec(line);
+    if (heading) current = heading[1];
+    else if (/Widget|widget|Guide/.test(line) && current && /\*\*Files:\*\*/.test(line)) {
+      planned.add(current);
+    }
+  }
+
+  const registered = WIDGETS.map((w) => w.feature).filter(Boolean).sort();
+
+  assert.deepEqual(registered, [...planned].sort(),
+    "the registered widget features do not match the plan's widget features");
+
+  // No duplicates: two entries claiming one feature would mask a missing one.
+  assert.equal(new Set(registered).size, registered.length,
+    `a feature is registered twice: ${registered.filter((f, i) => registered.indexOf(f) !== i).join(", ")}`);
+});
+
+test("every added widget's milestone tag agrees with the plan", () => {
+  // Also asserted in audit.test.mjs against the same source. Repeated here
+  // deliberately: this file already imports the index, so the check costs
+  // nothing and it is the file a widget author reads when a tag is wrong.
+  const plan = readFileSync(join(ROOT, "FEATURE_PLAN.md"), "utf8");
+  const planOf = {};
+  for (const line of plan.split(/\r?\n/)) {
+    const match = /^### (C\d+)\b[^\n]*\*\*(M\d)\*\*/.exec(line);
+    if (match) planOf[match[1]] = match[2];
+  }
+
+  for (const entry of ADDED_WIDGETS) {
+    assert.equal(entry.milestone, planOf[entry.feature],
+      `${entry.id} is tagged ${entry.milestone}; the plan puts ${entry.feature} in ${planOf[entry.feature]}`);
+  }
 });

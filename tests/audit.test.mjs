@@ -12,6 +12,7 @@ import assert from "node:assert/strict";
 import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { WIDGETS } from "../js/widgets/index.js";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const read = (...parts) => readFileSync(join(ROOT, ...parts), "utf8");
@@ -28,19 +29,90 @@ const ALL_CSS = ["main.css", "clocks.css", "widgets.css", "a11y.css"]
   .join("\n");
 
 /**
- * Every Milestone 3 widget and the file that implements it.
+ * Every widget this project added, resolved to its source file.
  *
- * Single source for the three widget tests below. They previously each held
- * their own hardcoded list, which is exactly how a test starts failing for the
- * wrong reason: a newly added widget made the count assertions fail, and the
- * failure read as a lifecycle or escaping defect when nothing was wrong.
+ * This used to be a hand-maintained `{ id, file }` array scoped to "M3". That
+ * had two failure modes and both fired: a widget built in a different milestone
+ * (C13) was simply absent from the list, and the completeness assertion then
+ * failed for a reason that had nothing to do with the code under test.
  *
- * The mapping is still checked against the index - see
- * "the index and the file list must not drift apart" - so this cannot drift
- * silently either.
+ * Both halves are now derived from the index rather than listed:
+ *
+ *   - WHICH widgets. "Added since the audit" is exactly the set carrying a
+ *     `feature` tag, so a new widget is covered the moment it is tagged rather
+ *     than the moment somebody remembers an array somewhere else.
+ *   - WHICH file. Taken from the index's own import statements, so this cannot
+ *     disagree with the module the app actually loads. Resolving the file by
+ *     guessing from the widget id would be a guess, and a mapping that silently
+ *     resolves to the wrong file is worse than no mapping at all.
+ *
+ * @returns {Array<{ id: string, file: string|null }>}
  */
-const M3_WIDGET_FILES = [
-  // First pass.
+function addedWidgetFiles() {
+  const indexSource = read("js", "widgets", "index.js");
+
+  // local binding -> source file, from the index's own imports.
+  //
+  // The specifier is resolved RELATIVE TO THE INDEX (js/widgets/), not assumed
+  // to be "./". The first three added widgets are imported as
+  // "../features/alarmWidget.js" while later ones use "./alarmWidget.js", and a
+  // pattern that only accepts the latter silently finds no file for them - which
+  // reads as "this widget has no import" rather than "this regex is too narrow".
+  const INDEX_DIR = ["js", "widgets"];
+  const fileByBinding = new Map();
+  for (const match of indexSource.matchAll(/import\s*\{([^}]+)\}\s*from\s*"([^"]+)"/g)) {
+    for (const specifier of match[1].split(",")) {
+      const binding = specifier.trim().split(/\s+as\s+/)[0].trim();
+      if (!binding) continue;
+      const parts = [...INDEX_DIR, ...match[2].split("/")];
+      const resolved = parts
+        .reduce((acc, part) => {
+          if (part === "." || part === "") return acc;
+          if (part === "..") return acc.slice(0, -1);
+          return [...acc, part];
+        }, [])
+        .join("/");
+      fileByBinding.set(binding, resolved);
+    }
+  }
+
+  // id -> local binding, from the array literal.
+  const bindingById = new Map();
+  for (const match of indexSource.matchAll(
+    /\{\s*id:\s*"([^"]+)"\s*,\s*widget:\s*([A-Za-z_$][\w$]*)/g
+  )) {
+    bindingById.set(match[1], match[2]);
+  }
+
+  return addedWidgets().map((entry) => ({
+    id: entry.id,
+    // A repo-relative path, so the caller reads it with `read(...)` split on "/".
+    file: fileByBinding.get(bindingById.get(entry.id)) ?? null
+  }));
+}
+
+/** The widgets this project added: every index entry carrying a `feature` tag. */
+function addedWidgets() {
+  return WIDGETS.filter((w) => w.feature);
+}
+
+/**
+ * The subset that renders through an HTML template string.
+ *
+ * Deliberately narrower than `addedWidgets()`, and the difference is not
+ * arbitrary:
+ *
+ *   note, habit and alarm render a template too, but they write user text with
+ *   `textContent` / `value`, never by interpolating it. A note containing markup
+ *   is therefore inert by construction - which is a *stronger* guarantee than
+ *   escaping, not a weaker one, so requiring `escapeHtml` there would be
+ *   requiring the wrong fix.
+ *
+ * Every widget below interpolates into a template, so escaping is load-bearing.
+ * Widening this list means finding a widget that does interpolate user text
+ * without escaping it, not adding widgets that never did.
+ */
+const ESCAPED_WIDGET_FILES = [
   { id: "countdown", file: "countdownWidget.js" },
   { id: "converter", file: "converterWidget.js" },
   { id: "calculator", file: "calculatorWidget.js" },
@@ -48,7 +120,6 @@ const M3_WIDGET_FILES = [
   { id: "sun", file: "sunWidget.js" },
   { id: "airquality", file: "airQualityWidget.js" },
   { id: "system", file: "systemStatusWidget.js" },
-  // Second pass: C6, C14, C20, C12, C17, C7, C8, C19.
   { id: "agenda", file: "agendaWidget.js" },
   { id: "flashcards", file: "flashcardsWidget.js" },
   { id: "timezone", file: "timezoneWidget.js" },
@@ -56,7 +127,10 @@ const M3_WIDGET_FILES = [
   { id: "fx", file: "fxWidget.js" },
   { id: "market", file: "marketWidget.js" },
   { id: "news", file: "newsWidget.js" },
-  { id: "prayer", file: "prayerWidget.js" }
+  { id: "prayer", file: "prayerWidget.js" },
+  // C13. Built late, planned as M2 - the mismatch is why the derived list above
+  // exists, so a widget's milestone cannot decide whether it is covered.
+  { id: "breathing", file: "breathingWidget.js" }
 ];
 
 // ------------------------------------------------- D1: media setter existed
@@ -583,20 +657,34 @@ test("every service-worker precached module actually exists", async () => {
     `shipped modules missing from the service worker precache: ${uncached.join(", ")}`);
 });
 
-test("the widget inventory is 12 legacy plus 7 Milestone 3 widgets", async () => {
-  const { WIDGETS, M3_WIDGETS } = await import("../js/widgets/index.js");
+test("the widget inventory counts every milestone honestly", async () => {
+  const { M3_WIDGETS } = await import("../js/widgets/index.js");
 
   const ids = WIDGETS.map((w) => w.id);
   assert.equal(new Set(ids).size, ids.length,
     `duplicate widget ids: ${ids.filter((id, i) => ids.indexOf(id) !== i).join(", ")}`);
 
   assert.equal(WIDGETS.filter((w) => w.milestone === "M0").length, 9, "nine original widgets");
-  assert.equal(WIDGETS.filter((w) => w.milestone === "M2").length, 3, "alarm, note, habit");
-  // 7 from the first Milestone 3 pass, 8 from the second (C6, C14, C20, C12,
-  // C17, C7, C8, C19) = 15. This brings Milestone 3 to all 15 widgets the
-  // feature plan assigned to it.
-  assert.equal(M3_WIDGETS.length, 15);
-  assert.equal(WIDGETS.length, 27);
+
+  /*
+   * Milestone counts follow FEATURE_PLAN.md, not the order things were built in.
+   *
+   * Sixteen widgets carry M2: alarm, note, habit, and the twelve plan-M2 features
+   * (C1, C3, C4, C5, C6, C7, C8, C9, C10, C11, C12, C13, C14, C15, C16 - see the
+   * milestone-tag test below for the exact set, which is checked against the plan
+   * rather than against a number). Eleven of those were tagged M3 for a long time
+   * because that is the pass they were built in; the tags now say what the plan
+   * says.
+   *
+   * The counts are still pinned, because a silent removal is exactly what a
+   * count catches. The milestone-agreement test is what makes them trustworthy:
+   * it fails if either the index or the plan moves without the other.
+   */
+  assert.equal(WIDGETS.filter((w) => w.milestone === "M2").length, 16,
+    "the plan's Milestone 2 widgets (C1-C16)");
+  assert.equal(M3_WIDGETS.length, 4,
+    "the plan's Milestone 3 widgets (C17-C20)");
+  assert.equal(WIDGETS.length, 29);
 
   for (const { id, widget, milestone } of WIDGETS) {
     assert.match(id, /^[a-z][a-z0-9]*$/, `widget id "${id}" must be a lowercase slug`);
@@ -604,6 +692,26 @@ test("the widget inventory is 12 legacy plus 7 Milestone 3 widgets", async () =>
     assert.ok(widget && typeof widget.name === "string" && widget.name,
       `${id} has no display name`);
     assert.match(String(milestone), /^M[0-9]$/, `${id} has no valid milestone tag`);
+  }
+});
+
+test("each widget's milestone tag matches the feature plan", async () => {
+  // The count assertions above would happily pass with breathing tagged M3.
+  // This one cannot: the plan is the source of truth for which milestone a
+  // feature belongs to, and it is read from the plan rather than remembered.
+  const plan = read("FEATURE_PLAN.md");
+
+  for (const entry of WIDGETS.filter((w) => w.feature)) {
+    // The milestone marker is captured anywhere in the heading rather than after
+    // a literal separator: the plan writes "### C2 · Alarm Manager — **M2** · L"
+    // with middot and em-dash, so a regex expecting "- **M2**" matches nothing
+    // and would have failed for a reason unrelated to the milestone.
+    const heading = new RegExp(
+      `^### ${entry.feature}\\b[^\\n]*\\*\\*(M\\d)\\*\\*`, "m"
+    ).exec(plan);
+    assert.ok(heading, `${entry.feature} has no milestone heading in FEATURE_PLAN.md`);
+    assert.equal(entry.milestone, heading[1],
+      `${entry.id} is tagged ${entry.milestone} but the plan puts ${entry.feature} in ${heading[1]}`);
   }
 });
 
@@ -627,26 +735,31 @@ test("the three Milestone 2 widgets survive in the index", async () => {
   }
 });
 
-test("every Milestone 3 widget implements unmount and captures its cleanup", async () => {
+test("every widget this project added implements unmount and captures its cleanup", () => {
   // AUDIT D2 lesson: a captured unsubscribe is mandatory. A widget that mounts
   // a timer or subscribes without releasing it leaks on every stage re-render.
-  const { M3_WIDGETS } = await import("../js/widgets/index.js");
-  const files = M3_WIDGET_FILES.map((f) => f.file);
+  //
+  // Scoped to the derived set rather than to a milestone, so this covers alarm,
+  // note and habit too - they were never covered before, and they have exactly
+  // the same lifecycle obligation.
+  const files = addedWidgetFiles();
 
-  for (const name of files) {
-    const source = read("js", "features", name);
-    assert.match(source, /unmount\s*\(\)\s*\{/, `${name} must implement unmount()`);
+  for (const { id, file } of files) {
+    assert.ok(file, `${id} has no import in the widget index, so its source is unknown`);
+    const source = read(file);
+
+    assert.match(source, /unmount\s*\(\)\s*\{/, `${file} must implement unmount()`);
     assert.match(source, /disposed\s*=\s*true/,
-      `${name} must set a disposed flag so async work stops after unmount`);
+      `${file} must set a disposed flag so async work stops after unmount`);
     assert.match(source, /(clearInterval|clearTimeout|removeEventListener|\.abort\(\)|unsubscribe|unwatch)/,
-      `${name} must release at least one timer, listener, request or subscription`);
+      `${file} must release at least one timer, listener, request or subscription`);
   }
 
-  assert.equal(M3_WIDGETS.length, files.length,
-    "the index and the file list must not drift apart");
+  assert.ok(files.length >= 19,
+    `only ${files.length} widgets covered; the added set should be 19`);
 });
 
-test("every Milestone 3 widget escapes user-authored text before rendering", async () => {
+test("every template-rendering added widget escapes user-authored text", () => {
   // Deliberately narrow. An earlier version of this tried to allowlist every
   // safe template interpolation and produced false positives on loop indices and
   // internal helpers, which is how a real XSS guard ends up disabled.
@@ -654,13 +767,11 @@ test("every Milestone 3 widget escapes user-authored text before rendering", asy
   // What is asserted instead: each widget imports escapeHtml, and every
   // occurrence of a user-authored field name inside a template literal is
   // wrapped in it. The runtime probe in TESTING.md covers the rest.
-  const { M3_WIDGETS } = await import("../js/widgets/index.js");
-
-  for (const { id } of M3_WIDGETS) {
-    const entry = M3_WIDGET_FILES.find((f) => f.id === id);
-    assert.ok(entry, `${id} has no file mapping; add it to M3_WIDGET_FILES`);
-
-    const source = read("js", "features", entry.file);
+  //
+  // Scope is ESCAPED_WIDGET_FILES, not the derived set - see the note there for
+  // why note/habit/alarm are correctly absent.
+  for (const { id, file } of ESCAPED_WIDGET_FILES) {
+    const source = read("js", "features", file);
     assert.match(source, /import\s*\{[^}]*escapeHtml[^}]*\}\s*from/, `${id} must import escapeHtml`);
 
     // Any interpolation that mentions a user-authored field must be escaped.
