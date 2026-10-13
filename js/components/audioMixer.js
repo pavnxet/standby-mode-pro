@@ -46,7 +46,15 @@ export class AudioMixer {
 
     this.render();
     this.wire();
-    this.applyMix();
+    // Do NOT apply the mix here.
+    //
+    // Mounting the mixer happens on page load, and applyMix() pushes the mix
+    // straight into the engine. With a persisted `activeTrack` (set whenever a
+    // Space with a vibe is opened) or a saved mix, that started the ambience the
+    // moment the page loaded - background noise the reader never asked for.
+    // The ambience now starts only from an explicit action (picking a vibe,
+    // moving a layer slider, or choosing a preset), each of which calls
+    // applyMix() itself.
     this.watchSleepTimer();
   }
 
